@@ -686,6 +686,11 @@ function woff2(file) {
   const checks = section("checks");
   assert.deepEqual([...checks.matchAll(/<h3>([^<]+)<\/h3>/g)].map((m) => m[1]), ["Spelling", "Formulas", "Numbers", "Dates", "Blanks and duplicates", "Fairness"], "the short list of checks");
   assert.ok(checks.includes('<a href="checks.html">See every check</a>') && !/checks-table/.test(home) && /<table class="checks-table"/.test(html["checks.html"]), "the full table is not on checks.html, linked from the checks");
+  // AH-171: one vocabulary. Every check the home page names heads a row of checks.html's "every check" or starts one
+  // (Formulas had no row there), and the page has one heading over the table, its h1
+  const heads = [...html["checks.html"].matchAll(/<tr class="reveal-item"><th scope="row"><span class="rule" aria-hidden="true"><\/span>([^<]+)<\/th>/g)].map((m) => m[1].replace(/&#39;|&apos;/g, "'"));
+  for (const name of [...checks.matchAll(/<h3>([^<]+)<\/h3>/g)].map((m) => m[1])) assert.ok(heads.some((h) => h === name || h.startsWith(name + " ")), `checks.html has no row for the home page's "${name}": ${heads}`);
+  assert.ok(/<h1 [^>]*id="checks-title"[^>]*>Every check Arcas runs<\/h1>/.test(html["checks.html"]) && !/<h2\b/.test((/<main[\s\S]*<\/main>/.exec(html["checks.html"]) || [""])[0]), "checks.html: the h1 is not the table's one heading");
   // every page's "Checks" goes to checks.html (the 404 page root-absolute)
   for (const p of PAGES) assert.ok(/<nav class="links"[^>]*>[\s\S]*?<a href="checks\.html"( aria-current="page")?>Checks<\/a>/.test(html[p]), `${p}: the bar's Checks is not checks.html`);
   assert.ok(read(MISSING).includes(`<a href="${ROOT_PATH}checks.html">Checks</a>`), "404.html: the bar's Checks is not checks.html");
@@ -1957,8 +1962,8 @@ const revealed = (p, sel) => p.$$eval(sel, (es) => es.map((e) => { const c = get
     dur: Math.round(parseFloat(c.transitionDuration) * 1000), revealed: e.hasAttribute("data-revealed"), settled: e.hasAttribute("data-settled") }; }));
 let reveal = null;
 {
-  // the checks table's 8 rows (AH-98; they were 8 cards), on checks.html since AH-159, where the table starts below a
-  // 1440 x 900 screen (at 939 px) and its eight rows fit one
+  // the checks table's 9 rows (AH-98; they were 8 cards, AH-171 added Formulas), on checks.html since AH-159, where the table starts below a
+  // 1440 x 900 screen (at 856 px since AH-171 took the h2 out) and its nine rows fit one
   const t = await open("checks.html", { width: 1440, init: () => { window.__unobserved = []; const un = IntersectionObserver.prototype.unobserve;
     IntersectionObserver.prototype.unobserve = function (el) { window.__unobserved.push(el); return un.call(this, el); }; } });
   const p = t.page, GRID = ".checks-table tbody > .reveal-item";
@@ -1968,18 +1973,18 @@ let reveal = null;
   // (a) before any scrolling: the checks below the fold wait one --reveal-rise down, see-through, on their own layer
   const before = await revealed(p, GRID);
   assert.equal(await p.evaluate(() => document.documentElement.hasAttribute("data-js")), true, "boot.js did not mark the page");
-  assert.ok(before.length === 8 && before.every((x) => x.op === "0" && x.x === 0 && x.y === tok.rise && /transform/.test(x.will) && /opacity/.test(x.will) && !x.revealed),
+  assert.ok(before.length === 9 && before.every((x) => x.op === "0" && x.x === 0 && x.y === tok.rise && /transform/.test(x.will) && /opacity/.test(x.will) && !x.revealed),
     `the checks before they are seen: ${JSON.stringify(before[0])}`);
   // scrolled into view in one step once the hero's entrance is over, traced: the window runs from the scroll to the last
   // item's transitionend
   await p.waitForFunction(() => document.getAnimations().every((a) => a.timeline !== document.timeline), null, { timeout: 3000 });
-  await p.evaluate(() => { let n = 0; addEventListener("transitionend", (e) => { if (e.propertyName === "opacity" && e.target.matches(".checks-table tbody > .reveal-item") && ++n === 8) console.timeStamp("reveal-end"); }, true); });
+  await p.evaluate(() => { let n = 0; addEventListener("transitionend", (e) => { if (e.propertyName === "opacity" && e.target.matches(".checks-table tbody > .reveal-item") && ++n === 9) console.timeStamp("reveal-end"); }, true); });
   await browser.startTracing(p, { categories: ["devtools.timeline"] });
   await p.evaluate(() => { const g = document.querySelector(".checks-table"); let top = 0; for (let e = g; e; e = e.offsetParent) top += e.offsetTop;
-    console.timeStamp("reveal-start"); scrollTo(0, top - 120); });
+    console.timeStamp("reveal-start"); scrollTo(0, top - 30); }); // AH-171: 9 rows, 866 px: from 30 px down they fit the screen
   await p.waitForTimeout(100);
   const rising = await revealed(p, GRID);
-  await p.waitForFunction(() => document.querySelectorAll(".checks-table tbody > [data-settled]").length === 8, null, { timeout: 4000 });
+  await p.waitForFunction(() => document.querySelectorAll(".checks-table tbody > [data-settled]").length === 9, null, { timeout: 4000 });
   await p.waitForTimeout(300);
   const events = JSON.parse((await browser.stopTracing()).toString()).traceEvents;
   const mark = (m) => events.find((e) => e.name === "TimeStamp" && e.args && e.args.data && e.args.data.message === m);
@@ -1998,7 +2003,7 @@ let reveal = null;
   // (c) settled: the layer is let go
   assert.ok(after.every((x) => x.settled && x.will === "auto"), `will-change after the reveal: ${after.map((x) => x.will)}`);
   // (d) revealed once: unobserved, and a trip away and back does not hide it again
-  assert.equal(await p.evaluate(() => [...document.querySelectorAll(".checks-table tbody > .reveal-item")].filter((e) => window.__unobserved.includes(e)).length), 8, "the observer still watches a revealed check");
+  assert.equal(await p.evaluate(() => [...document.querySelectorAll(".checks-table tbody > .reveal-item")].filter((e) => window.__unobserved.includes(e)).length), 9, "the observer still watches a revealed check");
   await p.evaluate(() => scrollTo(0, 0)); await p.waitForTimeout(300);
   await p.evaluate(() => scrollTo(0, document.getElementById("every-check").offsetTop)); await p.waitForTimeout(50);
   assert.ok((await revealed(p, GRID)).every((x) => x.op === "1" && x.tf === "none"), "a check hid again after a trip away and back");
