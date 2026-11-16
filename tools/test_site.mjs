@@ -487,6 +487,10 @@ for (const f of SCRIPTS) {
   assert.ok(/Downloads/.test(steps[0]) && /Windows protected your PC/.test(steps[1]) && /More info/.test(steps[1]) && /Run anyway/.test(steps[1]), `the first steps: ${steps.slice(0, 2)}`);
   assert.ok(steps[2].includes("Windows asks to install a certificate named Anomaly Hunter local CA, Arcas's old name. It only lets Excel talk to Arcas on this computer. Click Yes."), `the certificate step: ${steps[2]}`);
   assert.ok(/Start here/.test(steps[3]) && /Find problems/.test(steps[3]) && /Practice/.test(steps[3]), `the last step: ${steps[3]}`);
+  // AH-171: the last step names the clicks the "Start here" workbook asks for the first time, as many as it shows
+  // (backend/anomaly_hunter/practice.py STEPS: "First time only: add it to Excel (5 clicks)"), so they surprise no one
+  const clicks = (/add it to Excel \((\d+) clicks\)/.exec(fs.readFileSync(path.join(SITE, "..", "backend", "anomaly_hunter", "practice.py"), "utf8")) || [])[1];
+  assert.ok(clicks && steps[3] === `Excel opens a "Start here" workbook. The first time, it shows ${clicks} clicks that add Arcas to Excel. Then try its Practice tab and press Find problems.`, `the last step does not name the workbook's ${clicks} clicks: ${steps[3]}`);
   assert.ok(!/past Windows' checks/.test(dl), "the steps' heading still says past Windows' checks");
   const check = (/<details class="[^"]*">\s*<summary>File details for IT<\/summary>[\s\S]*?<\/details>/.exec(dl) || [""])[0];
   assert.ok(check && dl.indexOf(check) > dl.indexOf("</ol>") && check.includes("Get-FileHash .\\Arcas.exe -Algorithm SHA256") && check.includes("If they differ, delete the file and download it again.") && /SHA-256/.test(check) && /Unblock/.test(check), "the checksum and Unblock are not in a closed box under the steps");
