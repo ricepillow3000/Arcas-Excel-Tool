@@ -16,6 +16,7 @@ DEMOGRAPHIC = {"age", "dob", "birth", "birthday", "birthdate", "gender", "sex", 
 LOCATION = {"location", "city", "state", "zip", "zipcode", "postal", "postcode", "country", "region", "neighborhood",
             "neighbourhood", "county"}
 MIN_GROUP = 20  # smaller groups prove nothing either way
+STRAY = 0.01    # an outcome's labels past its two that together are under 1% of its answers are left out (AH-172)
 MAX_TESTS = 400  # each test is a crosstab (~5.6 ms): a crafted 40 x 40 sheet took 9 s per scan (2026-10-16)
 ALPHA = 0.01    # after a Bonferroni correction over every test of the scan: noise is not called bias
 HINT = 0.05     # a raw p-value this small, not confirmed after the correction: "not enough rows to tell"
@@ -139,7 +140,9 @@ NOT_OUTCOMES = [{"day", "night"}, {"am", "pm"}, {"morning", "evening"}, {"mornin
                 {"spring", "autumn"}, {"pre", "post"},
                 # AH-39 (blind round 36): a meal is when, a chamber where, a party who ("Female 40% time Lunch")
                 {"lunch", "dinner"}, {"breakfast", "lunch"}, {"breakfast", "dinner"}, {"house", "senate"},
-                {"democrat", "republican"}, {"democratic", "republican"}, {"dem", "rep"}]
+                {"democrat", "republican"}, {"democratic", "republican"}, {"dem", "rep"},
+                # AH-172 (blind round 1): which corner won a bout is a side, a season is when
+                {"red", "blue"}, {"summer", "winter"}]
 
 
 def _is_outcome(a, b):
@@ -171,8 +174,9 @@ def _polarity(label):
 def _outcomes(df, types, skip):
     """Yes/no columns that are not protected -> {test name: (rate of the "yes" per row, what "yes" is in words, the column,
     the counted label)}: 0/1 numbers (delinquent, defaulted, churned), and text with exactly two labels that can be a
-    result (_is_outcome; census income "<=50K" / ">50K": the rarer label is the one counted)."""
-    out = {}
+    result (_is_outcome; census income "<=50K" / ">50K": the rarer label is the one counted). Also {column: the stray
+    labels left out, with their rows}."""
+    out, rare = {}, {}
     for c, t in types.items():
         if c in skip:
             continue
@@ -181,12 +185,19 @@ def _outcomes(df, types, skip):
             if x.notna().any() and set(x.dropna().unique()) == {0, 1}:
                 out[f"{c} rate"] = (x.eq(1).where(x.notna()), f"{c} = 1", c, "= 1")
         elif t == "text":
-            v = _labels(df[c], 2)
+            # AH-172 (blind round 1): an answer's "NA" is no value, as a group's is (Yes 1882, No 1619, NA 542 was three
+            # labels, and Female Yes 37% vs 59% went unsaid), and labels that together are under 1% of the answers are
+            # left out and named (a winner's Draw 5 and No Contest 3 beside Red 3966 and Blue 3203)
+            v = _labels(df[c], 50)
+            v = v.where(v.notna() & ~_unknown(v)) if v is not None else None
             counts = v.value_counts() if v is not None else ()
+            if len(counts) > 2 and counts.iloc[2:].sum() < STRAY * counts.sum():
+                rare[c] = counts.iloc[2:]
+                v, counts = v.where(v.isin(counts.index[:2])), counts.iloc[:2]
             if len(counts) == 2 and _is_outcome(*(str(k).casefold() for k in counts.index)):
                 yes = counts.index[-1]
                 out[f"{c} {yes} rate"] = (v.eq(yes).where(v.notna()), f"{c} {yes}", c, yes)
-    return out
+    return out, rare
 
 
 # AH-49: an amount a decision or a test gives a person - pay, an income, a price, a loan, a score. Not every number: a
@@ -705,7 +716,7 @@ def report(df, types, rows):
     # ...never an option of a "select all that apply" question, whose blank is an answer (not chosen): "Male: 58% missing
     # Will you watch ... Macy's Parade vs 45% - a real gap" said who watches as if it were who skipped (AH-63)
     blanks = {f"missing {c}": (b, f"missing {c}", c, "missing") for c, b in missing.items() if b.sum() >= 5 and not ALL_THAT_APPLY.search(str(c))}
-    outcomes = _outcomes(df, types, prot)
+    outcomes, rare = _outcomes(df, types, prot)
     amounts = _amounts(df, types, prot)
     measures = {"flag rate": (flagged, counted, None, None), **blanks, **outcomes}
     kinds = {name: "outcome" if name in outcomes else "missing" if name in blanks else "flag" for name in measures}
@@ -751,6 +762,8 @@ def report(df, types, rows):
             small = {str(k): int(n) for k, n in table.sum(axis=1).items() if n < MIN_GROUP}
             table = table[table.sum(axis=1) >= MIN_GROUP]
             base = {"column": col, "kind": why, "test": name, "measure": kinds[name], "subject": subject, "label": label, "maybe": maybe}
+            if kinds[name] == "outcome" and subject in rare:
+                base["stray"] = f"; too few to compare: {subject} " + _named({str(k): int(n) for k, n in rare[subject].items()})
             if gate and gate[0] != col:
                 said = ", ".join(gate[2][:3]) + (f" and {len(gate[2]) - 3} more" if len(gate[2]) > 3 else "")
                 base["routed"] = f"; counted where it was asked ({gate[0]}: {said})"
@@ -798,7 +811,7 @@ def report(df, types, rows):
             continue
         what = measures[t["test"]][1]
         subject, label, table, small, maybe = t.pop("subject"), t.pop("label"), t.pop("table", None), t.pop("small"), t.pop("maybe")
-        out = (f"; too few to compare: {_named(small, maybe)}" if small else "") + t.pop("routed", "")
+        out = (f"; too few to compare: {_named(small, maybe)}" if small else "") + t.pop("routed", "") + t.pop("stray", "")
         if t["p"] is None:
             t["verdict"], t["text"] = "unclear", f"{t['column']}: {what} - too few rows to compare: {_named(small, maybe)}"
             continue
