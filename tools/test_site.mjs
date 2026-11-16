@@ -1380,6 +1380,8 @@ const onTop = (page) => page.evaluate(async () => {
   // Tab out of the box closes it, and focus goes on where Tab took it: the box stayed open, floating over the rows,
   // with focus already past it (AH-132)
   await p.keyboard.press("Enter"); assert.equal((await state()).open, "m11");
+  // ... from the box's last control: since AH-171 Tab from Close reaches its Accept, inside the box, which stays open
+  await p.keyboard.press("Tab"); assert.deepEqual([(await state()).open, await p.evaluate(() => document.activeElement.className)], ["m11", "btn btn-primary m-accept"], "Tab from Close to Accept");
   await p.keyboard.press("Tab");
   assert.deepEqual(await p.evaluate(() => [[...document.querySelectorAll(".matrix")].filter((m) => !m.hidden).length, !!document.activeElement.closest(".matrix"), document.activeElement !== document.body]), [0, false, true], "Tab out of a detail box");
   await p.click('tr[data-kind="label"] td.why'); assert.equal((await state()).open, "m31");
@@ -1445,6 +1447,41 @@ for (const width of [1280, 390]) {
   await done(t, `detail boxes at ${width}px`, [API]);
 }
 console.log("sample: every row's detail box opens inside the findings and off the button under them, at 1280 and 390 px");
+// AH-171: Accept in the sample. A press writes the After fixes tab's own row into the findings (its mended cell and
+// "Fixed: ..."), the row keeps its id but is no longer flagged (no kind, no row button), the box closes with focus on the
+// row's number, and every count is the rows still flagged: after the three, each is its data-after. Counted with
+// motion, set at once without; the counts hold when the tabs turn; nothing is stored
+for (const [width, motion] of [[1280, "no-preference"], [390, "reduce"]]) {
+  const t = await open("index.html", { width, motion });
+  const p = t.page, label = `AH-171 Accept at ${width}px (${motion})`;
+  if (motion !== "reduce") await p.waitForTimeout(ENTERED);
+  const counts = () => p.$$eval("#preview .typology .n, #preview .key .kcount", (ns) => ns.map((n) => n.textContent).join(" "));
+  for (const [n, after] of [[11, "6 1 1 1 5 2 4"], [22, "5 0 0 1 4 1 4"], [31, "4 0 0 0 4 0 4"]]) {
+    await p.click(`.rowbtn[aria-controls="m${n}"]`);
+    await p.waitForFunction((n) => !document.getElementById(`m${n}`).hidden, n);
+    await p.click(`#m${n} .m-accept`);
+    const r = await p.evaluate((n) => {
+      const tr = document.getElementById(`r${n}`), clean = [...document.querySelectorAll("#p-clean tbody tr")].find((x) => (x.querySelector("th") || {}).textContent === String(n));
+      const cells = (row) => [...row.querySelectorAll("td")].map((td) => `${td.className}|${td.innerHTML}`).join("~");
+      return { inFound: !!tr.closest("#p-found"), same: cells(tr) === cells(clean), kind: tr.getAttribute("data-kind"), btn: !!tr.querySelector(".rowbtn"), th: tr.querySelector("th").textContent,
+        box: document.getElementById(`m${n}`).hidden, focus: document.activeElement === tr.querySelector("th"), ticking: document.querySelectorAll("#preview [data-tick]").length,
+        stored: [localStorage.length, sessionStorage.length] };
+    }, n);
+    if (!(r.inFound && r.same && r.kind === null && !r.btn && r.th === String(n) && r.box && r.focus && r.stored.join() === "0,0") || (motion === "reduce" && r.ticking) || (motion !== "reduce" && !r.ticking))
+      assert.fail(`${label}, row ${n}: ${JSON.stringify(r)}`);
+    await p.waitForFunction(() => !document.querySelector("#preview [data-tick]"), null, { timeout: 2000 });
+    assert.equal(await counts(), after, `${label}: the counts after row ${n}'s Accept`);
+  }
+  const want = await p.$$eval("#preview .typology .n, #preview .key .kcount", (ns) => ns.map((n) => n.dataset.after).join(" "));
+  assert.equal(await counts(), want, `${label}: after the three, the counts are not the After fixes counts`);
+  assert.equal(await p.$$eval("#preview .key span", (s) => s.map((x) => x.textContent).join(" | ")), "Probably wrong: 0 | Worth a check: 4", `${label}: the key`);
+  await p.click("#t-clean"); await p.click("#t-found");
+  await p.waitForFunction(() => !document.querySelector("#preview [data-tick]"), null, { timeout: 2000 });
+  assert.equal(await counts(), want, `${label}: the counts after the tabs turn`);
+  assert.equal(await p.$$eval("#p-found tbody tr[data-kind]", (rs) => rs.map((r) => r.id).join()), "r5,r21,r41,r57", `${label}: the rows still flagged`);
+  await done(t, label, [API]);
+}
+console.log("AH-171: Accept in the sample writes the After fixes row, closes the box onto the row, and counts down to the After fixes counts");
 // ---- the sample sheet's motion (AH-89, AH-91, AH-92; John 2026-11-02) ----
 // the skeleton: the real sheet waits with no colour on its values and a bar exactly where each value will land; it plays
 // once the sheet is 30% on screen (never before where row 11 starts below the fold: 1440 x 600 since AH-171), one band of light crosses
@@ -2182,11 +2219,14 @@ for (const width of [1280, 390]) {
     if (file === LOST) t.problems.splice(0, t.problems.length, ...t.problems.filter((x) => x !== `404 ${BASE + LOST}`));
     const phone = width <= 760 ? ["menu"] : [];
     // AH-133: the home page's contact form with its message shown, and every question open
-    const states = file === "index.html" ? ["all", "recon", "keying", "label", "time", "busy", "clean", "contact", "faq", ...phone, ...(width <= 760 ? ["dock"] : [])] : file === "support.html" ? ["empty", "sent", "thanks", ...phone] : file === LOST ? ["page"] : ["page", ...phone];
+    const states = file === "index.html" ? ["all", "recon", "keying", "label", "time", "busy", "clean", "box", "accepted", "contact", "faq", ...phone, ...(width <= 760 ? ["dock"] : [])] : file === "support.html" ? ["empty", "sent", "thanks", ...phone] : file === LOST ? ["page"] : ["page", ...phone];
     for (const state of states) {
       if (state === "contact") await t.page.click('#note button[type="submit"]');
       if (state === "faq") await t.page.$$eval("#faq details", (ds) => ds.forEach((d) => { d.open = true; }));
-      if (file === "index.html" && !["menu", "dock", "contact", "faq"].includes(state)) await t.page.click(["busy", "clean"].includes(state) ? `#t-${state}` : `.typology [data-kind="${state}"]`);
+      // AH-171: a row's box with its Accept, and the row once accepted (its gold mended line and "Fixed: ...")
+      if (state === "box") { await t.page.click("#t-found"); await t.page.click('.typology [data-kind="all"]'); await t.page.click('.rowbtn[aria-controls="m11"]'); }
+      if (state === "accepted") await t.page.click("#m11 .m-accept");
+      if (file === "index.html" && !["menu", "dock", "contact", "faq", "box", "accepted"].includes(state)) await t.page.click(["busy", "clean"].includes(state) ? `#t-${state}` : `.typology [data-kind="${state}"]`);
       if (state === "sent") { await t.page.fill("#summary", "x"); await t.page.fill("#details", "y"); await t.page.check("#clean"); }
       if (file === "support.html" && state !== "menu") await t.page.click('button[type="submit"]');
       if (state === "thanks") { await t.page.evaluate(() => document.getElementById("open").addEventListener("click", (e) => e.preventDefault())); await t.page.click("#open"); }

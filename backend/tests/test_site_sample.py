@@ -370,6 +370,26 @@ def test_the_after_fixes_tab_says_what_the_pane_says_once_the_three_fixes_are_in
     assert [int(b.attrs["data-n"]) for b in key] == [int(b.text()) for b in key]
 
 
+def test_the_sample_offers_accept_only_where_the_after_fixes_sheet_mends_the_row():
+    """AH-171: a detail box's Accept writes the After fixes tab's own row into the findings (site/home.js), so it is
+    offered only on a row that tab mends, and the box's proposed fix names the very value that tab writes."""
+    ws, _ = page()
+    panel = ws.one("div", id="p-clean")
+    head = [th.text() for th in panel.one("thead").all("th")]
+    clean = {int(tr.one("th").text()): tr for tr in panel.one("tbody").all("tr") if "skip" not in tr.classes()}
+    mended = {n: tr.one("td", cls="mended") for n, tr in clean.items() if tr.all("td", cls="mended")}
+    boxes = {int(m.attrs["id"][1:]): m for m in ws.all("div", cls="matrix")}
+    accepts = {n for n, m in boxes.items() if m.all("button", cls="m-accept")}
+    assert accepts == set(mended) == {11, 22, 31}, f"Accept on rows {sorted(accepts)}; After fixes mends {sorted(mended)}"
+    for n in accepts:
+        (b,) = boxes[n].all("button", cls="m-accept")
+        assert b.text() == "Accept" and b.attrs.get("type") == "button", n
+        td = mended[n]
+        col = head[clean[n].all("td").index(td) + 1]
+        dl = dict(zip([dt.text() for dt in boxes[n].all("dt")], [dd.text() for dd in boxes[n].all("dd")]))
+        assert dl["Proposed fix"].split(",")[0] == (td.text() if col == "Region" else f"{col} {td.text()}"), f"row {n}: {dl['Proposed fix']} vs {col} {td.text()}"
+
+
 def test_the_checks_table_says_what_the_sample_shows_or_that_it_has_none():
     """The checks were 8 numbered cards with examples; they are a table (AH-98) whose third column, "In the sample above",
     names the sample's own row where it has an instance and says plainly where it has none. Every row link lands on a
