@@ -148,21 +148,24 @@
           <p id="fix-status" class="hint" role="status" aria-live="polite"></p>
           <p id="fix-care" role="status" hidden></p>
         </div>
-        <div id="ai-box">
-          <label for="fix-intent">For a different fix, describe it and AI will draft one.</label>
-          <textarea id="fix-intent" rows="3" maxlength="2000" aria-describedby="fix-sends" placeholder="e.g. Use the average Units for the East region"></textarea>
-          <p id="fix-tries-label" class="hint">Or start from one of these. Picking one only fills the box: nothing is sent until you press Ask AI.</p>
-          <div id="fix-tries" class="tries" role="group" aria-labelledby="fix-tries-label">
-            <button type="button" class="try">Explain this row in simple words</button>
-            <button type="button" class="try">What should this value be?</button>
-            <button type="button" class="try">Is this a typo?</button>
+        <details id="ai-fold" class="more">
+          <summary>Want a different fix? Ask AI</summary>
+          <div id="ai-box">
+            <label for="fix-intent">For a different fix, describe it and AI will draft one.</label>
+            <textarea id="fix-intent" rows="3" maxlength="2000" aria-describedby="fix-sends" placeholder="e.g. Use the average Units for the East region"></textarea>
+            <p id="fix-tries-label" class="hint">Or start from one of these. Picking one only fills the box: nothing is sent until you press Ask AI.</p>
+            <div id="fix-tries" class="tries" role="group" aria-labelledby="fix-tries-label">
+              <button type="button" class="try">Explain this row in simple words</button>
+              <button type="button" class="try">What should this value be?</button>
+              <button type="button" class="try">Is this a typo?</button>
+            </div>
+            <button id="fix-ask" class="secondary">Ask AI</button>
+            <details class="sends">
+              <summary>What Ask AI sends</summary>
+              <p id="fix-sends" class="hint">Ask AI sends the column names, this row and up to 5 rows above and below it, the row's formulas, why it was flagged and what you type here, to Google (through John's relay with an invite code or with no key of your own). Long cells are cut to 200 characters. Up to 5 fixes you accepted before in a column with this name (the name, the kind of fix, and the old and new values) are sent only once the AI memory is switched on in a later update.</p>
+            </details>
           </div>
-          <button id="fix-ask" class="secondary">Ask AI</button>
-          <details class="sends">
-            <summary>What Ask AI sends</summary>
-            <p id="fix-sends" class="hint">Ask AI sends the column names, this row and up to 5 rows above and below it, the row's formulas, why it was flagged and what you type here, to Google (through John's relay with an invite code or with no key of your own). Long cells are cut to 200 characters. Up to 5 fixes you accepted before in a column with this name (the name, the kind of fix, and the old and new values) are sent only once the AI memory is switched on in a later update.</p>
-          </details>
-        </div>
+        </details>
         <p id="ai-off" class="hint">AI help with fixes is off. Turn it on for free under <b>AI help</b> at the bottom.</p>
       </section>
 

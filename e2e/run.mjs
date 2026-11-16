@@ -1101,10 +1101,18 @@ const shortNote = async (box, note, summary, full) => {
 
 if (mode === "ai") { // engine started with a Claude key pointed at stub_claude.py
   await find();
-  ok(await page.isVisible("#ai-box") || !(await page.isVisible("#ai-off")), "AI help is on when a key is set");
+  ok(await page.isVisible("#ai-fold") || !(await page.isVisible("#ai-off")), "AI help is on when a key is set");
   await shortNote("#odd-box", "#odd-box p", "What is sent?", ["It sends only the different words in your text columns to Google (through John's relay if you use an invite code), never your rows or numbers.", "Its answers are leads to check."]);
+  // AH-175: Ask AI is folded under a card's fix, "Want a different fix? Ask AI", and open by itself on a card with no fix
+  { const look = () => page.evaluate(() => ({ title: document.getElementById("fix-title").textContent, fix: document.getElementById("fix-changes").children.length,
+      open: document.getElementById("ai-fold").open, summary: document.querySelector("#ai-fold > summary").textContent, box: document.getElementById("fix-intent").checkVisibility() }));
+    const cards = [];
+    for (const r of [11, 51, 121]) { await openRow(r); cards.push(await look()); await back(); }
+    ok(cards.every((c) => c.summary === "Want a different fix? Ask AI" && c.open === !c.fix && c.box === !c.fix) && cards.some((c) => c.fix) && cards.some((c) => !c.fix),
+      "AH-175: Ask AI folded on a card with a fix, open on one with none - " + JSON.stringify(cards)); }
   await openRow(11);
-  ok(await page.isVisible("#ai-box") && !(await page.isVisible("#ai-off")), "Ask AI shown when a key is set");
+  ok(await page.isVisible("#ai-fold") && !(await page.isVisible("#ai-off")), "Ask AI shown when a key is set");
+  await page.click("#ai-fold > summary");
   await shortNote("#ai-box", "#fix-sends", "What Ask AI sends", ["Ask AI sends the column names, this row and up to 5 rows above and below it", "Up to 5 fixes you accepted before in a column with this name"]);
   // typed with the real keyboard: page.fill sets the value without a single key event, and so hid that the box
   // cancelled every key (2026-10-20). Keys inside a text field never start a scan, and Ctrl+Enter asks AI, which sends
@@ -1182,6 +1190,10 @@ if (mode === "ai") { // engine started with a Claude key pointed at stub_claude.
   ok(!(await page.isVisible("#fix-label")) && (await page.$eval("#fix-changes", (u) => u.children.length)) === 0 && (await text("#fix-explanation")) === "",
     "and no earlier suggestion beside it");
   await contrast("a row's card with the helpline message");
+  { await page.$eval("#ai-fold", (d) => (d.open = false)); // AH-175: the helpline message is never folded away with Ask AI
+    const still = await page.isVisible("#fix-care") && (await text("#fix-care")) === careSaid;
+    await page.$eval("#ai-fold", (d) => (d.open = true));
+    ok(still, "AH-175: with Ask AI folded, the helpline message still shows"); }
   // the next ask clears it, and a real fix brings Accept back
   await page.fill("#fix-intent", ""); await page.click("#fix-intent");
   await page.keyboard.type("use the average Units"); await page.keyboard.press("Enter"); await page.keyboard.type("for East");
@@ -1285,9 +1297,10 @@ if (mode === "nokey") { // engine started with no key: John's free AI through th
   // AH-151: a fresh pane with no key has the free AI on, says so in AI help, and Ask AI works with nothing secret sent
   const FREE = "AI help is on, using a free shared AI with a few requests a day for each internet connection. For more, paste your own free Google key below.";
   const free = JSON.parse(await page.evaluate(() => fetch("/health").then((r) => r.text())));
-  ok(free.ai_available && free.ai_provider === "free" && (await page.isVisible("#ai-box")) && !(await page.isVisible("#ai-off"))
+  ok(free.ai_available && free.ai_provider === "free" && (await page.isVisible("#ai-fold")) && !(await page.isVisible("#ai-off"))
     && (await text("#ai-state")) === FREE && !(await page.isDisabled("#fix-ask")),
     "without a key: the free AI is on, said in AI help, and Ask AI is there - " + JSON.stringify(free) + " " + (await text("#ai-state")));
+  await page.click("#ai-fold > summary"); // AH-175: Ask AI is folded under the card's fix
   await page.click("#fix-ask");
   await page.waitForFunction(() => document.getElementById("fix-label").textContent === "AI's fix", null, { timeout: 30000 });
   const relayed = fs.readFileSync(DIR + "claude.log", "utf8").trim().split("\n").map(JSON.parse).at(-1);
@@ -1317,7 +1330,7 @@ if (mode === "nokey") { // engine started with no key: John's free AI through th
   await page.waitForTimeout(500); // room for a second /key to show up
   ok(keyCalls.length - k0 === 1, `a double click on Save key sends one /key - ${keyCalls.length - k0}`);
   const health = await page.evaluate(() => fetch("/health").then((r) => r.text()));
-  ok((await page.isVisible("#ai-box")) && !(await page.isVisible("#ai-off")) && JSON.parse(health).ai_provider === "relay",
+  ok((await page.isVisible("#ai-fold")) && !(await page.isVisible("#ai-off")) && JSON.parse(health).ai_provider === "relay",
     "invite code saved: AI help is on, through the relay - " + (await text("#ai-state")));
   ok((await page.inputValue("#ai-key")) === "" && !(await page.content()).includes(code) && !health.includes(code)
     && fs.readFileSync(DIR + "cert/invite-code.txt", "utf8") === code, "the code is kept on this PC only: never on screen, never in an answer");
@@ -1326,7 +1339,7 @@ if (mode === "nokey") { // engine started with no key: John's free AI through th
   await page.waitForFunction(() => document.getElementById("ai-state").textContent === "Key removed. AI help uses the free shared AI again.");
   await page.waitForTimeout(500);
   ok(since(c5) === "/key" && calls[c5][1].key === "", "Remove key, double-clicked, sends exactly one /key, with an empty key - " + since(c5));
-  ok((await page.isVisible("#ai-box")) && !(await page.isVisible("#ai-off")) && !fs.existsSync(DIR + "cert/invite-code.txt"),
+  ok((await page.isVisible("#ai-fold")) && !(await page.isVisible("#ai-off")) && !fs.existsSync(DIR + "cert/invite-code.txt"),
     "Remove key: back to the free AI, the code deleted from this PC");
   // saving fails: the PC can't keep the file (the engine's 503, AH-13), or the engine is gone. Said where the key goes,
   // and the key stays in its box to try again (cleared after a save, or when the engine refuses the key itself)
@@ -1338,7 +1351,7 @@ if (mode === "nokey") { // engine started with no key: John's free AI through th
       await page.route("**/key", fail, { times: 1 }); await page.fill("#ai-key", code); await page.click("#save-key");
       await page.waitForFunction((w) => document.getElementById("ai-state").textContent === w, words, { timeout: 10000 }).catch(() => {});
     });
-    ok((await text("#ai-state")) === words && (await page.isVisible("#ai-box")) && (await page.inputValue("#ai-key")) === code,
+    ok((await text("#ai-state")) === words && (await page.isVisible("#ai-fold")) && (await page.inputValue("#ai-key")) === code,
       `Save key when ${how}: said in plain words, AI help stays on the free AI, the key kept in its box to try again - ` + (await text("#ai-state")));
     const look = await looksLikeNotice("#ai-state");
     ok(look.ok, `AH-149 review r2: Save key when ${how}: why it was not saved is a notice at body size, said once - ` + JSON.stringify(look));

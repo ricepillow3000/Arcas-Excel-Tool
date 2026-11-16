@@ -203,7 +203,6 @@ details.more[open] summary { margin-bottom: var(--s3); }
 .fix-changes .old { color: var(--muted); text-decoration: line-through; }
 .fix-changes .new { color: var(--navy); font-weight: 800; text-decoration: underline; text-decoration-color: var(--wine); text-decoration-thickness: 2px; text-underline-offset: 3px; }
 .fix-result .row-buttons { margin-top: var(--s4); }
-#ai-box { padding-top: var(--s3); border-top: 1px solid var(--rule); }
 #ai-box label { display: block; font-size: 13px; font-weight: 700; margin-bottom: var(--s2); color: var(--navy); }
 #fix-intent { padding: var(--s2) 10px; font-size: 13px; resize: vertical; }
 /* AH-149: three plain requests Ask AI already answers, as buttons that fill the box. A combo box's list would need a role

@@ -56,6 +56,7 @@ async function openRow(i, selectInSheet, from, focus) { // from: the list's butt
     show("fix-care", false);
     show("fix-label");
     $("fix-ask").textContent = "Ask AI";
+    $("ai-fold").open = false; // AH-175: Ask AI is folded under the card's fix, opened below when there is none
     $("fix-changes").innerHTML = "";
     $("fix-explanation").textContent = "";
     only("fix-view");
@@ -80,7 +81,9 @@ async function openRow(i, selectInSheet, from, focus) { // from: the list's butt
   if (state.fix === f) rec = await suggestTypo(f, r, rec).catch(() => rec); // no typo found or engine busy: the advice stays
   const label = !rec.changes.length ? "What to check" : rec.typo ? "Possible typo: check it before you accept"
     : rec.guess ? "Best guess: check it before you accept" : "Suggested fix";
-  if (state.fix === f) await showFix(f, label, rec);
+  if (state.fix !== f) return;
+  $("ai-fold").open = !rec.changes.length; // no fix to offer: the way to ask for one shows
+  await showFix(f, label, rec);
 }
 
 // A row fixed before this scan that looks right now, with no Undo kept for it (Forget, an edit or a sort since, a cell

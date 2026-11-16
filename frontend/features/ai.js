@@ -18,7 +18,7 @@ const FREE_ON = "AI help is on, using a free shared AI with a few requests a day
 export function setAi(on, provider = state.aiProvider) {
   state.aiAvailable = !!on;
   state.aiProvider = provider ?? null;
-  show("ai-box", state.aiAvailable);
+  show("ai-fold", state.aiAvailable);
   show("ai-off", !state.aiAvailable);
   show("odd-box", state.aiAvailable);
   $("fix-ask").disabled = !state.aiAvailable || !!state.fix?.asking;

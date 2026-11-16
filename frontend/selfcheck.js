@@ -747,4 +747,12 @@ for (const f of readdirSync(new URL(".", import.meta.url)).filter((f) => f.endsW
   assert.ok(level && level[1].replace(/<[^>]+>/g, "") === "How hard to look: 5 of 10" && /id="strength-val"/.test(level[1]) && /id="strength"/.test(level[2])
     && /id="strength-hint"/.test(level[2]) && /id="strength-tested"/.test(level[2]) && !/<details id="strength-box"[^>]*\bopen\b/.test(html), "the slider folded, closed, under a summary naming the level");
 }
+// AH-175: Ask AI folds under a card's fix, closed. What a card says (its status, a failure, the helpline message) stays
+// outside the fold, never hidden in it
+{
+  const ask = /<details id="ai-fold" class="more">\s*<summary>Want a different fix\? Ask AI<\/summary>\s*<div id="ai-box">([\s\S]*?)<\/div>\s*<\/details>\s*<p id="ai-off"/.exec(html);
+  assert.ok(ask && ["fix-intent", "fix-tries", "fix-ask", "fix-sends"].every((id) => ask[1].includes(`id="${id}"`)) && !["fix-care", "fix-status", "fix-changes"].some((id) => ask[1].includes(`id="${id}"`)),
+    "Ask AI folded on the card, its status, failures and helpline message outside the fold");
+}
+
 console.log("panel self-check passed");
