@@ -740,4 +740,11 @@ for (const f of readdirSync(new URL(".", import.meta.url)).filter((f) => f.endsW
   assert.ok(readFileSync(new URL("features/fix.js", import.meta.url), "utf8").includes("Check it against the original receipt, invoice or report before you click Accept."), "a fix card's check against the source");
 }
 
+// AH-175: the pane simpler on first use: the slider, its hint and how it was tested fold under Find problems, closed, the
+// summary saying the level
+{
+  const level = /<details id="strength-box" class="more"[^>]*>\s*<summary>(.*?)<\/summary>([\s\S]*?)<\/details>\s*<\/div>\s*<button id="undo-auto"/.exec(html);
+  assert.ok(level && level[1].replace(/<[^>]+>/g, "") === "How hard to look: 5 of 10" && /id="strength-val"/.test(level[1]) && /id="strength"/.test(level[2])
+    && /id="strength-hint"/.test(level[2]) && /id="strength-tested"/.test(level[2]) && !/<details id="strength-box"[^>]*\bopen\b/.test(html), "the slider folded, closed, under a summary naming the level");
+}
 console.log("panel self-check passed");

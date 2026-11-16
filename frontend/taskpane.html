@@ -24,9 +24,6 @@
     <div id="skeleton" aria-hidden="true">
       <div class="sk-btn"></div>
       <div class="sk-line"></div>
-      <div class="sk-track"></div>
-      <div class="sk-scale"></div>
-      <div class="sk-hint"></div>
       <div class="sk-row"></div><div class="sk-row"></div><div class="sk-row"></div>
       <div class="sk-foot"></div>
     </div>
@@ -40,20 +37,22 @@
     <section id="main-ui" hidden>
       <div class="pane-hero">
       <button id="scan" class="primary" data-enter="bottom">Find problems in this sheet</button>
-      <div class="strength" data-enter="bottom">
-        <div class="strength-head"><span id="strength-label" data-enter="left">How hard to look</span><b id="strength-val">5 of 10</b></div>
-        <div id="strength" class="slider" role="slider" tabindex="0" aria-labelledby="strength-label"
-             aria-valuemin="0" aria-valuemax="10" aria-valuenow="5">
-          <div class="slider-track"><div class="slider-fill"></div></div>
-          <div class="slider-thumb"></div>
+      <details id="strength-box" class="more" data-enter="bottom">
+        <summary><span><span id="strength-label">How hard to look</span>: <b id="strength-val">5 of 10</b></span></summary>
+        <div class="strength">
+          <div id="strength" class="slider" role="slider" tabindex="0" aria-labelledby="strength-label"
+               aria-valuemin="0" aria-valuemax="10" aria-valuenow="5">
+            <div class="slider-track"><div class="slider-fill"></div></div>
+            <div class="slider-thumb"></div>
+          </div>
+          <div class="slider-scale"><span>Basics</span><span>Recommended</span><span>Strictest</span></div>
+          <p id="strength-hint" class="hint"></p>
+          <details id="strength-tested">
+            <summary>How we tested this level</summary>
+            <p id="strength-measured" class="hint"></p>
+          </details>
         </div>
-        <div class="slider-scale"><span>Basics</span><span>Recommended</span><span>Strictest</span></div>
-        <p id="strength-hint" class="hint"></p>
-        <details id="strength-tested">
-          <summary>How we tested this level</summary>
-          <p id="strength-measured" class="hint"></p>
-        </details>
-      </div>
+      </details>
       </div>
       <button id="undo-auto" class="secondary" hidden>Undo auto-fixes</button>
 

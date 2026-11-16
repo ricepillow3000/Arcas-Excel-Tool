@@ -263,6 +263,12 @@ if (mode === "flow") {
     ok(h.hint === "Recommended. Plus unusual mixes of values across columns." && !h.open && h.summary === "How we tested this level"
       && /^We tested it on \d+ practice sheets with \d+ mistakes hidden in them\. It found .* rows that were fine/.test(h.tested),
       "AH-149 review: under the slider, what the level does in one short line; what it did on the bench under \"How we tested this level\", closed - " + JSON.stringify(h)); }
+  // AH-175: on first use the slider is folded under Find problems, its summary saying the level, and a press opens it
+  { const fold = () => page.evaluate(() => ({ open: document.getElementById("strength-box").open, summary: document.querySelector("#strength-box > summary").textContent,
+      slider: document.getElementById("strength").checkVisibility(), hint: document.getElementById("strength-hint").checkVisibility() }));
+    const closed = await fold(); await page.click("#strength-box > summary"); const opened = await fold(); await page.click("#strength-box > summary");
+    ok(!closed.open && closed.summary === "How hard to look: 5 of 10" && !closed.slider && !closed.hint && opened.open && opened.slider && opened.hint,
+      "AH-175: the slider is folded, closed, under \"How hard to look: 5 of 10\", and a press opens it - " + JSON.stringify({ closed, opened })); }
   ok((await page.getAttribute("#strength", "aria-valuetext")) === "5 of 10, Recommended", "AH-149: the slider tells a screen reader its level's word - " + (await page.getAttribute("#strength", "aria-valuetext")));
   ok(since(c0) === "/scan" && calls[c0][1].strength === 5 && calls[c0][1].power_bi === false, "Find problems sends exactly one /scan, at the slider's level - " + since(c0));
   { const m = await matchesEngine(); ok(m.ok, "the list is exactly what the engine answered: each flagged row, its severity in words and its reason - " + m.why); }
@@ -293,7 +299,7 @@ if (mode === "flow") {
     await shot("podium-row");
     ok(before[0] === "matrix(0, 0, 0, 1, 0, 0)" && after[0] === "matrix(1, 0, 0, 1, 0, 0)" && scaleOf(before[1]) === 1 && scaleOf(after[1]) > 1.01 && +after[2] === 1 && after[3] === "2" && after[4] === before[4],
       "a hovered row: the fill sweeps from scaleX(0) to scaleX(1), the row lifts above its neighbours on a shadow, its words unchanged - " + JSON.stringify([before.slice(0, 4), after.slice(0, 4)]));
-    await page.mouse.move(1, 1); await page.focus("#strength-tested summary"); await page.keyboard.press("Tab"); await page.waitForTimeout(600); // from the control before the list: since the AH-149 review, "How we tested this level"
+    await page.mouse.move(1, 1); await page.focus("#strength-box > summary"); await page.keyboard.press("Tab"); await page.waitForTimeout(600); // from the control before the list: since AH-175, the folded slider's summary
     const keyed = await page.evaluate(() => { const b = document.activeElement; return [b.matches("#flagged-list button:focus-visible"), getComputedStyle(b, "::before").transform, getComputedStyle(b).transform]; });
     ok(keyed[0] && keyed[1] === "matrix(1, 0, 0, 1, 0, 0)" && scaleOf(keyed[2]) > 1.01, "keyboard focus gets the same fill and lift - " + keyed);
     await page.evaluate(() => document.activeElement.blur()); }
@@ -318,7 +324,7 @@ if (mode === "flow") {
     ok(top.under >= 0 && top.under <= 100 && !top.hero, `AH-165: opening row ${r}, its card's Back sits right under the pane's header, the scan controls out of the way - ` + JSON.stringify(top));
     await watchVt();
     await back(); await vtDone();
-    ok(await page.isVisible("#scan") && await page.isVisible("#strength"), `AH-165: Back from row ${r} brings Find problems and the slider again`);
+    ok(await page.isVisible("#scan") && await page.isVisible("#strength-box"), `AH-165: Back from row ${r} brings Find problems and the slider (folded since AH-175) again`);
     const home = await page.evaluate(() => ({ vt: __vt.some(Boolean), names: [...document.querySelectorAll(".row-head, #fix-title")].map((e) => getComputedStyle(e).viewTransitionName).filter((n) => n !== "none") }));
     ok(home.vt && !home.names.length && (await page.isVisible("#results")), `AH-149: Back flies the title home to row ${r} - ` + JSON.stringify(home));
   }
@@ -548,7 +554,9 @@ if (mode === "flow") {
   // 6b) the strength slider, driven by a real mouse: press the thumb, drag, let go -> re-check; 0 = basics only,
   // saved in the workbook; 5 brings everything back
   // a mouse can only drag what is on screen: bring the slider into view first, as a person scrolls up to it
-  const track = async () => { await page.locator("#strength").scrollIntoViewIfNeeded(); const b = await page.locator("#strength").boundingBox(); return { x: (v) => b.x + (b.width * v) / 10, y: b.y + b.height / 2 }; };
+  // since AH-175 the slider is folded: opened first, as a person presses "How hard to look"
+  const openLevel = () => page.$eval("#strength-box", (d) => (d.open = true));
+  const track = async () => { await openLevel(); await page.locator("#strength").scrollIntoViewIfNeeded(); const b = await page.locator("#strength").boundingBox(); return { x: (v) => b.x + (b.width * v) / 10, y: b.y + b.height / 2 }; };
   const slide = async (from, to) => { const t = await track(); await page.mouse.move(t.x(from), t.y); await page.mouse.down(); await page.mouse.move(t.x(to), t.y, { steps: 8 }); await page.mouse.up(); };
   const level = () => page.getAttribute("#strength", "aria-valuenow");
   const listed5 = (await page.$$("#flagged-list li")).length;
@@ -558,6 +566,10 @@ if (mode === "flow") {
   ok((await shown()).length === 1, "a slider re-check shows the scan skeleton too (no hold: it never waits for it) - " + (await shown()).map(Math.round));
   await page.waitForTimeout(800); // room for a second, unwanted re-scan to show up
   ok(scans.slice(s0).map((b) => b.strength).join() === "0", "a drag to 0 causes exactly one re-scan, at 0 - " + scans.slice(s0).map((b) => b.strength));
+  { await page.$eval("#strength-box", (d) => (d.open = false)); // AH-175: a level other than 5 shows with the slider folded
+    const said = await page.evaluate(() => [document.querySelector("#strength-box > summary").textContent, document.getElementById("strength-val").checkVisibility()]);
+    await openLevel();
+    ok(said[0] === "How hard to look: 0 of 10" && said[1], "AH-175: the folded slider's summary says the level it is at - " + JSON.stringify(said)); }
   { const m = await matchesEngine(); ok(m.ok, "at 0 the list is exactly what the engine answered at 0 - " + m.why); }
   // the pane says what the new level changed, counted from the engine's last two answers for this very sheet (AH-15)
   { const [b, a] = replies.slice(-2), said = await text("#level-change");
@@ -587,7 +599,7 @@ if (mode === "flow") {
   await page.waitForTimeout(800);
   ok(scans.slice(s1).map((b) => b.strength).join() === "0,8", "the running check, then exactly one re-check, at the level let go at - " + scans.slice(s1).map((b) => b.strength));
   const s2 = scans.length;
-  await page.focus("#strength"); await page.keyboard.press("ArrowLeft"); await page.keyboard.press("ArrowLeft"); await page.keyboard.press("ArrowLeft");
+  await openLevel(); await page.focus("#strength"); await page.keyboard.press("ArrowLeft"); await page.keyboard.press("ArrowLeft"); await page.keyboard.press("ArrowLeft");
   ok((await level()) === "5", "arrow keys move it one step at a time");
   // capped wait: a pane that never checks 5 must fail the named check below, not stop the run on a timeout
   await page.waitForFunction(() => __state.lastStrength === 5 && !document.getElementById("scan").disabled, null, { timeout: 15000 }).catch(() => {});
@@ -603,7 +615,7 @@ if (mode === "flow") {
   // re-check at the level the first one's re-check had already used
   const s3 = scans.length;
   await page.click("#scan");
-  await page.focus("#strength"); await page.keyboard.press("ArrowRight"); await page.keyboard.press("ArrowRight");
+  await openLevel(); await page.focus("#strength"); await page.keyboard.press("ArrowRight"); await page.keyboard.press("ArrowRight");
   await page.waitForFunction(() => __state.lastStrength === 7 && !document.getElementById("scan").disabled, null, { timeout: 15000 }).catch(() => {});
   await page.waitForTimeout(1500); await idle();
   ok(scans.slice(s3).map((b) => b.strength).join() === "5,7", "two slider steps while a check runs: that check, then one at 7, never a second at 7 - " + scans.slice(s3).map((b) => b.strength));
@@ -768,7 +780,7 @@ if (mode === "flow") {
   const rowsShown = () => page.$$eval("#flagged-list li", (lis) => lis.length);
   const dom0 = await counters(), shownBefore = await rowsShown();
   for (let k = 0; k < 20; k++) await find();
-  await page.focus("#strength");
+  await openLevel(); await page.focus("#strength");
   for (let k = 0; k < 10; k++) { // 6, 5, 6, 5...: each a re-check, ending back at 5
     const to = k % 2 ? 5 : 6;
     await page.keyboard.press(to === 6 ? "ArrowRight" : "ArrowLeft");

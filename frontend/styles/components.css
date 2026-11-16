@@ -2,8 +2,10 @@
    square navy-framed thumb that follows the pointer without lag (no transition on its position or size), and no text
    selection anywhere on it */
 .strength { margin: var(--s1) 0 var(--s3); user-select: none; -webkit-user-select: none; }
-.strength-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--gutter); font: 700 13px/1.4 var(--sans); color: var(--navy); }
-.strength-head b { font: 800 var(--fs-1)/1 var(--sans); color: var(--wine); font-variant-numeric: tabular-nums; }
+/* AH-175: folded under Find problems, its summary saying the level ("How hard to look: 5 of 10"), so a first look is one
+   button: the slider, its hint and how it was tested open from there */
+#strength-box { margin-top: var(--s3); }
+#strength-val { color: var(--wine); font-variant-numeric: tabular-nums; }
 .slider { --pct: 50%; position: relative; height: 44px; margin: var(--s1) 7px 0; cursor: pointer; touch-action: none; outline: none; } /* a finger's height (AH-149); the track and thumb stay as drawn */
 .slider-track { position: absolute; left: 0; right: 0; top: 20px; height: 3px; border-radius: 0; background: var(--rule); overflow: hidden; }
 .slider-fill { width: var(--pct); height: 100%; background: var(--wine); }
