@@ -120,7 +120,10 @@ for (const p of ALL) {
 for (const p of PAGES) assert.ok(html[p].includes('<button class="menu-btn" type="button" aria-expanded="false" aria-controls="main-nav">Menu</button><nav class="links" id="main-nav" aria-label="Main">'), `${p}: no Menu button before the links`);
 // the home page: the hero's main button goes to the download, and the phone's download bar waits hidden for home.js
 assert.ok(/<div class="hero-cta"><a class="btn btn-primary" href="#download">Download for Windows<\/a>/.test(html["index.html"]), "the hero has no main download button");
-assert.ok(/<div class="dock" id="dock" hidden><a class="btn btn-primary" href="#download">Download for Windows<\/a><\/div>/.test(html["index.html"]), "the home page has no hidden download bar");
+// ... which, on a phone (the only screen it shows on), can't download a Windows app: since AH-171 it emails the visitor the
+// page's own download, a mailto with no address (their own email app, to themselves), the canonical address + #download
+const SELF_MAIL = `mailto:?subject=Arcas%20for%20Excel&amp;body=${encodeURIComponent(SITE_URL + "#download")}`;
+assert.ok(html["index.html"].includes(`<div class="dock" id="dock" hidden><a class="btn btn-primary" href="${SELF_MAIL}">Email yourself the link</a></div>`), "the home page has no hidden bar that emails the visitor the link");
 for (const p of PAGES.filter((p) => p !== "index.html")) assert.ok(!html[p].includes('id="dock"'), `${p}: a download bar off the home page`);
 // what to do when the checksum differs
 assert.ok(html["index.html"].includes("If they differ, delete the file and download it again."), "the checksum step does not say what to do when the hashes differ");
@@ -501,7 +504,9 @@ for (const f of SCRIPTS) {
   assert.ok(text(faq).includes("To check, open Excel and click File > Account. If it says Microsoft 365 under Product information, you have the right Excel. Click About Excel: the first line ends with 64-bit or 32-bit."), "the FAQ does not say how to check which Excel you have");
   assert.ok(text(faq).includes("No, not when it checks your sheet. Arcas does all its checking on your own computer and sends nothing. Part of your sheet leaves your computer only when you click Ask AI or Check words with AI. Then it goes to Google, through John's own server first unless you saved your own Google key. The privacy page lists exactly what goes."), "the FAQ's data answer");
   // a phone can't install it: said under the hero's download, on narrow screens only
-  assert.ok(/<div class="hero-cta">[\s\S]*?<\/div>\s*<p class="phone-only">Arcas runs on a Windows computer\. Open this page on that computer to download it\.<\/p>/.test(home), "no phone line under the hero's download");
+  // ... with the same email to oneself (AH-171): a shared link mostly opens on a phone, where it was a dead end
+  const phoneLine = /<div class="hero-cta">[\s\S]*?<\/div>\s*<p class="phone-only">Arcas runs on a Windows computer\. Open this page on that computer to download it, or <a href="([^"]+)">email yourself the link<\/a>\.<\/p>/.exec(home);
+  assert.ok(phoneLine && phoneLine[1] === SELF_MAIL, "no phone line under the hero's download, with the email to oneself");
   assert.ok(/\.phone-only\s*\{\s*display:\s*none;?\s*\}/.test(css) && /@media \(max-width: 760px\)[\s\S]*\.phone-only\s*\{\s*display:\s*block;?\s*\}/.test(css), "the phone line is not shown on narrow screens only");
   // the uninstall in numbered steps, its command as it was
   const un = (/<details[^>]*id="uninstall"[\s\S]*?<\/details>/.exec(sup) || [""])[0];
@@ -890,7 +895,9 @@ const done = async ({ ctx, problems, outside }, label, allowed = []) => {
       if (motion === "reduce") {
         const bad = await p.evaluate(contrastProblems);
         want(!bad.length, `AH-126 download bar: contrast ${JSON.stringify(bad)}`);
-        want(await p.evaluate(() => !!document.querySelector('#dock a[href="#download"]')), "AH-126 download bar: its link does not go to the download");
+        // AH-171: on a phone it emails the visitor the download's address
+        want(await p.evaluate((to) => { const a = document.querySelector("#dock a"), u = a && new URL(a.href); return !!u && u.protocol === "mailto:" && u.pathname === "" && u.searchParams.get("subject") === "Arcas for Excel" && u.searchParams.get("body") === to; }, SITE_URL + "#download"),
+          "AH-126 download bar: its link does not email the visitor the download's address");
       }
       await p.evaluate(() => document.getElementById("download").scrollIntoView({ block: "center" }));
       await p.waitForTimeout(600);
