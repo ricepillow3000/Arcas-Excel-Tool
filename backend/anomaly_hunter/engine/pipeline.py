@@ -46,7 +46,7 @@ def summary_rows(df):
 PASTED = 5  # copies of this many consecutive rows in a row: a range pasted again
 
 
-def duplicates(df, errors_log=(), column_types=None):
+def duplicates(df, errors_log=(), column_types=None, skip=None):
     """Row equal to an earlier row in every column but source_file. Text typed into a number or date column is compared as
     that text: loading had blanked it, so "R+33.2" and "D+6.3" rows looked equal (513 false duplicates, 2026-10-16).
     -> (reasons per row, notes per row): max(MANY, SHARE of the rows) repeats found in every fifth of the sheet are one
@@ -78,11 +78,15 @@ def duplicates(df, errors_log=(), column_types=None):
             for i in np.flatnonzero(unknown.to_numpy() & ~named):
                 cells[i, at[c]] = f"unknown:{i}"
     seen, out = {}, []
-    keys = list(map(tuple, cells))
+    # a totals row is no record: its numbers left out, 150 subtotal rows reading only "Total" were "many repeats", and the
+    # one note on a skipped row hid a real copy (blind round 2, AH-178)
+    skip = np.zeros(len(df), bool) if skip is None else skip
+    keys = [("total row", i) if skip[i] else tuple(row) for i, row in enumerate(cells)]
     # when most rows repeat, a repeat is the data: 4 agree/disagree answers from 1,529 voters gave 199 different rows,
     # and 1,330 were "Duplicate of row N" (real survey, 2026-10-16). A double entry repeats a row that is otherwise unique
     notes = [[] for _ in keys]
-    if len(set(keys)) < 0.5 * len(keys):
+    kept = [k for k, s in zip(keys, skip, strict=True) if not s]
+    if len(set(kept)) < 0.5 * len(kept):
         return [[] for _ in keys], notes
     first = [seen.setdefault(key, i) for i, key in enumerate(keys)]
     n, copies = len(keys), [i for i, j in enumerate(first) if j != i]
@@ -103,7 +107,7 @@ def duplicates(df, errors_log=(), column_types=None):
     spread = [i for i in copies if i not in pasted]
     # a column no two different rows share (an Order ID, an invoice code) tells records apart: a row that repeats it is the
     # same record twice. 120 orders imported twice and sorted by date were one note saying "nothing like an ID" (AH-48 review)
-    distinct = df.iloc[[i for i in range(n) if first[i] == i]]
+    distinct = df.iloc[[i for i in range(n) if first[i] == i and not skip[i]]]
     def ident(c):
         t, v = (column_types or {}).get(c), distinct[c]
         whole = t == "id" or t == "text" or (t == "number" and pd.to_numeric(v, errors="coerce").dropna().mod(1).eq(0).all())
@@ -677,6 +681,15 @@ def far_dates(df, column_types, skip):
             # a cell too long for a date is none, unparsed: a crafted 100,000-character cell doubled the scan (AH-32 review)
             w = _dates(v.where(v.astype(str).str.strip().str.len() <= 40), wide=True) if len(v) >= 30 else v.iloc[:0]
             d = w.dropna() if len(w) and w.notna().mean() >= 0.9 and (w.dt.year < 1900).any() else ()
+        if t == "number" and {"year", "yr"} & set(fairness._words(col)):
+            # a year typed as a number (year, Yr, release_year, yearBuilt) is a date too: 2084 among 1981-2022 passed
+            # (blind round 2, AH-178). The same span rule, in years; never "years_of_service" or "Yearly sales"
+            x = df[col][~skip].dropna()
+            if len(x) >= 30 and ((x == x.round()) & x.between(1000, 2200)).mean() >= 0.95:
+                far, lo, hi = far_off(x.astype(float), least=pd.Timedelta(days=30) / pd.Timedelta(days=365.25))
+                for i in x.index[far]:
+                    out[i].append(Why(f"{col} {say(x[i])} is far outside the column's years ({lo:.0f} to {hi:.0f})", col))
+            continue
         if len(d) < 30:
             continue
         far, lo, hi = far_off(d)
@@ -1103,6 +1116,9 @@ def _person_name(col, columns, labels):
     return False
 
 
+USUAL = 2000  # the commonest labels a misspelling guess compares with: bounds the work on a crafted list, in count order
+
+
 def spellings(df, column_types, skip):
     """Same category typed differently ("Sales" / "sales " / "SALES"): a stray space splits SUMIFS, COUNTIF and pivots (they ignore case).
     Only case/space differences, only in category-like columns (<= 50 distinct). Every spelling but the right one is
@@ -1122,11 +1138,12 @@ def spellings(df, column_types, skip):
         s = df[col][~skip].dropna().astype(str)
         # formula-like text is never a "spelling": Excel reads a full-width ＝ as = too (AH-160: its capitals fix was a formula)
         s = s[(s.str.strip() != "") & ~s.str.lstrip().str[:1].isin(FORMULA_START)]
-        # category-like: 50 labels; and for a misspelling guess (below), up to 200 that repeat 10 times each on average -
+        # category-like: 50 labels; and for a misspelling guess (below), any number that repeat 10 times each on average -
         # 68 countries over 2,530 bars of chocolate hid "Frnace", 51 menu items over 4,622 orders "Chiken Bowl" (blind
-        # rounds 36 and 23, AH-32). Not for capitals: 1,222 Medium rows of "Yes"/"yes" and "9th place Match" came with it
+        # rounds 36 and 23, AH-32), and past 200 labels "Hoorror", "Abgentina", "Bankign" (blind round 2, AH-178). Not
+        # for capitals: 1,222 Medium rows of "Yes"/"yes" and "9th place Match" came with it
         many = s.nunique() > 50
-        if many and (s.nunique() > 200 or len(s) < 10 * s.nunique()):
+        if many and len(s) < 10 * s.nunique():
             continue
         keys = s.map(lambda v: " ".join(v.split()).casefold())
         capital = lambda v: v.strip()[:1].isupper()
@@ -1173,10 +1190,20 @@ def spellings(df, column_types, skip):
         # (own/won), so "Yse" once beside "Yes" 20+ times in a column of 6 labels or fewer, never an open list (AH-139)
         three = lambda r, u, c, m: len(cnt) <= 6 and c == 1 and m >= 20 and len(r) == len(u) == 3 and r.isalpha() and _swapped(r, u)
         # over 60 characters is a note, not a label: crafted 32,000-character labels took 58 s here (council, 2026-10-16)
+        # Every slip _misspelt and three allow is one letter changed, swapped, added or dropped, so the two labels share
+        # a spelling with one letter left out: only those are compared. Every rare label against every usual one grew
+        # with the square of the labels once the 200-label cap went (5,000 x 5,000 crafted: minutes, AH-178), and the
+        # commonest USUAL usual labels bound what is kept
+        usual_ = [(u, m) for u, m in cnt.items() if m >= 5 and len(u) <= 60][:USUAL]
+        near = collections.defaultdict(list)  # a spelling with at most one letter left out -> the usual labels it comes from
+        for r, (u, _) in enumerate(usual_):
+            for v in {u, *(u[:k] + u[k + 1:] for k in range(len(u)))}:
+                near[v].append(r)
         for rare, c in cnt[cnt <= 2].items():
-            if NO_VALUE_WORD.fullmatch(rare):  # "Blank" is no race, never a misspelling of "Black" (AH-50)
+            if NO_VALUE_WORD.fullmatch(rare) or len(rare) > 60:  # "Blank" is no race, never a misspelling of "Black" (AH-50)
                 continue
-            usual = next((u for u, m in cnt.items() if m >= max(5, 5 * c) and len(u) <= 60 and len(rare) <= 60
+            ranks = sorted({r for v in {rare, *(rare[:k] + rare[k + 1:] for k in range(len(rare)))} for r in near.get(v, ())})
+            usual = next((u for u, m in (usual_[r] for r in ranks) if m >= 5 * c
                           and (_misspelt(rare, u) or three(rare, u, c, m))), None)
             if usual is None:
                 continue
@@ -1213,6 +1240,33 @@ def spellings(df, column_types, skip):
                         missed[i].append(Why(f'{col} "{_short(s[i])}" is lowercase where the column\'s other labels are capitalised', col))
                         maybe[i][col] = right[:1].upper() + right[1:]
     return out, fix, missed, maybe, exact
+
+
+ORDER_ROWS = 1000  # rows with both filled before an order is judged: blind round 2's probe of 42 real tables found the
+# planted swaps and 1 false row from 1,000 rows, about 25 false rows from 100 (AH-178)
+NEAR = 2  # an order sits side by side (Low/High, min/mean/max, Open/High/Low/Close): each number column against the next
+# 2, in sheet order, so a crafted wide sheet costs 2 pairs a column, never the square of its width
+
+
+def order(df, column_types, skip):
+    """A number column at most another on every other row (max(2, 0.1%) rows may break it), their values meeting where it
+    holds (an age never above an income is no order): the row where it is above (a 10th percentile above its 90th, a Low
+    above its High). Which of the two cells is wrong is unknown, so never a fix."""
+    out = [[] for _ in range(len(df))]
+    nums = [c for c, t in column_types.items() if t == "number"]
+    for k, a in enumerate(nums):
+        for b in nums[k + 1:k + 1 + NEAR]:
+            x, y = (pd.to_numeric(df[c], errors="coerce").to_numpy(float) for c in (a, b))
+            both = ~skip & ~np.isnan(x) & ~np.isnan(y)
+            if both.sum() < ORDER_ROWS:
+                continue
+            for lo, hi, u, v in ((a, b, x, y), (b, a, y, x)):
+                above, holds = both & (u > v), both & (u <= v)
+                if 0 < above.sum() <= max(2, 0.001 * both.sum()) and u[holds].max() > v[holds].min():
+                    for i in np.flatnonzero(above):
+                        out[i].append(Why(f"{lo} {say(df[lo].iat[i])} is above {hi} {say(df[hi].iat[i])}, where {lo} is at "
+                                          f"most {hi} on {holds.sum()} of {both.sum()} rows", lo, hi))
+    return out
 
 
 def fractions(df, column_types, skip):
@@ -1365,9 +1419,10 @@ def score(df, column_types, errors_log, limits, order_by, strength=5, saved=(), 
             "ecod": ecod_detector(df, judged, k) if s >= 5 else _result(n, "strength below 5")}
     # DBSCAN cut 2026-10-07: 90s/100k rows, 81% false alarms, bench same without it
     ran = [d for d in dets.values() if d["ran"]]
-    (dup, repeats), (typ, typ_coded), (blank, spread) = duplicates(df, errors_log, column_types), type_errors(df, errors_log, column_types), blanks(df, column_types, skip, errors_log)
+    (dup, repeats), (typ, typ_coded), (blank, spread) = duplicates(df, errors_log, column_types, skip), type_errors(df, errors_log, column_types), blanks(df, column_types, skip, errors_log)
     (hole, coded), far = placeholders(df, column_types, skip), far_dates(df, column_types, skip)
     zeros = lost_zeros(df, column_types, skip)
+    above = order(df, column_types, skip)  # AH-178: a 10th percentile above its 90th, a Low above its High
     calc, calc_fix = formulas(df, column_types, skip, grid)  # AH-152: a typed value or another formula among a column's formulas
     forms, many_forms = date_forms(df, column_types, skip)
     code, coded_top = codes(df, column_types, skip)
@@ -1408,7 +1463,7 @@ def score(df, column_types, errors_log, limits, order_by, strength=5, saved=(), 
                          "magnitude": 0.0})
             continue
         voted = [d for d in ran if d["votes"][i]]
-        hygiene = dup[i] + typ[i] + blank[i] + hole[i] + code[i] + far[i] + add[i] + spell[i] + zeros[i] + forms[i] + calc[i]
+        hygiene = dup[i] + typ[i] + blank[i] + hole[i] + code[i] + far[i] + add[i] + spell[i] + zeros[i] + forms[i] + calc[i] + above[i]
         if not voted and not hygiene and not missed[i]:
             noted = as_typed(lim["noted_reasons"][i], i)
             rows.append({"severity": "Noted" if noted else None, "bucket": None,

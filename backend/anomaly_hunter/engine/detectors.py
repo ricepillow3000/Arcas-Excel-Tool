@@ -377,13 +377,13 @@ def _centred_median(a, half=3):
     return m
 
 
-def far_off(d):
+def far_off(d, least=pd.Timedelta(days=30)):
     """(far, lo, hi) for a column of dates: the dates more than the column's whole span away from it (a 2018 sheet with
     2084 in it). The span leaves at least one date past each end: in 48 months the 99% point reached 2084 itself
     (AH-31 review). Birthdates spread over decades widen the span themselves."""
     q = max(0.01, 1.5 / len(d))
     lo, hi = d.quantile([q, 1 - q])
-    span = max(hi - lo, pd.Timedelta(days=30))
+    span = max(hi - lo, least)
     return (d < lo - span) | (d > hi + span), lo, hi
 
 

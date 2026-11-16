@@ -152,7 +152,10 @@ export function recommendFix(columns, rows, i, limits, reason, startRow, startCo
 
 // a far-off date got "Nothing here is clearly broken" (12 of 12 on 40 real sheets, 2026-10-16)
 const HINTS = [
-  [/ is far outside the column's dates /, "a mistyped year (2084 for 2024) is the usual cause"],
+  [/ is far outside the column's (?:dates|years) /, "a mistyped year (2084 for 2024) is the usual cause"],
+  // AH-178: one column at most another on every other row; which of the two cells is wrong is unknown, so no value is written
+  [/ is above .+, where .+ is at most .+ on \d+ of \d+ rows$/, "two values typed in each other's place (a Low and its High, " +
+    "a 10th and a 90th percentile) or one mistyped value is the usual cause; check both cells against the source"],
   [/ looks like a code, not a real value/, 'a code like 99999 often stands for "missing": put the real value or leave the cell empty'],
   [/ is above 100% - /, "it may be a whole percent typed where a fraction belongs (85 for 0.85)"],
   [/ looks like an? .+ value$/, "it may have been typed into the wrong column"],

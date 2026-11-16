@@ -221,7 +221,12 @@ def _coerce(df, cols):
     # remember summary labels before coercion erases them ("Total" in a date column becomes NaT)
     # just the few labelled row numbers: pandas copies attrs on every operation
     for key, rx in (("total_rows", TOTAL), ("stat_rows", STAT)):
-        df.attrs[key] = frozenset(df.index[df[cols].apply(lambda s, rx=rx: s.astype(str).str.match(rx)).any(axis=1)])
+        said = df[cols].apply(lambda s, rx=rx: s.astype(str).str.match(rx))
+        # a word a column writes on over half the rows is that column's category, never a summary label: an election
+        # table's mode "TOTAL" on all 19,942 rows made 7,030 sparse rows "Totals/summary row" (blind round 2, AH-178).
+        # Half of all rows, not of the filled cells: a label column filled only on its Total row still marks that row
+        said = said.loc[:, said.sum() <= 0.5 * len(df)]
+        df.attrs[key] = frozenset(df.index[said.any(axis=1)])
     types, errors = {c: _kind(df[c]) for c in cols}, []
     no_value = {}  # column -> (rows, the word as most often written): how its export says "no value"
     for c, t in types.items():

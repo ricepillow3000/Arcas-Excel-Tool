@@ -426,6 +426,11 @@ assert.ok(rec.explanation.includes("probably real or entered in other units"), r
 // worth-a-check reasons say what to look for, never "Nothing here is clearly broken"
 rec = recommendFix(["Id", "When"], [["a", "2084-03-01"]], 0, null, "When 2084-03-01 is far outside the column's dates (2018-01-02 to 2019-12-30)", 0, 0);
 assert.ok(rec.explanation.includes("mistyped year") && !rec.explanation.includes("Nothing here"), rec.explanation);
+// AH-178: a year column's far year, and a column above the one it is at most on every other row: said, nothing written
+rec = recommendFix(["Id", "year"], [["a", 2084]], 0, null, "year 2084 is far outside the column's years (1981 to 2022)", 0, 0);
+assert.ok(rec.explanation.includes("mistyped year") && !rec.explanation.includes("Nothing here") && !rec.changes.length, rec.explanation);
+rec = recommendFix(["Id", "p10", "p90"], [["a", 30.1, 14.1]], 0, null, "p10 30.1 is above p90 14.1, where p10 is at most p90 on 1199 of 1200 rows", 0, 0);
+assert.ok(rec.explanation.includes("check both cells") && !rec.explanation.includes("Nothing here") && !rec.changes.length, rec.explanation);
 rec = recommendFix(["Id", "Day"], [["a", 7.3]], 0, null, "Day 7.3 is not a whole number - every other Day is", 0, 0);
 assert.ok(rec.explanation.includes("check the decimal point"), rec.explanation);
 // AH-55: a name's bound and a share over 100 say what to look for, and write nothing
