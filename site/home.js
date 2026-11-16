@@ -68,7 +68,7 @@
   }
 
   // The sheet loads as a skeleton of itself (AH-89). It waits, bars where the values will be, until the sheet is 60%
-  // on screen, or covers 60% of a screen it is taller than (a phone), and its entrance, if it is coming in, is a third of
+  // on screen, or covers 60% of a screen it is taller than (a phone), or its row 11 is on the first screen (AH-171), and its entrance, if it is coming in, is a third of
   // the way; then one band of light crosses it in --skeleton-dur and the rows land one by one, --land-step apart. While
   // a glide runs ("See a sample scan", motion.js) it waits for the glide to end: at 30% it played on the way down and
   // had mostly finished by the time the visitor arrived (AH-99, John 2026-11-02). Never over values someone may already have seen
@@ -105,8 +105,21 @@
       const b = ws.getBoundingClientRect(), h = html.clientHeight, shown = Math.min(b.bottom, h) - Math.max(b.top, 0);
       return shown > 0 && (shown >= 0.6 * b.height || shown >= 0.6 * h);
     };
+    // AH-171: where the first flagged row is on the first screen at load, before any scroll, the sheet counts as seen:
+    // read from the layout (offsets), not the entrance's transform, which still holds the sheet low. It waited grey for
+    // a scroll a visitor reading the headline never made (1280 x 800, 1440 x 900); on a phone row 11 is below the fold
+    const first = () => {
+      const row = ws.querySelector("#r11");
+      if (!row || scrollY) return false;
+      let top = 0;
+      for (let e = row; e; e = e.offsetParent) top += e.offsetTop;
+      return top + row.offsetHeight <= html.clientHeight;
+    };
     function check() {
       if (done || armed || (window.AH.gliding && window.AH.gliding()) || !seen()) return;
+      arm();
+    }
+    function arm() {
       armed = true;
       if (io) io.disconnect();
       io = null;
@@ -120,6 +133,7 @@
     ws.setAttribute("data-loading", "");
     io.observe(ws);
     ws.addEventListener("pointerdown", end, true); ws.addEventListener("keydown", end, true);
+    if (first()) arm();
     return end;
   }
 

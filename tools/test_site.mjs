@@ -1447,7 +1447,7 @@ for (const width of [1280, 390]) {
 console.log("sample: every row's detail box opens inside the findings and off the button under them, at 1280 and 390 px");
 // ---- the sample sheet's motion (AH-89, AH-91, AH-92; John 2026-11-02) ----
 // the skeleton: the real sheet waits with no colour on its values and a bar exactly where each value will land; it plays
-// once the sheet is 30% on screen (never before: the sheet starts below the fold at 1440 x 900), one band of light crosses
+// once the sheet is 30% on screen (never before where row 11 starts below the fold: 1440 x 600 since AH-171), one band of light crosses
 // it, then the rows land; the layout never moves (CLS 0), and a press on the sheet ends it at once
 const bars = (p) => p.evaluate(() => {
   const sel = ["#p-found tbody tr:nth-child(5) td:nth-child(4)", "#p-found tbody tr:nth-child(5) td.why", "#p-found tbody tr:nth-child(2) th", "#preview .typology .n", "#preview .key span"];
@@ -1457,8 +1457,35 @@ const bars = (p) => p.evaluate(() => {
 });
 const loadingOf = (p) => p.evaluate(() => document.getElementById("preview").getAttribute("data-loading"));
 const frameAt = (p) => p.evaluate(() => { let top = 0; for (let e = document.getElementById("preview"); e; e = e.offsetParent) top += e.offsetTop; return top - 65 - 21; });
+// AH-171: where the first flagged row (row 11) is on the first screen at load, the sheet plays there with no scroll, a
+// third into its entrance: it waited grey for a scroll that a visitor reading the headline never made (1280 x 800 and
+// 1440 x 900). On a phone, where row 11 is below the fold, it still waits
+for (const [width, height] of [[1280, 800], [1440, 900], [390, 844]]) {
+  const t = await open("index.html", { width, height, init: () => {
+    const m = window.__sk = { cls: 0, play: 0, gone: 0, sweeps: 0 };
+    new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) m.cls += e.value; }).observe({ type: "layout-shift", buffered: true });
+    addEventListener("DOMContentLoaded", () => new MutationObserver(() => { const v = document.getElementById("preview").getAttribute("data-loading");
+      if (v === "play" && !m.play) { m.play = performance.now(); m.sweeps = document.getAnimations().filter((a) => a.animationName === "sweep").length; }
+      if (v === null && m.play && !m.gone) m.gone = performance.now(); }).observe(document.getElementById("preview"), { attributes: true, attributeFilter: ["data-loading"] }));
+  } });
+  const p = t.page;
+  if (width < 760) {
+    await p.waitForTimeout(ENTERED + 1000);
+    assert.equal(await loadingOf(p), "", `AH-171 at ${width} x ${height}: the sheet, row 11 below the fold, did not wait for a scroll`);
+  } else {
+    await p.waitForTimeout(ENTERED + 500);
+    const early = await p.evaluate(() => ({ ...window.__sk, y: scrollY }));
+    assert.ok(early.play > 0 && early.y === 0, `AH-171 at ${width} x ${height}: the sheet did not play on the first screen by ${ENTERED + 500} ms: ${JSON.stringify(early)}`);
+    await p.waitForFunction(() => window.__sk.gone > 0, null, { timeout: 4000 });
+    const sk = await p.evaluate(() => window.__sk);
+    assert.ok(sk.sweeps === 1 && sk.gone - sk.play >= 1300 && sk.gone - sk.play <= 2400 && sk.cls === 0, `AH-171 at ${width} x ${height}: the skeleton played ${Math.round(sk.gone - sk.play)} ms with ${sk.sweeps} sweeps, CLS ${sk.cls}`);
+  }
+  await done(t, `AH-171 skeleton on the first screen at ${width} x ${height}`, [API]);
+}
+console.log("AH-171: the sample plays on the first screen at 1280 x 800 and 1440 x 900 (one sweep, CLS 0), and waits on a phone");
+// below, 1440 x 600: row 11 starts below the fold there, as it did at 1440 x 900 before AH-171
 {
-  const t = await open("index.html", { width: 1440, init: () => {
+  const t = await open("index.html", { width: 1440, height: 600, init: () => {
     const m = window.__sk = { cls: 0, play: 0, gone: 0, sweeps: 0 };
     new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) m.cls += e.value; }).observe({ type: "layout-shift", buffered: true });
     addEventListener("DOMContentLoaded", () => new MutationObserver(() => { const v = document.getElementById("preview").getAttribute("data-loading");
@@ -1485,7 +1512,7 @@ const frameAt = (p) => p.evaluate(() => { let top = 0; for (let e = document.get
   await done(t, "skeleton", [API]);
 }
 { // a press on the sheet while it loads ends it at once; with reduced motion there is none (see the reduced-motion block)
-  const t = await open("index.html", { width: 1440 });
+  const t = await open("index.html", { width: 1440, height: 600 });
   const p = t.page;
   await p.waitForTimeout(ENTERED);
   await p.evaluate((y) => scrollTo(0, y), await frameAt(p));
@@ -1498,7 +1525,7 @@ const frameAt = (p) => p.evaluate(() => { let top = 0; for (let e = document.get
 // AH-99: the skeleton waits for "See a sample scan"'s glide to land (played on the way down, it had mostly finished by
 // the time the visitor arrived), and scrolled by hand it waits until the sheet is 60% in view: 30% is not enough
 {
-  const t = await open("index.html", { width: 1440, init: () => {
+  const t = await open("index.html", { width: 1440, height: 600, init: () => {
     const m = window.__arrive = { at: 0, loading: undefined, play: 0, gone: 0 };
     document.addEventListener("ah:glide-end", (e) => { if (e.detail.arrived && !m.at) { m.at = performance.now(); m.loading = document.getElementById("preview").getAttribute("data-loading"); } });
     addEventListener("DOMContentLoaded", () => new MutationObserver(() => { const v = document.getElementById("preview").getAttribute("data-loading");
@@ -1517,7 +1544,7 @@ const frameAt = (p) => p.evaluate(() => { let top = 0; for (let e = document.get
   await done(t, "skeleton waits for the glide", [API]);
 }
 {
-  const t = await open("index.html", { width: 1440 });
+  const t = await open("index.html", { width: 1440, height: 600 });
   const p = t.page;
   await p.waitForTimeout(ENTERED);
   // the sheet's top where `share` of it shows above the bottom of the screen
