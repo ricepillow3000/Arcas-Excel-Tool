@@ -94,3 +94,52 @@ def test_real_bookings_repeated_in_pairs_stay_in_the_note():
         rows[i + 2], rows[i + 3] = list(rows[i]), list(rows[i + 1])
     out = scan(COLS, rows, fair=False)[1]
     assert not flagged(out, "Duplicate of row") and len(flagged(out, "repeat an earlier row")) == 1
+
+
+def results(seed=9):
+    # a contest's results: the same entrant may come back another year, so names repeat, but most are written once
+    rng = np.random.default_rng(seed)
+    return [[2000 + i // 40, f"Entrant {i % 150}" if i % 3 == 0 else f"Entrant {i}", ["Peru", "Chad", "Fiji"][i % 3],
+             int(rng.integers(0, 8)), int(rng.integers(0, 8))] for i in range(400)]
+
+
+@pytest.mark.parametrize("unknown", ["?", "*", "Unknown"])
+def test_two_unknown_entrants_whose_scores_tie_are_not_one_record(unknown):
+    # AH-173 (blind round 1): contestant "?" or "*" with the same year, country and scores was "Duplicate of row N" 41
+    # times: two people whose names were not kept are not the same person
+    cols, rows = ["year", "contestant", "country", "p1", "p2"], results()
+    for i in (101, 102, 250, 251):
+        rows[i][1] = unknown
+    rows[102][2:], rows[251][2:] = rows[101][2:], rows[250][2:]
+    out = scan(cols, rows, fair=False)[1]
+    assert not flagged(out, "Duplicate of row"), [out[i]["reason"] for i in flagged(out, "Duplicate of row")]
+
+
+def test_a_named_entrant_repeated_exactly_is_still_a_duplicate():
+    cols, rows = ["year", "contestant", "country", "p1", "p2"], results()
+    rows[102] = list(rows[101])
+    out = scan(cols, rows, fair=False)[1]
+    assert flagged(out, "Duplicate of row") == [102]
+
+
+def test_a_row_repeated_with_unknown_in_a_category_column_is_still_a_duplicate():
+    # "Unknown" in a column of a few labels (a meal plan) says nothing about who the row is: the copy is still the same
+    # booking twice. Only a column whose labels mostly differ row to row (at least half of them, AH-173) names the row
+    rows = bookings()
+    rows[700][4] = "Unknown"
+    rows[1500] = list(rows[700])
+    out = scan(COLS, rows, fair=False)[1]
+    assert 1500 in flagged(out, "Duplicate of row")
+
+
+@pytest.mark.parametrize("times, duplicate", [(2, False), (3, True)])
+def test_a_name_column_names_rows_when_its_labels_are_at_least_half_its_cells(times, duplicate):
+    # each entrant written twice: as many labels as half the cells, a name; three times, a third: a label like a meal
+    cols, rows = ["year", "contestant", "country", "p1", "p2"], results()
+    for i, r in enumerate(rows):
+        r[1] = f"Entrant {i // times}"
+    rows[101][1] = rows[250][1] = "?"
+    rows[250][2:] = rows[101][2:]
+    rows[250][0] = rows[101][0]
+    out = scan(cols, rows, fair=False)[1]
+    assert (250 in flagged(out, "Duplicate of row")) == duplicate

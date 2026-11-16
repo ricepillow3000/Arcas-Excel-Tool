@@ -55,6 +55,16 @@ def duplicates(df, errors_log=(), column_types=None):
     cells, at = df[cols].astype(str).to_numpy(copy=True), {c: k for k, c in enumerate(cols)}
     for i, c, raw in errors_log:
         cells[i, at[c]] = f"text:{raw}"
+    # a name not kept ("?", "*", Unknown) in a column whose labels mostly differ row to row (as many as half its cells) is no
+    # proof of one record: a contest's unknown entrants with tied scores were 41 "Duplicate of row N" (AH-173)
+    for c in cols:
+        if (column_types or {}).get(c, "text" if df[c].dtype == object else "") not in ("text", "id"):
+            continue
+        v, filled = df[c].astype(str).str.strip(), ~_blank(df[c])
+        unknown = filled & (v.str.fullmatch(NO_VALUE_WORD) | ~v.str.contains(r"\w"))
+        if unknown.any() and v[filled & ~unknown].nunique() >= 0.5 * filled.sum():
+            for i in np.flatnonzero(unknown.to_numpy()):
+                cells[i, at[c]] = f"unknown:{i}"
     seen, out = {}, []
     keys = list(map(tuple, cells))
     # when most rows repeat, a repeat is the data: 4 agree/disagree answers from 1,529 voters gave 199 different rows,
@@ -169,7 +179,11 @@ def lost_zeros(df, column_types, skip):
     out = [[] for _ in range(len(df))]
     for col, width in df.attrs.get("padded", {}).items():
         v = df[col][~skip].astype(str).str.strip()
-        for i in v.index[v.str.fullmatch(r"\d+") & (v.str.len() < width)]:
+        # ...only as many as the column's codes write: a ZIP "02134" among ZIP+4s "021341234" (2 leading zeros at most)
+        # cannot have lost 4, and 44 were flagged on one grants table (AH-173)
+        full = v[v.str.fullmatch(r"\d+") & (v.str.len() == width)]
+        zeros = (full.str.len() - full.str.lstrip("0").str.len()).max()
+        for i in v.index[v.str.fullmatch(r"\d+") & (v.str.len() < width) & (width - v.str.len() <= zeros)]:
             k = len(v[i])
             out[i].append(Why(f'{col} "{v[i]}" is {k} digit{"s" if k > 1 else ""} where the column writes {width}: '
                               f'did it lose its leading zero{"s" if width - k > 1 else ""}?', col))
@@ -199,7 +213,10 @@ def placeholders(df, column_types, skip):
             first = df.index[code & (key == k)]
             # ...found in 4 of the 5 fifths of the sheet, like blanks (AH-28, AH-142): a block of 50 "?" in a census's first 150 rows is a
             # paste or an export that went wrong, still each a slip (test_wild_census)
-            if not _spread(np.flatnonzero((code & (key == k)).to_numpy()), len(df)):
+            # ...or sparse among real values where it is: a contest sorted newest first wrote "?" for its oldest years'
+            # unknown entrants, 1 in 18 of the rows it spanned, 164 Medium rows (AH-173)
+            at = np.flatnonzero((code & (key == k)).to_numpy())
+            if not _spread(at, len(df)) and _block(at):
                 code &= key != k
                 continue
             notes[first[0]].append(Why(f'{col} is "{v[first].mode().iloc[0]}" (no value) in {len(first)} of {(~skip).sum()} rows', col))
@@ -224,6 +241,16 @@ def _spread(pos, n):
     review: a fifth of one cell counted, and 093's names, fifths 2/2/89/33/0, were one note)."""
     c = np.bincount(np.asarray(pos, dtype=int) * 5 // n, minlength=5)
     return (c >= 0.02 * len(pos)).sum() >= 4
+
+
+BLOCK = 1 / 8  # a block fills at least 1 in 8 of the rows it spans: a paste or an export gone wrong fills 1 in 4 or more
+
+
+def _block(pos):
+    """Positions that fill the stretch they sit in (BLOCK of its rows), 2% at each end left out as strays (AH-173)."""
+    k = int(0.02 * len(pos))
+    core = np.sort(np.asarray(pos))[k:len(pos) - k]
+    return len(core) >= BLOCK * (core[-1] - core[0] + 1)
 
 
 def _sorted_end(s, blank, skip):
