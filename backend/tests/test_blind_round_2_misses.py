@@ -209,14 +209,16 @@ def ordered(lo, hi, n=2000, breaks=(500, 1500), seed=11):
 
 
 @pytest.mark.parametrize("lo,hi", [("b_draw", "b_wins"), ("years_code_pro", "comp_total"), ("booking_changes", "agent"),
-                                   ("age", "height"), ("lng", "lat")])
+                                   ("age", "height"), ("lng", "lat"), ("Sales 2019", "Sales 2020"), ("Score 1", "Score 2")])
 def test_unrelated_columns_that_happen_to_be_in_order_are_never_judged(lo, hi):
     out, _ = ordered(lo, hi)
     assert not flagged(out, " is above ")
 
 
 @pytest.mark.parametrize("lo,hi", [("min_temp", "max_temp"), ("Low", "High"), ("start_year", "end_year"),
-                                   ("avg_ticket_price", "top_ticket_price"), ("minTemp", "maxTemp")])
+                                   ("avg_ticket_price", "top_ticket_price"), ("minTemp", "maxTemp"), ("p10", "p90"),
+                                   ("Income q1", "Income q3"), ("25th percentile", "75th percentile"), ("pct25", "pct75"),
+                                   ("Quantile 25", "Quantile 75")])
 def test_columns_whose_headers_name_an_order_are_judged(lo, hi):
     out, rows = ordered(lo, hi)
     assert flagged(out, " is above ") == [500, 1500]

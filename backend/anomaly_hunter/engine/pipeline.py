@@ -1248,7 +1248,7 @@ ORDER_ROWS = 1000  # rows with both filled before an order is judged: blind roun
 # rows were judged, and blind rounds 2-3 got about 60 false Medium rows from unrelated pairs (UFC's b_draw under b_wins,
 # hotels' booking_changes under agent and required_car_parking_spaces under adr, age under height, lng under lat).
 # Two headers name an order when their words are the same but one each, and those two are (low end, high end) here,
-# or ranks that climb (10th < 90th, p10 < p90, q1 < q3, 25 < 75); the order is the one the words give
+# or ranks that climb (10th < 90th, p10 < p90, q1 < q3, Quantile 25 < Quantile 75); the order is the one the words give
 LOWS, MIDS, HIGHS = {"min", "minimum", "lowest", "low"}, {"avg", "average", "mean", "median"}, \
     {"max", "maximum", "top", "peak", "highest", "high"}
 ORDER_WORDS = {("min", "max"), ("minimum", "maximum"), ("low", "high"), ("lowest", "highest"), ("lower", "upper"),
@@ -1256,7 +1256,10 @@ ORDER_WORDS = {("min", "max"), ("minimum", "maximum"), ("low", "high"), ("lowest
                ("open", "high"), ("close", "high"), ("low", "open"), ("low", "close")} \
     | set(itertools.product(LOWS, MIDS)) | set(itertools.product(MIDS, HIGHS))
 ORDER_VOCAB = {w for pair in ORDER_WORDS for w in pair}
-RANK = re.compile(r"([pq]?)(\d{1,9})(?:st|nd|rd|th)?")  # 9 digits at most: int() refuses a 4,300-digit run
+# A number is a rank only when it says so (AH-178 fix round 2): an ordinal (10th), a tag (p10, q3, pct25) or a header that
+# says quantile; a plain number (Sales 2019/Sales 2020, Score 1/Score 2) is a growth series or two scores, no order
+RANK = re.compile(r"(p|q|pct)?(\d{1,9})(st|nd|rd|th)?")  # 9 digits at most: int() refuses a 4,300-digit run
+QUANTILE = {"percentile", "percentiles", "quantile", "quartile", "decile", "pctile", "centile"}
 ORDER_COLS, ORDER_PAIRS = 300, 100  # in sheet order: a crafted wide sheet costs at most 300 columns' headers, 100 pairs
 
 
@@ -1274,7 +1277,9 @@ def _names_order(x, y):
         return False
     p, q = diff[0]
     m, n = RANK.fullmatch(p), RANK.fullmatch(q)
-    return (p, q) in ORDER_WORDS or bool(m and n and m[1] == n[1] and int(m[2]) < int(n[2]))
+    if (p, q) in ORDER_WORDS:
+        return True
+    return bool(m and n and m[1] == n[1] and int(m[2]) < int(n[2]) and (m[1] or m[3] and n[3] or QUANTILE & set(x)))
 
 
 def order(df, column_types, skip):
