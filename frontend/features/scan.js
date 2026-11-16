@@ -30,6 +30,8 @@ const scanning = (on) => $("main-ui").toggleAttribute("data-scanning", on);
 export async function runScan(auto, held = false) { // auto === false: the re-check right after auto-fix (never auto-fixes twice)
   const t0 = Date.now();
   state.fix = null;
+  // AH-170: Check words' lines named cells of the sheet checked before; a new check says them again only when asked
+  $("odd-list").replaceChildren();
   if (state.view !== "results") only(state.lastScan ? "results" : "empty-state"); // no fix view left without its row
   scanning(true);
   $("main-ui").toggleAttribute("data-held", true); // the progress and then "Done" take one held space till the action ends (use-action.js)
@@ -181,12 +183,23 @@ export function legendOf(rows) {
   return kinds.length > 1 ? kinds.map((k) => [k, counts[k]]) : [];
 }
 
+// Pure (AH-171): the finish line said in the foot bar after each Accept, Dismiss or Undo: how many of the list's rows are
+// fixed or dismissed (the rows "Rows to check (1 of 5 done)" counts; flaggedRows alone drops a fixed row once its re-check
+// is clean). Silent while none is
+export function doneOf(order, decided) {
+  const done = order.filter((i) => decided[i]).length, of = order.length;
+  if (!done) return "";
+  if (done < of) return `${n(done)} of ${n(of)} rows done.`;
+  return of === 1 ? "1 of 1 row done." : `All ${n(of)} rows done.`;
+}
+
 export function summaryOf(rows) {
   const sure = rows.filter((r) => r.severity === "High" || r.severity === "Medium").length;
   const maybe = rows.filter((r) => r.severity === "Low").length;
   const more = maybe ? ` ${n(maybe)}${sure ? " more" : ""} ${maybe === 1 ? "is" : "are"} worth a quick check.` : "";
-  if (!sure && !maybe) return `No problems found in ${n(rows.length)} rows.`;
-  return (sure ? `${n(sure)} of ${n(rows.length)} rows look wrong.` : `Nothing clearly wrong in ${n(rows.length)} rows.`) + more;
+  const of = `${n(rows.length)} row${rows.length === 1 ? "" : "s"}`; // AH-170: "in 1 rows" was said of a one-row sheet
+  if (!sure && !maybe) return `No problems found in ${of}.`;
+  return (sure ? `${n(sure)} of ${of} ${rows.length === 1 ? "looks" : "look"} wrong.` : `Nothing clearly wrong in ${of}.`) + more;
 }
 
 // Pure: the fairness line under the summary (engine/fairness.py) - which columns are protected, and the biggest real

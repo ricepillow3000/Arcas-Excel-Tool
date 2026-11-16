@@ -14,3 +14,8 @@ export function turnOn(buttons) {
   void root.offsetWidth; // the style is worked out here, while transitions are off
   root.removeAttribute("data-turning-on");
 }
+
+// AH-170: a reason's text with each ISO date kept on one line ("2026-01-" / "26" was split at its hyphen at 320 px). The
+// text is the same: only spans are added, each date set as text
+export const dated = (text) => String(text).split(/(\d{4}-\d{2}-\d{2})/)
+  .map((t, k) => (k % 2 ? Object.assign(document.createElement("span"), { className: "iso-date", textContent: t }) : t));

@@ -1,6 +1,7 @@
 import { SEV } from "../constants/index.js";
 import { esc } from "../utils/text.js";
 import { plainReason } from "../features/scan.js";
+import { dated } from "../utils/dom.js";
 
 // One row in the "Rows to check" list: a button that opens the row. done = "Fixed" / "Dismissed" / ... or null.
 export function rowItem(r, startRow, onClick, done = null) {
@@ -8,7 +9,8 @@ export function rowItem(r, startRow, onClick, done = null) {
   li.className = done ? "done" : `sev-${r.severity}`;
   const b = document.createElement("button");
   b.innerHTML = `<span class="row-head"><span class="swatch"></span>Row ${esc(startRow + r.i + 2)}<span class="sev">${esc(done || SEV[r.severity])}</span></span>` +
-    `<span class="row-why">${esc(plainReason(r.reason) || "Looks right now.")}</span>`;
+    '<span class="row-why"></span>';
+  b.lastChild.replaceChildren(...dated(plainReason(r.reason) || "Looks right now."));
   b.onclick = (e) => onClick(e.currentTarget); // the row pressed: its card hinges where it was, and its head becomes the title
   li.appendChild(b);
   return li;

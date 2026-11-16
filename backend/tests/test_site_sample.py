@@ -370,6 +370,26 @@ def test_the_after_fixes_tab_says_what_the_pane_says_once_the_three_fixes_are_in
     assert [int(b.attrs["data-n"]) for b in key] == [int(b.text()) for b in key]
 
 
+def test_the_sample_offers_accept_only_where_the_after_fixes_sheet_mends_the_row():
+    """AH-171: a detail box's Accept writes the After fixes tab's own row into the findings (site/home.js), so it is
+    offered only on a row that tab mends, and the box's proposed fix names the very value that tab writes."""
+    ws, _ = page()
+    panel = ws.one("div", id="p-clean")
+    head = [th.text() for th in panel.one("thead").all("th")]
+    clean = {int(tr.one("th").text()): tr for tr in panel.one("tbody").all("tr") if "skip" not in tr.classes()}
+    mended = {n: tr.one("td", cls="mended") for n, tr in clean.items() if tr.all("td", cls="mended")}
+    boxes = {int(m.attrs["id"][1:]): m for m in ws.all("div", cls="matrix")}
+    accepts = {n for n, m in boxes.items() if m.all("button", cls="m-accept")}
+    assert accepts == set(mended) == {11, 22, 31}, f"Accept on rows {sorted(accepts)}; After fixes mends {sorted(mended)}"
+    for n in accepts:
+        (b,) = boxes[n].all("button", cls="m-accept")
+        assert b.text() == "Accept" and b.attrs.get("type") == "button", n
+        td = mended[n]
+        col = head[clean[n].all("td").index(td) + 1]
+        dl = dict(zip([dt.text() for dt in boxes[n].all("dt")], [dd.text() for dd in boxes[n].all("dd")]))
+        assert dl["Proposed fix"].split(",")[0] == (td.text() if col == "Region" else f"{col} {td.text()}"), f"row {n}: {dl['Proposed fix']} vs {col} {td.text()}"
+
+
 def test_the_checks_table_says_what_the_sample_shows_or_that_it_has_none():
     """The checks were 8 numbered cards with examples; they are a table (AH-98) whose third column, "In the sample above",
     names the sample's own row where it has an instance and says plainly where it has none. Every row link lands on a
@@ -388,10 +408,13 @@ def test_the_checks_table_says_what_the_sample_shows_or_that_it_has_none():
     m = re.search(r"a cycle of ([\d, ]+ or \d+) rows", what["Dates and jumps"])
     assert m and [int(x) for x in re.findall(r"\d+", m[1])] == list(CYCLES), what["Dates and jumps"]
     assert "Repeating cycles" not in what["Dates and jumps"]
-    # AH-135: the site's own names for three checks in plain words (Temporal, Completeness, Plausibility were jargon)
-    assert list(checks) == ["Reconciliation", "Keying errors", "Consistency", "Dates and jumps", "Missing values", "Numbers that can't be right", "Fairness", "Ask AI, optional"]
+    # AH-135: the site's own names for three checks in plain words (Temporal, Completeness, Plausibility were jargon); AH-171:
+    # one vocabulary, the home page's check names and the sample's filters', and the Formulas check the home page lists
+    assert list(checks) == ["Totals that don't add up", "Formulas", "Typing slips", "Spelling", "Dates and jumps", "Blanks and duplicates", "Numbers that can't be right", "Fairness", "Ask AI, optional"]
     assert root.one("p", cls="fact").text() == f"{len(checks)} checks · {len(flagged)} rows flagged in the sample"
-    kind = {"Reconciliation": "recon", "Keying errors": "keying", "Consistency": "label", "Dates and jumps": "time"}
+    filters = {b.attrs["data-kind"]: b.text().rstrip("0123456789") for b in home.one("nav", cls="typology").all("button")}
+    assert {filters["recon"], filters["keying"]} <= set(checks) and what["Spelling"].startswith(f"{filters['label']}:"), (filters, what["Spelling"])
+    kind = {"Totals that don't add up": "recon", "Typing slips": "keying", "Spelling": "label", "Dates and jumps": "time"}
     for name, cell in checks.items():
         links = cell.all("a", cls="to-row")
         if name not in kind:  # none in this sample, said in so many words
@@ -402,13 +425,13 @@ def test_the_checks_table_says_what_the_sample_shows_or_that_it_has_none():
         assert a.text() == f"Row {n}" and n in flagged and kind[name] in kinds(flagged[n]["reason"]), f"{name}: row {n}"
         assert home.one("tr", id=f"r{n}").one("th").text() == str(n)
         checks[name] = (n, rows[n - 2], flagged[n], cell.text().removeprefix(a.text()))
-    n, row, r, eg = checks["Reconciliation"]
+    n, row, r, eg = checks["Totals that don't add up"]
     assert eg == f"{js(row[4])} ÷ {js(row[3])} = {js(r['likely']['Units'])}" and js(round(row[4] / row[3], 9)) == js(r["likely"]["Units"])
-    n, row, r, eg = checks["Keying errors"]
+    n, row, r, eg = checks["Typing slips"]
     assert eg == f"Units {row[2]}, usual limit {js(body['limits']['Units'][3])}" and f"Units weird limit is {js(body['limits']['Units'][3])}; this is {row[2]}" in r["reason"]
     # the example is a value past its column's usual limit, not a x10, a percent or a sign: the words must cover it
-    assert "a figure far past its column's usual range" in what["Keying errors"], what["Keying errors"]
-    n, row, r, eg = checks["Consistency"]
+    assert "a figure far past its column's usual range" in what["Typing slips"], what["Typing slips"]
+    n, row, r, eg = checks["Spelling"]
     assert eg == f'"{row[1]}" to "{r["likely"]["Region"]}"'
     n, row, r, eg = checks["Dates and jumps"]
     assert eg == f"a jump in Total on {row[0]}" and f"Total jumped sharply near {row[0]}" in plain_reason(r["reason"])
@@ -423,8 +446,17 @@ def test_the_checks_table_says_what_the_sample_shows_or_that_it_has_none():
     fair = checks["Fairness"].one("span", cls="other-sheet").one("span", cls="say").text()
     assert fair in said and fair.split(":")[0] not in COLUMNS, f"{fair} is not what the engine says: {said}"
     # the rest are general forms on another sheet, not claims about this one (a change here is a change to re-check by hand)
-    assert [checks[k].one("span", cls="other-sheet").text() for k in ("Missing values", "Numbers that can't be right", "Ask AI, optional")] == [
+    assert [checks[k].one("span", cls="other-sheet").text() for k in ("Blanks and duplicates", "Numbers that can't be right", "Ask AI, optional")] == [
         "On another sheet: #N/A, a repeated row", "On another sheet: Month 13, 99999", 'A request: "Use the usual spelling"']
+    # AH-171: the Formulas example is the engine's own sentence for a Total typed over a column of =Qty*Price formulas
+    # (the pane sends each cell's R1C1 formula, AH-152); the sample has no formulas, said so
+    assert checks["Formulas"].one("span", cls="nil").text() == "None in this sample: it has no formulas"
+    items = [[f"Item {i}", 10 * (2 + i % 7), 5 + i % 4, 10 * (2 + i % 7) * (5 + i % 4)] for i in range(40)]
+    formulas = [[None, None, None, "=RC[-2]*RC[-1]"] for _ in items]
+    formulas[31][3] = None  # typed over: 50 x 8 = 400 today, wrong the day Qty changes
+    said = {i: r["reason"].split("; ") for i, r in enumerate(APP.post("/scan", json={"columns": ["Item", "Qty", "Price", "Total"], "rows": items, "strength": 5, "formulas": formulas}).get_json()["rows"]) if r["severity"]}
+    eg = checks["Formulas"].one("span", cls="other-sheet").one("span", cls="say").text()
+    assert list(said) == [31] and eg in said[31] and eg.startswith("Total 400 "), f"{eg} is not what the engine says: {said}"
     # ...and those other-sheet examples are the engine's too: a small sheet with each one planted gets each one flagged
     # for it (they were only words pinned here, AH-129)
     cols, other = ["OrderID", "Month", "Region", "Units", "Total"], []
