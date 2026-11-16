@@ -230,7 +230,9 @@ def limits_detector(df, column_types, limits, typos_only=False, listing=False, q
         common = {v for v in vals[cnt >= max(5, 0.001 * len(x))] if not _sentinel(v)}
         sv, med = np.sort(x[~np.isnan(x)]), float(np.nanmedian(x)) if len(vals) else 0.0
         crowd = max(5, 0.0005 * len(sv))
-        rare_minus = (sv >= 0).sum() >= 0.99 * (len(sv) - 1)  # likely_value's own test for a minus-sign slip
+        # likely_value's own test for a minus-sign slip; under a header whose quantity can go below zero (a temperature),
+        # with 5+ negatives, a negative is one of its values, judged by its crowd like any other (AH-177, limits._limits)
+        rare_minus = (sv >= 0).sum() >= 0.99 * (len(sv) - 1) and not (_signed(col, column_types) and (sv < 0).sum() >= 5)
         top = None if typos_only else _alone_top(sv)
         rules = (held or {}).get(col, ())
         ruled = lambda i: next((t for m, t in rules if m[i]), None)  # the rule this row's arithmetic holds to

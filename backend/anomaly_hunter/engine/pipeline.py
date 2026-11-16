@@ -149,23 +149,34 @@ def _serial(text):
     return (datetime.date(1899, 12, 30 if n > 60 else 31) + datetime.timedelta(days=int(n))).isoformat()
 
 
-def type_errors(n, errors_log, column_types):
+def type_errors(df, errors_log, column_types):
     """Text in a number or date column. A text shape the column repeats 5+ times is its own code system (partisan lean
     "R+51.5", district "16A": 8,000 false rows on one real sheet, 2026-10-16), not a slip; placeholders and missing-value
     words (N/A, -, NA) never are. The cells stay in errors_log: they are text, for duplicates and blanks alike.
     -> (reasons, notes): a placeholder the column writes max(MANY, NO_VALUE_SHARE of the rows) times through 4 of the 5
     fifths of the sheet is its code for "no value", one note (AH-45: a survey's 1-5 rating of Italy's cuisine, "N/A" 67 times)."""
+    n = len(df)
     out, notes = [[] for _ in range(n)], [[] for _ in range(n)]
-    ph = collections.defaultdict(list)
+    ph = collections.defaultdict(lambda: collections.defaultdict(list))  # column -> spelling -> rows
+    other = collections.Counter()  # text that is no word for no value
     for i, col, raw in errors_log:
-        if PLACEHOLDER.fullmatch(str(raw).strip()):
-            ph[col, str(raw).strip().upper()].append(i)
+        if PLACEHOLDER.fullmatch(str(raw).strip()) and str(raw).strip().upper() != "ERROR":
+            ph[col][str(raw).strip().upper()].append(i)
+        else:
+            other[col] += 1
     coded = set()
-    for (col, _), rows in ph.items():
-        if _ != "ERROR" and len(rows) >= max(MANY, NO_VALUE_SHARE * n) and _spread(rows, n):
+    for col, spelt in ph.items():
+        # every spelling of no value counted together, the export's NA read as missing too: 47 "N/A", 26 "NA", 6 "-" and
+        # 3 "None" each fell short of the bar and were each Medium; and where the column is already a fifth empty (any
+        # spelling or blank), another spelling is one more of them, never a slip (blind round 2, AH-177)
+        rows = sorted(i for r in spelt.values() for i in r)
+        said = df.attrs.get("no_value", {}).get(col, ((),))[0]
+        every = sorted(set(rows) | set(said))
+        if len(every) >= max(MANY, NO_VALUE_SHARE * n) and _spread(every, n) or _blank(df[col]).sum() - other[col] >= EMPTY * n:
             coded |= {(i, col) for i in rows}
-            raw = next(str(r).strip() for j, c, r in errors_log if j == rows[0] and c == col)
-            notes[rows[0]].append(Why(f'{col} is "{_short(raw)}" (no value) in {len(rows)} of {n} rows', col))
+            words = sorted(spelt, key=lambda k: (-len(spelt[k]), min(spelt[k])))
+            raws = [next(str(r).strip() for j, c, r in errors_log if j == spelt[k][0] and c == col) for k in words]
+            notes[rows[0]].append(Why(f'{col} is {" or ".join(chr(34) + _short(r) + chr(34) for r in raws)} (no value) in {len(rows)} of {n} rows', col))
     code = lambda raw: not (EXCEL_ERROR.match(str(raw).strip()) or PLACEHOLDER.fullmatch(str(raw).strip())
                             or MISSING.fullmatch(str(raw).strip()))
     shapes = collections.Counter((col, _shape(raw)) for _, col, raw in errors_log if code(raw))
@@ -220,18 +231,20 @@ def placeholders(df, column_types, skip):
         rare = times <= max(1, 0.08 * filled)
         # ...never ERROR: a log's Level ERROR on 3% of rows is a real category, not "no value" (AH-45 review), so it keeps
         # the rare-word flag it always had
-        code = ph & rare & (times >= max(MANY, NO_VALUE_SHARE * filled)) & (key != "ERROR")
-        for k in key[code].unique():
-            first = df.index[code & (key == k)]
-            # ...found in 4 of the 5 fifths of the sheet, like blanks (AH-28, AH-142): a block of 50 "?" in a census's first 150 rows is a
-            # paste or an export that went wrong, still each a slip (test_wild_census)
-            # ...or sparse among real values where it is: a contest sorted newest first wrote "?" for its oldest years'
-            # unknown entrants, 1 in 18 of the rows it spanned, 164 Medium rows (AH-173)
-            at = np.flatnonzero((code & (key == k)).to_numpy())
-            if not _spread(at, len(df)) and _block(at):
-                code &= key != k
-                continue
-            notes[first[0]].append(Why(f'{col} is "{v[first].mode().iloc[0]}" (no value) in {len(first)} of {(~skip).sum()} rows', col))
+        code = ph & rare & (key != "ERROR")
+        # every spelling of no value counted together ("N/A", "NA", "-", "None": each short of the bar, each Medium), and
+        # where the column is already a fifth empty (any spelling or blank) another spelling is one more, never a slip (AH-177)
+        said = (code | v.str.fullmatch(NO_VALUE_WORD)) & ~_blank(df[col]) & ~skip
+        at = np.flatnonzero(said.to_numpy())
+        # ...found in 4 of the 5 fifths of the sheet, like blanks (AH-28, AH-142): a block of 50 "?" in a census's first 150 rows is a
+        # paste or an export that went wrong, still each a slip (test_wild_census)
+        # ...or sparse among real values where it is: a contest sorted newest first wrote "?" for its oldest years'
+        # unknown entrants, 1 in 18 of the rows it spanned, 164 Medium rows (AH-173)
+        many = len(at) >= max(MANY, NO_VALUE_SHARE * filled) and (_spread(at, len(df)) or not _block(at))
+        code &= many or (said | _blank(df[col]) & ~skip).sum() >= EMPTY * (~skip).sum()
+        if code.any():
+            words = [v[code & (key == k)].mode().iloc[0] for k in key[code].value_counts().index]
+            notes[df.index[code][0]].append(Why(f'{col} is {" or ".join(chr(34) + w + chr(34) for w in words)} (no value) in {int(code.sum())} of {(~skip).sum()} rows', col))
         hit = (err & ~skip) | (ph & rare & ~code)
         if hit.any():
             for i in df.index[hit]:
@@ -244,6 +257,7 @@ SHARE = 0.01  # ...and at least 1% of its rows: 20 values gone from a 20,000-row
 # a blank or a placeholder from 0.5%: 1% made a ZIP's 280 unknowns in 28,156 rows (0.99%) and a coo_name's 459 "Unknown"
 # in 50,000 each a Medium row (AH-142); 20 in 20,000 (0.1%) are still each a slip
 NO_VALUE_SHARE = 0.005
+EMPTY = 0.2  # a column a fifth empty already: another word for no value in it is one more of them (AH-177)
 
 
 def _spread(pos, n):
@@ -1117,7 +1131,11 @@ def spellings(df, column_types, skip):
         keys = s.map(lambda v: " ".join(v.split()).casefold())
         capital = lambda v: v.strip()[:1].isupper()
         labels = list(s.drop_duplicates())
-        caps = sum(map(capital, labels)) >= len(labels) / 2  # the column's style: most labels start with a capital
+        up = sum(map(capital, labels))
+        caps = up >= len(labels) / 2  # the column's style: most labels start with a capital
+        # ...and a style only when 2/3 of the labels share it: codes (domus, New, MusCal, aim82NM) have none, and "Misc" 38
+        # times beside "misc" 207 was "off style", a card a row auto-applied (blind round 2, AH-177)
+        styled = max(up, len(labels) - up) >= 2 * len(labels) / 3
         rights, spelt = {}, {}  # label -> its right spelling; label -> {raw spelling: rows}
         for raw, c in s.value_counts().items():  # one count per column, not per label: 400 columns took 20 s (2026-10-16)
             spelt.setdefault(" ".join(raw.split()).casefold(), {})[raw] = c
@@ -1138,7 +1156,7 @@ def spellings(df, column_types, skip):
                 # also one note, written 5+ times: more often than the "right" one (LazyData "true" 5,156 beside "TRUE"
                 # 790: each card rewrote a correct cell to the minority's form), or only its spaces differ (shelter
                 # color1 "brown " 2,415 beside "brown" 4,482, from a split): 21,572 Medium rows on 16 of 323 real tables (AH-142)
-                if c >= 5 and (capital(raw) == caps and raw == " ".join(raw.split()) or c >= counts[right]
+                if c >= 5 and (not styled or capital(raw) == caps and raw == " ".join(raw.split()) or c >= counts[right]
                                or raw.split() == right.split()):
                     missed[s.index[s == raw][0]].append(Why(f'{col} is written "{_short(raw)}" {c} times and "{_short(right)}" '
                                                             f'{counts[right]} time{"s" * (counts[right] > 1)} (same word, different capitals/spaces)', col))
@@ -1173,7 +1191,8 @@ def spellings(df, column_types, skip):
         # in order, at most one vowel - "Fee" is not short for "Free")
         # A whole word of another label is a label of its own: Periode "II" next to "II-III?" (blind real sheet, 123
         # correct cells offered "II-III?", 2026-10-16), "Pen" next to "Pen Set"
-        tokens = collections.Counter(w for u in cnt.index for w in set(re.split(r"[\s/-]+", u)))
+        # ...words split at any mark: "mm" is a word of "mm_prediction_random_forest", no short form of it (AH-177)
+        tokens = collections.Counter(w for u in cnt.index for w in set(re.split(r"[\W_]+", u)))
         whole = lambda short: tokens[short] > 1  # a word of some other label too, not only of itself
         for short in cnt.index:
             # a short form is the rarer spelling - the full label at least twice as common: "CAF" (51 rows) is not short
@@ -1346,7 +1365,7 @@ def score(df, column_types, errors_log, limits, order_by, strength=5, saved=(), 
             "ecod": ecod_detector(df, judged, k) if s >= 5 else _result(n, "strength below 5")}
     # DBSCAN cut 2026-10-07: 90s/100k rows, 81% false alarms, bench same without it
     ran = [d for d in dets.values() if d["ran"]]
-    (dup, repeats), (typ, typ_coded), (blank, spread) = duplicates(df, errors_log, column_types), type_errors(n, errors_log, column_types), blanks(df, column_types, skip, errors_log)
+    (dup, repeats), (typ, typ_coded), (blank, spread) = duplicates(df, errors_log, column_types), type_errors(df, errors_log, column_types), blanks(df, column_types, skip, errors_log)
     (hole, coded), far = placeholders(df, column_types, skip), far_dates(df, column_types, skip)
     zeros = lost_zeros(df, column_types, skip)
     calc, calc_fix = formulas(df, column_types, skip, grid)  # AH-152: a typed value or another formula among a column's formulas
