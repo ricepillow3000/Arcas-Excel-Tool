@@ -647,6 +647,11 @@ function woff2(file) {
   const shot = (/<figure class="shot[^"]*">([\s\S]*?)<\/figure>/.exec(home) || ["", ""])[1], img = (/<img\b[^>]*>/.exec(shot) || [""])[0];
   for (const want of ['src="assets/pane-after-scan.webp"', 'width="360"', 'height="900"', 'loading="lazy"', 'decoding="async"']) assert.ok(img.includes(want), `the pane's screenshot lacks ${want}: ${img}`);
   assert.ok(/alt="The Arcas pane after a scan: [^"]{20,}"/.test(img), `the pane's screenshot has no alt that says what it shows: ${img}`);
+  // AH-171: drawn 1:1 (it was 180 px wide, its words 4 to 6 px tall), a 360 x 364 window of it from "5 of 300 rows look
+  // wrong." to row 11's reason; the alt says what that window shows
+  assert.ok(img.includes('alt="The Arcas pane after a scan: 5 of 300 rows look wrong, and the rows to check start with Row 22 and Row 11, each with its reason"'), `the pane's screenshot's alt is not its window's: ${img}`);
+  const shotCss = (/(?:^|\})\s*\.shot img\s*\{([^}]*)\}/.exec(css) || ["", ""])[1];
+  assert.ok(/aspect-ratio:\s*360 \/ 364/.test(shotCss) && /object-fit:\s*cover/.test(shotCss) && /object-position:\s*50% \d+%/.test(shotCss) && /width:\s*360px/.test(shotCss), `styles.css: the pane's screenshot is not a 360 x 364 window drawn 1:1: ${shotCss}`);
   assert.ok(/^The Arcas pane after a scan of a 300-row sales sheet\b/.test(words((/<figcaption>([\s\S]*?)<\/figcaption>/.exec(shot) || ["", ""])[1])), "the pane's screenshot has no caption that says what sheet it is");
   // beside the short list of checks since AH-159, after the sample
   const checks = (/<section\b[^>]*\sid="checks"[\s\S]*?<\/section>/.exec(home) || [""])[0];
@@ -1546,6 +1551,22 @@ for (const motion of ["no-preference", "reduce"]) {
   await done(t, label, [API]);
 }
 console.log("AH-170 F2: Back and Forward return to where the reader left each page");
+// AH-171: the pane's picture reads at its own size: drawn 340 px wide or more at 1280 (it was 182), 300 or more on a
+// 390 px phone (120), its box kept before the lazy image loads (CLS 0 from the scroll that brings it in)
+for (const [width, height, min] of [[1280, 800, 340], [390, 844, 300]]) {
+  const t = await open("index.html", { width, height, motion: "reduce", init: () => { window.__cls = 0;
+    new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) window.__cls += e.value; }).observe({ type: "layout-shift", buffered: true }); } });
+  const p = t.page;
+  // from the scroll that brings the lazy image in (main already shifts the sample's head 26 px at load on a phone)
+  await p.evaluate(() => { window.__cls = 0; document.querySelector("#checks .shot").scrollIntoView({ block: "center" }); });
+  await p.waitForFunction(() => { const i = document.querySelector("#checks .shot img"); return i.complete && i.naturalWidth > 0; }, null, { timeout: 5000 });
+  await p.waitForTimeout(300);
+  const r = await p.evaluate(() => { const i = document.querySelector("#checks .shot img"), b = i.getBoundingClientRect();
+    return { w: i.clientWidth, h: i.clientHeight, natural: [i.naturalWidth, i.naturalHeight], right: Math.round(b.right), screen: innerWidth, cls: window.__cls }; });
+  assert.ok(r.w >= min && r.w <= 360 && Math.abs(r.h - r.w * 364 / 360) <= 1 && r.right <= r.screen && r.natural.join() === "360,900" && r.cls === 0, `AH-171 the pane's picture at ${width} px: ${JSON.stringify(r)}`);
+  await done(t, `AH-171 the pane's picture at ${width} px`, [API]);
+}
+console.log("AH-171: the pane's picture drawn 1:1 at 1280 and on a phone, its box kept (CLS 0)");
 // ---- the sample sheet's motion (AH-89, AH-91, AH-92; John 2026-11-02) ----
 // the skeleton: the real sheet waits with no colour on its values and a bar exactly where each value will land; it plays
 // once the sheet is 30% on screen (never before where row 11 starts below the fold: 1440 x 600 since AH-171), one band of light crosses

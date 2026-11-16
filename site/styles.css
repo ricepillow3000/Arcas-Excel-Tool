@@ -408,8 +408,9 @@ td.why i.ok { display: inline-block; width: 10px; height: 10px; margin-right: 8p
 /* the way on to the checks, right under the sheet (AH-91) */
 .next-up { grid-column: 1 / -1; margin-top: var(--s3); display: flex; justify-content: center; }
 /* the real pane after a scan (AH-156: a page with no picture of its product reads as made up), beside the checks on the
-   band at 220 of its 360 x 900 (AH-159), a hairline round it, its caption under it; the width and height on the img keep
-   its box before it loads (CLS 0) */
+   band, a hairline round it, its caption under it. AH-171: drawn 1:1 (at 180 px its words were 4 to 6 px tall), a 360 x
+   364 window of it, from "5 of 300 rows look wrong." (y 475) to row 11's reason (y 827), no taller: the phone's home page
+   stays within its 8,397 px; the aspect-ratio keeps that box before the image loads (CLS 0) */
 /* the checks in a line each (AH-159): two columns of three beside the pane, each under a gold hairline */
 #checks .sec-title { grid-column: 1 / span 7; grid-row: 1; }
 .check-list { grid-column: 1 / span 7; grid-row: 2; margin: var(--s5) 0 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s4) var(--gutter); }
@@ -419,7 +420,7 @@ td.why i.ok { display: inline-block; width: 10px; height: 10px; margin-right: 8p
 .all-checks { grid-column: 1 / span 7; grid-row: 3; margin-top: var(--s4); font-weight: 700; }
 .all-checks a { color: var(--on-dark); text-decoration-color: var(--gold-hi); }
 .shot { grid-column: 9 / -1; grid-row: 1 / span 3; margin: 0; display: grid; gap: var(--s2); justify-items: start; align-content: start; }
-.shot img { display: block; box-sizing: content-box; width: 180px; max-width: calc(100% - 2px); height: auto; border: 1px solid var(--on-dark-2); background: var(--paper-2); }
+.shot img { display: block; box-sizing: content-box; width: 360px; max-width: calc(100% - 2px); height: auto; aspect-ratio: 360 / 364; object-fit: cover; object-position: 50% 87%; border: 1px solid var(--on-dark-2); background: var(--paper-2); }
 .shot figcaption { max-width: 22rem; font-size: var(--fs--1); color: var(--on-dark-2); }
 #preview:focus, #checks:focus { outline: none; } /* a glide's target takes focus for the keyboard and screen readers; the region itself shows no ring */
 
@@ -931,9 +932,10 @@ html[data-moving] #field { z-index: 2; }
   .phone-only { display: block; }
   .ask { margin-top: var(--s5); }
   .stage, .steps, #download .sec-lede, .shot, .hero-copy, #checks .sec-title, .check-list, .all-checks { grid-row: auto; }
-  /* the pane beside its caption, and each step's number beside its words (AH-159: the home page in ten phone screens) */
-  .shot { grid-template-columns: 120px minmax(0, 1fr); align-items: end; gap: var(--s3); }
-  .shot img { width: 118px; }
+  /* each step's number beside its words (AH-159: the home page in ten phone screens); the pane over its caption, 300 px
+     wide in one set column (AH-171: the phone's home page within its 8,397 px) */
+  .shot { grid-template-columns: minmax(0, 1fr); }
+  .shot img { width: 300px; }
   .steps li { grid-template-columns: auto minmax(0, 1fr); column-gap: var(--s2); }
   .steps ol { margin-top: 0; }
   .stage { margin-top: var(--s5); }
