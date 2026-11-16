@@ -173,6 +173,7 @@ details.more[open] summary { margin-bottom: var(--s3); }
 
 /* the suggestion card: plain paper in a navy hairline frame, the flagged cell's square before its title (a 4px wine stripe
    down its left side was the commonest tell of a generated page, AH-98) */
+.iso-date { white-space: nowrap; } /* AH-170: a date in a reason never breaks at its hyphen */
 .reason-box { margin: 0 0 var(--s3); font-size: 13px; color: var(--muted); white-space: pre-line; text-wrap: pretty; } /* each reason on its own line (AH-149) */
 .fix-result { background: var(--field); border: 1px solid var(--navy); border-radius: 0; padding: var(--s4); margin: var(--s3) 0 var(--s4); }
 .fix-result h2 { margin: 0 0 var(--s2); padding-top: 0; }

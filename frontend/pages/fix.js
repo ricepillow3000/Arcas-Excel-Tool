@@ -1,6 +1,6 @@
 import { SEV } from "../constants/index.js";
 import { state } from "../hooks/use-state.js";
-import { $, only, show } from "../utils/dom.js";
+import { $, dated, only, show } from "../utils/dom.js";
 import { rowFromAddress } from "../utils/sheet.js";
 import { act } from "../hooks/use-action.js";
 import { busy, notice } from "../components/progress.js";
@@ -48,7 +48,7 @@ async function openRow(i, selectInSheet, from, focus) { // from: the list's butt
   const at = from?.getBoundingClientRect();
   await morph(from?.querySelector(".row-head"), () => {
     $("fix-title").textContent = `Row ${startRow + i + 2}: ${SEV[r.severity]?.toLowerCase() ?? "fixed"}`;
-    $("fix-reason").textContent = plainReason(r.reason) || (u ? "Checked again after your fix: it looks right." : "Flagged by the checker.");
+    $("fix-reason").replaceChildren(...dated(plainReason(r.reason) || (u ? "Checked again after your fix: it looks right." : "Flagged by the checker.")));
     $("fix-intent").value = "";
     $("fix-status").textContent = "";
     $("fix-status").classList.remove("tick");

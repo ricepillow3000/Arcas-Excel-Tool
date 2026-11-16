@@ -323,6 +323,13 @@ if (mode === "flow") {
     ok(home.vt && !home.names.length && (await page.isVisible("#results")), `AH-149: Back flies the title home to row ${r} - ` + JSON.stringify(home));
   }
 
+  // AH-170: a date in a reason stays on one line: "2026-01-" / "26" broke at its hyphen at 320 px, in the list and the card
+  { const whole = (sel) => page.evaluate((sel) => { const w = document.createTreeWalker(document.querySelector(sel), NodeFilter.SHOW_TEXT), out = [];
+      for (let t; (t = w.nextNode());) for (const d of t.data.match(/\d{4}-\d{2}-\d{2}/g) || []) out.push(t.data === d && getComputedStyle(t.parentElement).whiteSpace === "nowrap" ? "kept" : `split: ${t.data}`);
+      return out; }, sel);
+    const list = await whole("#flagged-list"); await openRow(22); const card = await whole("#fix-reason"); await back();
+    ok(list.length && card.length && [...list, ...card].every((d) => d === "kept"), "AH-170: every date in a reason, in the list and on the card, is kept on one line - " + JSON.stringify({ list, card })); }
+
   // AH-170: keyboard focus follows each card action. It fell to the page (BODY) when the pressed button was hidden or
   // turned off: opening a row, Accept, Undo, Next row and Back, and a keyboard user started again from the top
   { const at = () => page.evaluate(() => { const a = document.activeElement; return a.closest("#flagged-list") ? "row " + /^Row (\d+)/.exec(a.innerText)?.[1] : a.id || a.tagName; });
