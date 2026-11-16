@@ -372,6 +372,10 @@
       bring({ top: r.top, bottom: r.top + Math.min(r.height, html.clientHeight / 2) });
     };
     for (const t of tabs) t.addEventListener("click", () => press(t));
+    // AH-170 F1: a "Row 22" link pressed while the sheet showed After fixes, or while Scanning played, left its row in the
+    // hidden findings, whose offsets read 0: the glide went to the page's top, and with reduced motion nothing moved. The
+    // findings come back at the press, before motion.js (on the document) or the browser reads where the row is
+    for (const a of root.querySelectorAll("a.to-row")) a.addEventListener("click", () => { if (ws.dataset.state !== "found") pick(tabs[0]); }, on);
     // the arrows, Home and End move between tabs, as in any tab list (WAI-ARIA tabs; Home and End since AH-132, and End
     // no longer scrolls the page to its bottom)
     ws.querySelector(".tabs").addEventListener("keydown", (e) => {

@@ -1482,6 +1482,32 @@ for (const [width, motion] of [[1280, "no-preference"], [390, "reduce"]]) {
   await done(t, label, [API]);
 }
 console.log("AH-171: Accept in the sample writes the After fixes row, closes the box onto the row, and counts down to the After fixes counts");
+// AH-170 F1 (the website Tester, 2026-11-16): a "Row 22" link pressed while the sample showed After fixes, or while
+// Scanning played, glided to the page's very top: the row sat in the hidden findings, whose offsets read 0, and nothing
+// turned the sheet back first. Under reduced motion nothing moved at all. Now the sheet turns to its findings at the
+// press, and the page lands with row 22's flagged cell in view (its gold mark shown, with motion)
+for (const [from, motion] of [["t-clean", "no-preference"], ["t-busy", "no-preference"], ["t-clean", "reduce"], ["t-busy", "reduce"]]) {
+  const t = await open("index.html", { width: 1280, height: 800, motion });
+  const p = t.page, label = `AH-170 F1 Row 22 pressed on ${from} (${motion})`;
+  if (motion !== "reduce") await p.waitForTimeout(ENTERED);
+  await p.click(`#${from}`);
+  if (from === "t-clean" && motion !== "reduce") await p.waitForTimeout(900); // the page turn is over
+  await p.evaluate(() => { const a = document.querySelector('#checks a.to-row[href="#r22"]'); scrollTo(0, a.getBoundingClientRect().top + scrollY - 300);
+    window.__landed = null; document.addEventListener("ah:glide-end", () => setTimeout(() => { const m = document.querySelector(".row-mark"); window.__landed = m ? +getComputedStyle(m).opacity : null; }, 150)); });
+  const busy = await p.evaluate(() => document.getElementById("preview").dataset.state);
+  await p.click('#checks a.to-row[href="#r22"]');
+  await p.waitForFunction(() => location.hash === "#r22", null, { timeout: 5000 }).catch(() => {});
+  await p.waitForTimeout(900);
+  const r = await p.evaluate(() => { const td = document.querySelector("#r22 td.flag"), b = td.getBoundingClientRect();
+    return { was: "", state: document.getElementById("preview").dataset.state, tab: document.getElementById("t-found").getAttribute("aria-selected"), y: Math.round(scrollY),
+      cell: [b.top, b.bottom, b.left, b.right].map(Math.round), screen: [innerWidth, innerHeight], landed: window.__landed }; });
+  r.was = busy;
+  const [tp, bt, l, rt] = r.cell;
+  if (!(r.was === from.slice(2) && r.state === "found" && r.tab === "true" && r.y > 0 && tp >= 0 && bt <= r.screen[1] && l >= 0 && rt <= r.screen[0]) || (motion !== "reduce" && !(r.landed > 0.5)))
+    assert.fail(`${label}: ${JSON.stringify(r)}`);
+  await done(t, label, [API]);
+}
+console.log("AH-170 F1: a Row N link pressed on After fixes or mid-Scanning turns the sheet to its findings and lands on the row, with motion and without");
 // ---- the sample sheet's motion (AH-89, AH-91, AH-92; John 2026-11-02) ----
 // the skeleton: the real sheet waits with no colour on its values and a bar exactly where each value will land; it plays
 // once the sheet is 30% on screen (never before where row 11 starts below the fold: 1440 x 600 since AH-171), one band of light crosses
