@@ -185,6 +185,11 @@ assert.deepEqual(fairnessTests(undefined), []);
 assert.equal(summaryOf([{ severity: null }, { severity: "Noted" }, { severity: null }]), "No problems found in 3 rows.");
 assert.equal(summaryOf([{ severity: "High" }, { severity: "Low" }, ...Array(1998).fill({ severity: null })]), "1 of 2,000 rows look wrong. 1 more is worth a quick check.");
 assert.equal(summaryOf([{ severity: "Low" }, { severity: "Low" }]), "Nothing clearly wrong in 2 rows. 2 are worth a quick check.");
+// AH-170: a sheet of one row is said in the singular ("No problems found in 1 rows." was said), as lastScanSaid does
+assert.equal(summaryOf([{ severity: null }]), "No problems found in 1 row.");
+assert.equal(summaryOf([{ severity: "Medium" }]), "1 of 1 row looks wrong.");
+assert.equal(summaryOf([{ severity: "Low" }]), "Nothing clearly wrong in 1 row. 1 is worth a quick check.");
+assert.equal(summaryOf([{ severity: "High" }, { severity: null }]), "1 of 2 rows look wrong.");
 // AH-170: Check words says each odd word once, in its column, with how many rows and the first few: one word in 100
 // cells gave 100 identical lines (the pane 9,700 px tall at 320 px). At most CAP (50) lines, then one line for the rest
 {

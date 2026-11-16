@@ -187,8 +187,9 @@ export function summaryOf(rows) {
   const sure = rows.filter((r) => r.severity === "High" || r.severity === "Medium").length;
   const maybe = rows.filter((r) => r.severity === "Low").length;
   const more = maybe ? ` ${n(maybe)}${sure ? " more" : ""} ${maybe === 1 ? "is" : "are"} worth a quick check.` : "";
-  if (!sure && !maybe) return `No problems found in ${n(rows.length)} rows.`;
-  return (sure ? `${n(sure)} of ${n(rows.length)} rows look wrong.` : `Nothing clearly wrong in ${n(rows.length)} rows.`) + more;
+  const of = `${n(rows.length)} row${rows.length === 1 ? "" : "s"}`; // AH-170: "in 1 rows" was said of a one-row sheet
+  if (!sure && !maybe) return `No problems found in ${of}.`;
+  return (sure ? `${n(sure)} of ${of} ${rows.length === 1 ? "looks" : "look"} wrong.` : `Nothing clearly wrong in ${of}.`) + more;
 }
 
 // Pure: the fairness line under the summary (engine/fairness.py) - which columns are protected, and the biggest real
