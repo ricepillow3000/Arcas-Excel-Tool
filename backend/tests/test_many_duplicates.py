@@ -154,3 +154,14 @@ def test_a_row_with_its_own_id_and_name_repeated_exactly_is_a_duplicate_whatever
     rows.insert(21, list(rows[20]))
     out = scan(["id", "name", "url", "size"], rows, fair=False)[1]
     assert flagged(out, "Duplicate of row") == [21], [out[i]["reason"] for i in flagged(out, "Duplicate of row")]
+
+
+def test_two_unknown_entrants_whose_decimal_scores_tie_are_not_one_record():
+    # AH-173 fix round 2: a score written to the hundredth is nearly unique row to row, but a measure never names the
+    # row; two "?" entrants with the same year, country and score are still two people whose names were not kept
+    rng = np.random.default_rng(11)
+    cols, rows = ["year", "contestant", "country", "score"], [r[:3] + [round(float(rng.uniform(10, 90)), 2)] for r in results()]
+    rows[101][1] = rows[102][1] = "?"
+    rows[102][0], rows[102][2:] = rows[101][0], rows[101][2:]
+    out = scan(cols, rows, fair=False)[1]
+    assert not flagged(out, "Duplicate of row"), [out[i]["reason"] for i in flagged(out, "Duplicate of row")]

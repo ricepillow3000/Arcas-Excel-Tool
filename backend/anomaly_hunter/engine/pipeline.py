@@ -64,8 +64,9 @@ def duplicates(df, errors_log=(), column_types=None):
         known[c] = filled & ~(v.str.fullmatch(NO_VALUE_WORD) | ~v.str.contains(r"\w"))
     # a row with its own id or name (a column 95% distinct over 20+ known values) is told apart by it, whatever "NA" sits
     # elsewhere: lunala copied exactly, its url_icon "NA" like 229 of 950 rows, was no duplicate (Pokemon, blind round 1,
-    # AH-173 fix round 1)
-    ids = [c for c in cols if kind[c] in ("text", "id", "number") and known[c].sum() >= MANY
+    # AH-173 fix round 1). A measure never names a row: a score to the hundredth is 97% distinct, and two "?" entrants
+    # tied on it were one record again (AH-173 fix round 2)
+    ids = [c for c in cols if kind[c] in ("text", "id") and known[c].sum() >= MANY
             and df[c][known[c]].astype(str).str.strip().nunique() >= 0.95 * known[c].sum()]
     named = np.logical_or.reduce([known[c].to_numpy() for c in ids]) if ids else np.zeros(len(df), bool)
     for c in cols:
