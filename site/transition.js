@@ -45,6 +45,11 @@
   addEventListener("pagehide", () => { history.scrollRestoration = "auto"; });
   addEventListener("pageshow", (e) => { if (e.persisted) history.scrollRestoration = "manual"; });
   const save = () => history.replaceState({ ah: 1, i: index, y: Math.round(scrollY) }, "");
+  // AH-170 F2: kept as the reader scrolls too, a moment after the page comes to rest: kept only at a link's click, the
+  // place a reader scrolled to before Back was never written, and Forward came back to the page's top. Never after a
+  // Back or Forward has begun (the entry is the next page's by then)
+  let resting = 0;
+  addEventListener("scroll", () => { clearTimeout(resting); resting = setTimeout(save, 150); }, { passive: true });
 
   // each page fetched once a visit; a failed fetch is forgotten so the click after it can try again
   const cache = new Map();
@@ -106,6 +111,7 @@
   });
 
   addEventListener("popstate", (e) => {
+    clearTimeout(resting);
     const s = e.state, u = new URL(location.href), p = pageOf(u);
     if (!p) return;
     const y = s && typeof s.y === "number" ? s.y : null;
