@@ -87,3 +87,26 @@ def test_national_against_transnational_or_international_is_where_never_a_result
              "Won" if rng.random() < (0.35 if i % 2 else 0.1) else "Lost"] for i in range(600)]
     found = [t["test"] for t in report_of(["ID", "Sex", "Age", "activity_mob", "Result"], rows) if t["measure"] == "outcome"]
     assert found == ["Result Won rate"], found
+
+
+def climbers(pending, n=20_000, seed=176):
+    """n climbers, sex F/M alternating, success TRUE for 30% of women and 45% of men, "Pending" on `pending` rows."""
+    rng = np.random.default_rng(seed)
+    rows = []
+    for i in range(n):
+        sex = "FM"[i % 2]
+        success = "TRUE" if rng.random() < (0.30 if sex == "F" else 0.45) else "FALSE"
+        rows.append([f"C{i:05d}", sex, int(rng.integers(20, 70)), "Pending" if i % 100 == 3 and i // 100 < pending else success])
+    return ["Climber ID", "Sex", "Age", "success"], rows
+
+
+def test_a_third_label_on_under_1_percent_of_the_answers_is_left_out_however_many_rows_it_has():
+    # blind round 3: Pending on 198 of ~19,000 climbers (1.0%), each label past MIN_GROUP, so AH-176's rule alone made the
+    # column no outcome and a real gap by sex went unsaid (AH-176 fix round 1: AH-172's 1% rule kept beside it)
+    found = [t for t in report_of(*climbers(190)) if t["measure"] == "outcome"]
+    assert len(found) == 1 and found[0]["verdict"] == "gap", [t["text"] for t in found]
+    assert found[0]["text"].endswith("; too few to compare: success Pending (190 rows)"), found[0]["text"]
+
+
+def test_a_third_label_on_exactly_1_percent_of_the_answers_and_a_group_of_its_own_makes_no_outcome():
+    assert not [t for t in report_of(*climbers(200)) if t["measure"] == "outcome"]

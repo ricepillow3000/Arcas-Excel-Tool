@@ -20,6 +20,10 @@ MIN_GROUP = 20  # smaller groups prove nothing either way
 # 1% kept a still_alive of deceased 166, alive 32 and Pending 2 three labels, and male alive 26% vs female 6% went
 # unsaid (blind round 2, AH-176): a label too small to be a group is too small to unmake the outcome
 STRAY = 0.05
+# ...and labels past the two that together are under 1% of the answers are left out however many rows each has (AH-172's
+# rule): Pending on 198 of ~19,000 climbers' success, over MIN_GROUP, made it no outcome and a gap by sex went unsaid
+# (blind round 3, AH-176 fix round 1)
+TRACE = 0.01
 MAX_TESTS = 400  # each test is a crosstab (~5.6 ms): a crafted 40 x 40 sheet took 9 s per scan (2026-10-16)
 ALPHA = 0.01    # after a Bonferroni correction over every test of the scan: noise is not called bias
 HINT = 0.05     # a raw p-value this small, not confirmed after the correction: "not enough rows to tell"
@@ -196,8 +200,10 @@ def _outcomes(df, types, skip):
             v = _labels(df[c], 50)
             v = v.where(v.notna() & ~_unknown(v)) if v is not None else None
             counts = v.value_counts() if v is not None else ()
-            if len(counts) > 2 and (counts.iloc[2:] < MIN_GROUP).all() and counts.iloc[2:].sum() < STRAY * counts.sum():
-                rare[c] = counts.iloc[2:]
+            extra = counts.iloc[2:] if len(counts) > 2 else None
+            if extra is not None and (extra.sum() < TRACE * counts.sum()
+                                      or (extra < MIN_GROUP).all() and extra.sum() < STRAY * counts.sum()):
+                rare[c] = extra
                 v, counts = v.where(v.isin(counts.index[:2])), counts.iloc[:2]
             if len(counts) == 2 and _is_outcome(*(str(k).casefold() for k in counts.index)):
                 yes = counts.index[-1]
