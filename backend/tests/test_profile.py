@@ -123,3 +123,11 @@ def test_a_bad_body_is_a_clear_400_as_on_scan():
     for body in ({}, {"columns": [], "rows": []}, {"columns": ["A"], "rows": [[1, 2]]}, {"columns": ["A"], "rows": [[{"x": 1}]]}):
         r = c.post("/profile", json=body)
         assert r.status_code == 400 and r.get_json()["error"], body
+
+
+def test_an_answer_with_a_few_na_cells_is_named_as_an_outcome_as_the_scans_report_reads_it():
+    # AH-172 reads an answer's "NA" as no value, so Yes/No/NA is an outcome the report compares: the profile must say so
+    cols, rows = _survey()
+    for k in range(0, len(rows), 10):
+        rows[k][2] = "NA"
+    assert "Do you own a car?" in profile(cols, rows)["about"]["outcomes"]

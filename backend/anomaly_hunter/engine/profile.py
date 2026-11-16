@@ -20,7 +20,7 @@ def profile(columns, rows):
     df, types, _ = load_from_records(columns, rows)
     _, fdf, ftypes, prot = fairness.people(df, types)
     # what report() compares across the groups besides the flagged rows (none without a group: it compares nothing)
-    outcomes = list(dict.fromkeys(v[2] for v in fairness._outcomes(fdf, ftypes, prot).values())) if prot else []
+    outcomes = list(dict.fromkeys(v[2] for v in fairness._outcomes(fdf, ftypes, prot)[0].values())) if prot else []
     amounts = list(dict.fromkeys(v[2] for v in fairness._amounts(fdf, ftypes, prot).values())) if prot else []
     # the sequence check reads the columns that are not protected (pipeline.score's `judged`)
     judged = {c: t for c, t in types.items() if c not in fairness.protected(types)}
