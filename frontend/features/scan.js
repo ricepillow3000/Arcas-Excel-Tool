@@ -30,6 +30,8 @@ const scanning = (on) => $("main-ui").toggleAttribute("data-scanning", on);
 export async function runScan(auto, held = false) { // auto === false: the re-check right after auto-fix (never auto-fixes twice)
   const t0 = Date.now();
   state.fix = null;
+  // AH-170: Check words' lines named cells of the sheet checked before; a new check says them again only when asked
+  $("odd-list").replaceChildren();
   if (state.view !== "results") only(state.lastScan ? "results" : "empty-state"); // no fix view left without its row
   scanning(true);
   $("main-ui").toggleAttribute("data-held", true); // the progress and then "Done" take one held space till the action ends (use-action.js)

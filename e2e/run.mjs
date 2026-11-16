@@ -1222,6 +1222,13 @@ if (mode === "ai") { // engine started with a Claude key pointed at stub_claude.
       status: document.getElementById("status").getBoundingClientRect().height, notice: document.getElementById("notice").textContent }));
     ok(m.odd === m.body, `Check words' answer, or why it could not check, is at body size - ${m.odd} (body ${m.body})`);
     ok(m.notice === "" && m.status < 1, `with nothing to say and nothing running, the progress and notice line holds no space over the summary - ${m.status} px`); }
+  // AH-170: Check words' lines name cells of the sheet they were asked about: another sheet's check never shows them
+  await page.click("#odd-check"); await idle();
+  const oddBefore = await page.$$eval("#odd-list li", (lis) => lis.length);
+  await page.evaluate(() => __load("Other", [["Item", "Qty"], ...Array.from({ length: 30 }, (_, k) => [["Pen", "Ink"][k % 2], k + 1])]));
+  await find();
+  ok(oddBefore > 0 && (await page.$$eval("#odd-list li", (lis) => lis.length)) === 0 && (await text("#sheet-name")) === "Other",
+    `AH-170: Find problems on another sheet clears the old Check words lines (${oddBefore} before)`);
 }
 
 if (mode === "nokey") { // engine started with no key: John's free AI through the relay, here stub_claude.py's /fix (e2e/engine.py)
