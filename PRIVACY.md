@@ -60,7 +60,8 @@ whether the key works; that call carries the key and no sheet data. A key from a
 can be charged by Google for what AI help uses; without billing, the free tier costs nothing.
 - **Ask AI** (fix a row) sends the column names, the row you asked about, up to 5 rows above and 5 below it, the
   formulas in that row, the cell addresses, the reason it was flagged, and anything you type in the request box. On a
-  wide sheet only the columns nearest the flagged cell go. Long cells are cut to 200 characters, except the flagged cell.
+  wide sheet only the columns nearest the flagged cell and any column your request names go. Long cells are cut to 200
+  characters, except the flagged cell.
   Up to 5 fixes you accepted before in a column with the same name as the flagged one, from Ask AI's memory (each
   one's column name, the kind of fix, and the old and new values), are sent with Ask AI only once the AI memory is
   switched on in a later update. Until then they stay on this PC.

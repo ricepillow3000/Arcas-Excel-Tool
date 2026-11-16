@@ -76,7 +76,8 @@ cost tokens, and could miss the very row being fixed.
 
 **Context engineering it already does** (`_fix_prompt`):
 - the flagged row, plus 5 rows above and below (`ctx=5`);
-- if that's over the size budget (`_fits` / `BUDGET`), only the columns nearest the flagged cell (`keep=nearest[:n]`);
+- if that's over the size budget (`_fits` / `BUDGET`), only the flagged cell's column, any column the typed request
+  names (AH-42), then the nearest (`keep=nearest[:n]`);
 - the row's formulas, so the model fixes inputs instead of overwriting a formula;
 - the detector's plain-sentence reason ("why it was flagged");
 - long cells are cut, and their addresses recorded (`cut`), so the model can't rewrite a cell it only half saw.

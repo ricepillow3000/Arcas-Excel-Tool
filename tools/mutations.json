@@ -1903,5 +1903,27 @@
   "tests": [
    "node relay/test.mjs"
   ]
+ },
+ {
+  "id": "named-column-loosen",
+  "guard": "a column the request names is kept only when named as whole words",
+  "file": "backend/anomaly_hunter/ai/client.py",
+  "old": "if words(c) and f\" {words(c)} \" in req}",
+  "new": "if words(c) and words(c) in req}",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_ai_answers.py::test_a_header_inside_another_word_of_the_request_is_not_named"
+  ]
+ },
+ {
+  "id": "named-column-tighten",
+  "guard": "a column the request names is kept when a wide row is trimmed",
+  "file": "backend/anomaly_hunter/ai/client.py",
+  "old": "if words(c) and f\" {words(c)} \" in req}",
+  "new": "if False}",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_ai_answers.py::test_a_column_the_request_names_is_kept_when_a_wide_row_is_trimmed"
+  ]
  }
 ]
