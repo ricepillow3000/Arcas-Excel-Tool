@@ -1385,8 +1385,10 @@ const onTop = (page) => page.evaluate(async () => {
   // Tab out of the box closes it, and focus goes on where Tab took it: the box stayed open, floating over the rows,
   // with focus already past it (AH-132)
   await p.keyboard.press("Enter"); assert.equal((await state()).open, "m11");
-  // ... from the box's last control: since AH-171 Tab from Close reaches its Accept, inside the box, which stays open
-  await p.keyboard.press("Tab"); assert.deepEqual([(await state()).open, await p.evaluate(() => document.activeElement.className)], ["m11", "btn btn-primary m-accept"], "Tab from Close to Accept");
+  // (AH-171: the box's Accept sits before its Close, reached with Shift+Tab, inside the box, which stays open)
+  await p.keyboard.down("Shift"); await p.keyboard.press("Tab"); await p.keyboard.up("Shift");
+  assert.deepEqual([(await state()).open, await p.evaluate(() => document.activeElement.className)], ["m11", "btn btn-primary m-accept"], "Shift+Tab from Close to Accept");
+  await p.keyboard.press("Tab");
   await p.keyboard.press("Tab");
   assert.deepEqual(await p.evaluate(() => [[...document.querySelectorAll(".matrix")].filter((m) => !m.hidden).length, !!document.activeElement.closest(".matrix"), document.activeElement !== document.body]), [0, false, true], "Tab out of a detail box");
   await p.click('tr[data-kind="label"] td.why'); assert.equal((await state()).open, "m31");
