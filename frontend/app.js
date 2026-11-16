@@ -40,7 +40,7 @@ if (typeof Office !== "undefined") {
     $("scan").onclick = act(() => runScan(true, true)); // held: the skeleton stays long enough to be seen
     $("retry-health").onclick = () => checkHealth();
     $("clear-highlights").onclick = act(clearHighlights);
-    $("edit-limits").onclick = openLimitsEditor;
+    $("edit-limits").onclick = act(openLimitsEditor); // AH-170: like every action, it clears the last one's notice
     $("cancel-limits").onclick = () => only(state.lastScan ? "results" : "empty-state");
     $("save-limits").onclick = act(saveLimitsAndRescan);
     $("auto-limits").onclick = act(async () => (saveLimits(null), await runScan()));

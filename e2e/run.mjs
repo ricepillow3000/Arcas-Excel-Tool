@@ -517,7 +517,9 @@ if (mode === "flow") {
   // 6) limits: plain words, bad input refused, saving rescans, "Back to automatic" resets
   const openStrict = () => page.locator("details.more:has(#edit-limits)").evaluate((d) => (d.open = true));
   await openStrict();
+  const noticed = await text("#notice"); // Remove highlights' words, just above
   await page.click("#edit-limits");
+  ok(noticed.startsWith("Highlights removed") && (await text("#notice")) === "", `AH-170: opening the limits editor clears the last action's notice - ${JSON.stringify([noticed, await text("#notice")])}`);
   const units = page.locator('#limits-rows .limits-row[data-column="Units"] input');
   await contrast("the limits editor");
   await units.nth(0).fill("200"); await units.nth(1).fill("100"); await page.click("#save-limits");
