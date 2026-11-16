@@ -680,6 +680,16 @@ def _coverage(blank, table, unrecorded, personal=False):
                 or (not personal and rates.median() >= 0.1))
 
 
+def people(df, types):
+    """Who the rows are, as report() reads them -> (the second header row, df and types without it and without unnamed
+    columns, _people's {col: why}). /profile says it before a scan (AH-169): read here once, it never names a group the
+    scan's report would not compare."""
+    head = _subheader(df, types)  # a second header row is no person: left out of every group and measure (AH-53)
+    df = df[~head.to_numpy()]
+    types = {c: t for c, t in types.items() if not _unnamed(c)}  # a column with no name is never quoted
+    return head, df, types, _people(df, types)
+
+
 def report(df, types, rows):
     """{protected: {col: why}, tests: [{column, test, measure, groups: {label: [rows, rate]}, p, verdict, text, context?}]}.
     verdict "gap" = the group that stands out differs from the rest by _big AND significantly (Bonferroni over every test
@@ -690,11 +700,8 @@ def report(df, types, rows):
     context = one sentence of measured public context (ai/bias_rules.json), only when the rule measured this outcome and
     the sheet's gap runs the same way. Never on a flag-rate gap: that one is ours."""
     from anomaly_hunter.ai.bias_context import pane_note_matching  # here, not at the top: bias_context reads this module's words
-    head = _subheader(df, types)  # a second header row is no person: left out of every group and measure (AH-53)
+    head, df, types, prot = people(df, types)
     rows = [r for r, h in zip(rows, head) if not h]
-    df = df[~head.to_numpy()]
-    types = {c: t for c, t in types.items() if not _unnamed(c)}  # a column with no name is never quoted
-    prot = _people(df, types)
     blank_of = {c: _missing(df[c]) for c in types if c in df.columns}  # once a column: nonvoters' 119 were read 3 times (AH-65)
     # a row flagged only for its blank cells is counted under each column's blanks, where coverage and routing are
     # judged: "State TX: 0.9% rows flagged vs 25% - a real gap" was 150 blank Race cells in the states whose candidates'

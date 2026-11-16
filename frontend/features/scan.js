@@ -13,6 +13,7 @@ import { strength } from "../pages/strength.js";
 import { autoFix, autoOn, autoUndo } from "./autofix.js";
 import { codes, decisionsFor, rowHash } from "./decisions.js";
 import { undosFor } from "./undo-store.js";
+import { hideProfile } from "./profile.js";
 
 // Keep each scan for Power BI (a plain-text copy of the sheet on this PC): off unless turned on, like auto-fix
 export const powerBiOn = () => { try { return localStorage.getItem(POWER_BI_KEY) === "1"; } catch { return false; } };
@@ -29,6 +30,7 @@ const scanning = (on) => $("main-ui").toggleAttribute("data-scanning", on);
 
 export async function runScan(auto, held = false) { // auto === false: the re-check right after auto-fix (never auto-fixes twice)
   const t0 = Date.now();
+  hideProfile(); // the scan says what it found: what it would check goes (AH-169)
   state.fix = null;
   if (state.view !== "results") only(state.lastScan ? "results" : "empty-state"); // no fix view left without its row
   scanning(true);

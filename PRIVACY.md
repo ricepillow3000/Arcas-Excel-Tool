@@ -13,6 +13,7 @@ A scan runs on your PC and sends nothing to the internet. Your sheet's data leav
 ## Always on this PC
 - The scan runs in the engine at `https://127.0.0.1:5055`: Excel hands it the sheet, and it answers only this PC. Websites
   can't call it (it checks where each request comes from); other programs on this PC can, like any local service.
+- Before a scan, the pane reads your sheet's header and first 500 rows on your PC to say what the scan will check; it sends nothing to the internet and saves nothing.
 - Files in `%LOCALAPPDATA%\AnomalyHunter`:
 
   | File | What it holds |

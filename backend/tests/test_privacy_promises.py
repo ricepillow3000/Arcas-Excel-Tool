@@ -275,3 +275,13 @@ def test_every_privacy_page_says_the_workbook_keeps_the_numbers_of_the_last_chec
         assert "the colours your highlighted cells had before, the numbers of the last check, and the setting that opens the pane with the file" in said, page
     assert '"anomalyHunterLastScan"' in (ROOT / "frontend/constants/index.js").read_text(encoding="utf-8")
     assert "the numbers of the last check (how many rows it read and flagged, never a value)" in words("frontend/taskpane.html")
+
+
+def test_every_privacy_page_says_what_the_pane_reads_before_a_scan_and_that_it_sends_and_saves_nothing():
+    """AH-169: Before you scan reads the sheet on this PC to say what a scan will check. The pages say how much it reads,
+    and the pane reads exactly that much."""
+    said = ("Before a scan, the pane reads your sheet's header and first 500 rows on your PC to say what the scan will check; "
+            "it sends nothing to the internet and saves nothing.")
+    for page in PAGES:
+        assert said in words(page), page
+    assert "const ROWS = 500," in (ROOT / "frontend/features/profile.js").read_text(encoding="utf-8")

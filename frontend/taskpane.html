@@ -69,6 +69,11 @@
         <p>Click <b>Find problems</b> to check the sheet that is open.</p>
         <p id="last-scan" hidden></p>
         <p class="hint">Your data needs a top row of column names (like Date, Amount), with one record per row below it.</p>
+        <!-- AH-169: what the sheet looks like and what a scan will check, worked out on this PC (features/profile.js) -->
+        <div id="before-scan" hidden>
+          <p id="before-scan-head">Before you scan</p>
+          <div id="before-scan-lines" role="status" aria-live="polite"></div>
+        </div>
       </section>
 
       <!-- the results' shape during a scan (AH-94): the same classes as #results and a #flagged-list row

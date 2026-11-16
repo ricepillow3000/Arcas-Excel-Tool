@@ -196,5 +196,5 @@ button:disabled { cursor: default; }
    the text colour */
 @media (forced-colors: active) {
   .primary { border: 2px solid ButtonText; }
-  .notice::before, #notice::before, #server-down p:first-child::before, #fix-care::before, h2::before { forced-color-adjust: none; background: CanvasText; }
+  .notice::before, #notice::before, #server-down p:first-child::before, #fix-care::before, #before-scan-head::before, h2::before { forced-color-adjust: none; background: CanvasText; }
 }

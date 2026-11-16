@@ -385,18 +385,18 @@ def far_off(d):
     return (d < lo - span) | (d > hi + span), lo, hi
 
 
-def sequence_detector(df, column_types, order_by=None, k=K):
-    """Rows sorted by order column. Vote on spikes vs rolling-median trend and on 1st/2nd/3rd differences."""
-    n = len(df)
+def series_gate(df, column_types, order_by=None):
+    """Is the sheet one series in time? -> (the order column or None, its values, the rows in its order, the gaps between
+    its steps, why not or None). The sequence check's own gate, so /profile says before a scan what it will do (AH-169)."""
     by = order_by or next((c for c, t in column_types.items() if t == "date"), None)
     if by is None:
-        return _result(n, "no order column")
-    if n < 30:
-        return _result(n, "fewer than 30 rows")
+        return None, None, None, None, "no order column"
+    if len(df) < 30:
+        return by, None, None, None, "fewer than 30 rows"
     # many rows per date = transactions (100k taxi trips: 94% of its votes were false alarms), not one series
     if df[by].nunique() < 0.5 * df[by].notna().sum():
-        return _result(n, f"not a time series (many rows share each {by})")
-    r, order = _result(n), df[by]
+        return by, None, None, None, f"not a time series (many rows share each {by})"
+    order = df[by]
     idx = order.sort_values(kind="mergesort").index.to_numpy()
     if order.dtype.kind == "M" and order.notna().sum() >= 30:
         # a month typed 2084 is not part of the series (far_dates names it): sorted last, its ordinary value read as
@@ -408,7 +408,17 @@ def sequence_detector(df, column_types, order_by=None, k=K):
     gap = order.sort_values().diff().dropna()
     gap = gap.dt.total_seconds() if gap.dtype.kind == "m" else gap.astype(float)
     if (abs(gap - gap.median()) <= 0.1 * gap.median()).mean() < 0.7:
-        return _result(n, f"not a time series ({by} is not evenly spaced)")
+        return by, order, idx, gap, f"not a time series ({by} is not evenly spaced)"
+    return by, order, idx, gap, None
+
+
+def sequence_detector(df, column_types, order_by=None, k=K):
+    """Rows sorted by order column. Vote on spikes vs rolling-median trend and on 1st/2nd/3rd differences."""
+    n = len(df)
+    by, order, idx, gap, why = series_gate(df, column_types, order_by)
+    if why:
+        return _result(n, why)
+    r = _result(n)
 
     def hit(pos, mag, col, what):
         i = idx[pos]

@@ -24,14 +24,15 @@ export async function activeSheet() {
 // Values and formulas, in slices (number formats only for the top 30 rows, where the header and the first 20 data rows
 // are: utils/sheet.js tells a date column by them). This was 3x the data in one call - the freeze on big sheets. AH-152:
 // each cell's R1C1 formula (null where it holds none) goes to the engine too, so a typed 250 among a column's
-// =RC[-2]*RC[-1] is seen; half the rows a slice keep each call the size it was.
-export async function readSheet(onSlice) {
+// =RC[-2]*RC[-1] is seen; half the rows a slice keep each call the size it was. most: the rows read from the top at most
+// (AH-169: what the pane says before a scan reads only the header and the first 500 rows)
+export async function readSheet(onSlice, most = Infinity) {
   return Excel.run(async (ctx) => {
     const sheet = ctx.workbook.worksheets.getActiveWorksheet().load("name");
     const used = sheet.getUsedRange().load("rowIndex, columnIndex, rowCount, columnCount");
     await ctx.sync();
     const { rowIndex: r0, columnIndex: c0, columnCount: w } = used;
-    const total = Math.min(used.rowCount, Math.floor(maxCells() / w));
+    const total = Math.min(used.rowCount, Math.floor(maxCells() / w), most);
     const top = sheet.getRangeByIndexes(r0, c0, Math.min(total, 30), w).load("numberFormat");
     const step = Math.max(1, Math.floor(READ_CELLS / (2 * w))), values = [], formulas = [];
     for (let k = 0; k < total; k += step) {

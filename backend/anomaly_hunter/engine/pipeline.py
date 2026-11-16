@@ -706,6 +706,11 @@ SPARSE = 0.95  # a number column blank on this share of rows: where blank, it ad
 TOTAL_HEAD = re.compile(r"\b(?:totals?|sum|all)\b")
 
 
+def named_totals(cols):
+    """The columns whose header says they add others up; /profile names them before a scan (AH-169)."""
+    return [c for c in cols if len(h := " ".join(re.sub(r"[_.]+", " ", str(c)).split()).lower()) <= 200 and TOTAL_HEAD.search(h)]
+
+
 def _totals(df, cols, skip, out, held=None):
     """A column headed Total, Sum or All that is, to the cent, the other number columns added up, or the 3+ number
     columns beside it, on 95% of rows: the other rows don't add up. Round 37 missed Male + Female + Intersex = Total on 48
@@ -715,7 +720,7 @@ def _totals(df, cols, skip, out, held=None):
     Adds its reasons to out, and the rows each held on to held (see confirm); -> the totals it explained, so least squares
     does not judge them again (AH-55)."""
     done, order, nums = set(), list(df.columns), {c: k for k, c in enumerate(cols)}
-    named = [c for c in cols if len(h := " ".join(re.sub(r"[_.]+", " ", str(c)).split()).lower()) <= 200 and TOTAL_HEAD.search(h)]
+    named = named_totals(cols)
     # ...and any other number column, as the sum of 3+ beside it: a "Budget" or a "Field4" that adds up Salaries + Rent +
     # Travel was judged only by least squares, 20 rows a column, so on 60 rows its slip was missed and a real Travel -123
     # whose row adds up got "likely 123" (AH-150). Same flags under other headers (test_schema_agnostic)

@@ -56,6 +56,8 @@ page.on("request", (r) => r.url().endsWith("/scan") && scans.push(JSON.parse(r.p
 const calls = [];
 page.on("request", (r) => r.method() === "POST" && calls.push([new URL(r.url()).pathname, JSON.parse(r.postData() || "null")]));
 const replies = [];
+const profiles = []; // every /profile answer (AH-169)
+page.on("response", (r) => r.url().endsWith("/profile") && r.ok() && r.json().then((j) => profiles.push(j), () => {}));
 page.on("response", (r) => r.url().endsWith("/scan") && r.ok() && r.json().then((j) => replies.push(j), () => {}));
 const since = (k) => calls.slice(k).map((c) => c[0]).join();
 // the list shows what the engine's last /scan answered: every row it flagged, with its severity in words and its reason
@@ -98,6 +100,9 @@ await page.route("https://appsforoffice.microsoft.com/**", (r) => r.fulfill({ co
 await page.goto("https://127.0.0.1:5055/taskpane.html");
 await page.evaluate((rows) => { __load("Sales", rows, [0]); for (const c of "ABCDE") __fill("Sales", c + "11", "#00B050"); __fill("Sales", "B22", "#00B0F0"); }, rows);
 await page.waitForSelector("#main-ui", { state: "visible" });
+// AH-169: what the pane says before a scan has had its say (or given up) before any test counts the pane's calls
+const profiled = () => page.waitForFunction(() => !document.getElementById("before-scan")?.hasAttribute("data-reading"), null, { timeout: 10000 }).catch(() => {});
+await profiled();
 // the recorder itself can fail: a planted rejection and a planted throw are both heard, then forgotten
 await failing(/e2e recorder probe/, async () => {
   await page.evaluate(() => { Promise.reject(new Error("e2e recorder probe")); setTimeout(() => { throw new Error("e2e recorder probe"); }); });
@@ -713,9 +718,30 @@ if (mode === "flow") {
   const forgot = await text("#forget-state");
   ok((await held()).length === 0 && forgot.startsWith("Removed from this workbook: the limits you changed;") && forgot.includes("the codes of the rows you fixed or dismissed")
     && (await page.evaluate((n) => __log.length === n, wrote0)), "Forget, double-clicked, runs once: removes every key the pane saved, says which, and writes no cell - " + forgot);
+  const book0 = await page.evaluate(() => JSON.stringify(__settings)), local0 = await page.evaluate(() => JSON.stringify(Object.entries(localStorage).sort()));
   await page.reload(); await page.waitForSelector("#main-ui", { state: "visible" });
   ok((await held()).length === 0 && (await sheetNow()) === cellsBefore && !(await page.isVisible("#last-scan")), "after a reload the workbook holds none of them, says no last check, and every cell is as it was");
+  // AH-169: Before you scan. On opening, the pane says what the sheet looks like and what a scan will check, each of the
+  // engine's /profile lines on its own line, from the header and at most the first 500 rows read on this PC, and it saves
+  // nothing in the workbook or on this PC. A scan takes its place
+  { await profiled();
+    const said = await page.$$eval("#before-scan-lines p", (ps) => ps.map((p) => p.textContent)), sent = calls.filter((c) => c[0] === "/profile").at(-1)?.[1];
+    ok(await page.isVisible("#before-scan") && (await text("#before-scan-head")) === "Before you scan" && said[0] === "This sheet looks like a time series by OrderDate."
+      && said.includes("No column says who the rows are, so no fairness check will run.") && JSON.stringify(said) === JSON.stringify(profiles.at(-1)?.lines)
+      && sent?.rows.length === 300 && JSON.stringify(sent.columns) === JSON.stringify(rows[0]),
+      "Before you scan: on opening the pane says the engine's /profile lines for the sheet, one a line - " + JSON.stringify(said));
+    ok((await page.evaluate(() => JSON.stringify(__settings))) === book0 && (await page.evaluate(() => JSON.stringify(Object.entries(localStorage).sort()))) === local0,
+      "and saves nothing in the workbook or on this PC - " + (await page.evaluate(() => Object.keys(__settings))));
+    await contrast("the empty state with Before you scan");
+    // a sheet longer than 500 rows: only its header and first 500 rows are read and sent
+    await page.evaluate((rows) => __load("Long", [rows[0], ...Array.from({ length: 700 }, (_, k) => rows[1 + (k % 300)])], [0]), rows);
+    await page.reload(); await page.waitForSelector("#main-ui", { state: "visible" }); await profiled();
+    ok(calls.filter((c) => c[0] === "/profile").at(-1)?.[1].rows.length === 500, "on a 700-row sheet it sends the header and the first 500 rows only");
+    await page.evaluate(() => { __drop("Long"); __activate("Sales"); });
+    await page.reload(); await page.waitForSelector("#main-ui", { state: "visible" }); await profiled();
+  }
   await find();
+  ok(await page.$eval("#before-scan", (e) => e.hidden), "a scan takes the place of Before you scan");
   ok((await tag(22)) === "Probably wrong" && (await text("#strength-val")) === "5 of 10" && (await text("#flagged-list")).includes("Units is 7777"),
     `the next scan: row 22 is no longer Dismissed, the slider is back at 5, the automatic limits are used - ${await tag(22)}`);
   await page.locator("details.more:has(#forget-book)").evaluate((d) => (d.open = true));
