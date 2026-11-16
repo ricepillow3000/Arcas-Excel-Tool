@@ -181,6 +181,16 @@ export function legendOf(rows) {
   return kinds.length > 1 ? kinds.map((k) => [k, counts[k]]) : [];
 }
 
+// Pure (AH-171): the finish line said in the foot bar after each Accept, Dismiss or Undo: how many of the list's rows are
+// fixed or dismissed (the rows "Rows to check (1 of 5 done)" counts; flaggedRows alone drops a fixed row once its re-check
+// is clean). Silent while none is
+export function doneOf(order, decided) {
+  const done = order.filter((i) => decided[i]).length, of = order.length;
+  if (!done) return "";
+  if (done < of) return `${n(done)} of ${n(of)} rows done.`;
+  return of === 1 ? "1 of 1 row done." : `All ${n(of)} rows done.`;
+}
+
 export function summaryOf(rows) {
   const sure = rows.filter((r) => r.severity === "High" || r.severity === "Medium").length;
   const maybe = rows.filter((r) => r.severity === "Low").length;

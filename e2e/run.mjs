@@ -376,6 +376,8 @@ if (mode === "flow") {
   await page.evaluate(() => __fill("Sales", "D11", "#FF0000"));
   await page.click("#fix-apply"); await idle();
   ok((await cell("C11")).v !== -5 && (await page.isVisible("#fix-undo")) && (await text("#fix-apply")) === "Accepted", "Accept writes the cell");
+  // AH-171: a finish line in the foot bar after each decision (nothing moves, AH-165): the list's rows, counted
+  ok((await text("#notice")) === "1 of 5 rows done.", "AH-171: Accept says how many rows are done - " + (await text("#notice")));
   ok(since(c1) === "/check" && calls[c1][1].row_index === 9, "Accept asks the engine once, /check for that row (never a full /scan) - " + since(c1));
   ok(await page.evaluate(() => Object.values(__settings.anomalyHunterDecisions?.Sales || {}).includes("fixed")), "Accept keeps the decision in the workbook");
   ok((await wrote()) === "Sales!C11", "Accept wrote exactly the one targeted cell, nothing else - " + (await wrote()));
@@ -455,6 +457,12 @@ if (mode === "flow") {
   ok((await cell("C22")).v === 7777 && (await cell("C22")).fill === null && (await cell("B22")).fill === "#00B0F0", "Dismiss keeps the value and removes only our highlight");
   ok((await page.evaluate(() => __log.length)) === beforeDismiss, "Dismiss (and opening the next row) writes no cell at all");
   ok(/^Row \d+/.test(await text("#fix-title")) && !(await text("#fix-title")).startsWith("Row 22"), "and moves to the next row - " + (await text("#fix-title")));
+  ok((await text("#notice")) === "1 of 5 rows done.", "AH-171: Dismiss says how many rows are done - " + (await text("#notice")));
+  // ... an Accept on top counts one more, and its Undo takes it back (row 11 as it was, for step 4)
+  await back(); await openRow(11); await page.click("#fix-apply"); await idle();
+  ok((await text("#notice")) === "2 of 5 rows done.", "AH-171: Accept after a Dismiss - " + (await text("#notice")));
+  await page.click("#fix-undo"); await idle();
+  ok((await cell("C11")).v === -5 && (await text("#notice")) === "1 of 5 rows done.", "AH-171: Undo takes its row back off the count - " + (await text("#notice")));
 
   // 4) Remove highlights puts back exactly what was there (the user's green row 11 too)
   await back();

@@ -3,7 +3,7 @@ import assert from "node:assert";
 import { esc, asNumber } from "./utils/text.js";
 import { cutNote, r1c1ToA1, tableFromGrid, isDateFormat, excelDate, rowFromAddress, colLetter, cellAt, sameRow, readAs, spots } from "./utils/sheet.js";
 import { issuesOf, recommendFix, typoKind, afterFix, unusualColumn } from "./features/fix.js";
-import { plainReason, summaryOf, legendOf, flaggedRows, fairnessNote, fairnessTests, listOrder, levelChange, asLastScan, lastScanSaid } from "./features/scan.js";
+import { plainReason, summaryOf, legendOf, flaggedRows, fairnessNote, fairnessTests, listOrder, levelChange, asLastScan, lastScanSaid, doneOf } from "./features/scan.js";
 import { MEASURED, COLOR, OLD_COLOR } from "./constants/index.js";
 import { strengthHint, asStrength, levelAt, levelWord } from "./pages/strength.js";
 import { exactFixes, safeUndo } from "./features/autofix.js";
@@ -189,6 +189,15 @@ assert.equal(summaryOf([{ severity: "Low" }, { severity: "Low" }]), "Nothing cle
 assert.deepEqual(legendOf([{ severity: "Medium" }, { severity: "Medium" }, { severity: null }]), []);
 assert.deepEqual(legendOf([{ severity: "Low" }, { severity: "High" }, { severity: "Low" }, { severity: "Noted" }]), [["High", 1], ["Low", 2]]);
 assert.deepEqual(legendOf([]), []);
+// AH-171: a finish line under the card after each decision, counting the list's rows (the same rows "Rows to check (1 of 5
+// done)" counts): silent before the first, and again once an Undo takes the last one back; a row decided but not listed
+// is not counted
+assert.equal(doneOf([3, 1, 0, 4, 2], {}), "");
+assert.equal(doneOf([3, 1, 0, 4, 2], { 1: "fixed" }), "1 of 5 rows done.");
+assert.equal(doneOf([3, 1, 0, 4, 2], { 1: "fixed", 4: "dismissed", 9: "fixed" }), "2 of 5 rows done.");
+assert.equal(doneOf([3, 1, 0, 4, 2], { 0: "fixed", 1: "fixed", 2: "dismissed", 3: "fixed", 4: "dismissed" }), "All 5 rows done.");
+assert.equal(doneOf([7], { 7: "dismissed" }), "1 of 1 row done.");
+{ const decided = { 1: "fixed", 4: "dismissed" }; delete decided[1]; assert.equal(doneOf([3, 1, 0, 4, 2], decided), "1 of 5 rows done.", "after an Undo"); delete decided[4]; assert.equal(doneOf([3, 1, 0, 4, 2], decided), ""); }
 // AH-157: a reopened workbook says its last check at once, from numbers only (never a value or a reason). A crafted
 // workbook can carry anything under the key: only a sheet name and whole numbers survive
 {
