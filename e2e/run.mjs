@@ -524,6 +524,13 @@ if (mode === "flow") {
   await contrast("the limits editor");
   await units.nth(0).fill("200"); await units.nth(1).fill("100"); await page.click("#save-limits");
   ok((await text("#limits-error")).includes('"Flag below" is bigger than "Flag above"') && (await page.isVisible("#limits-editor")), "low above high is refused");
+  // AH-170: letters in a limit box were read as an empty box, and the limit was taken off without a word
+  { await units.nth(0).fill("-10"); await units.nth(1).click(); await units.nth(1).press("Control+a"); await page.keyboard.type("abc");
+    const typed = await units.nth(1).inputValue(), k = calls.length;
+    await page.click("#save-limits"); await page.waitForTimeout(300);
+    ok(typed === "abc" && (await text("#limits-error")) === 'Units: type a number in "Flag above", or leave it empty for no limit.' && (await page.isVisible("#limits-editor"))
+      && calls.length === k && (await page.evaluate(() => __settings.anomalyHunterLimits)) === undefined && (await units.nth(1).evaluate((x) => x === document.activeElement)),
+      `AH-170: letters in a limit box are refused in plain words, the box focused, nothing saved or scanned - ${JSON.stringify({ typed, said: await text("#limits-error"), sent: since(k) })}`); }
   await units.nth(0).fill("-10"); await units.nth(1).fill("10000"); await page.click("#save-limits"); await idle();
   ok(!(await text("#flagged-list")).includes("Units is 7777"), "saved limits are used at once");
   ok(await page.evaluate(() => Object.keys(__settings.anomalyHunterLimits).join() === "Units"), "only the changed column is saved");

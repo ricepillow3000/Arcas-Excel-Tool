@@ -6,6 +6,7 @@ import { issuesOf, recommendFix, typoKind, afterFix, unusualColumn } from "./fea
 import { plainReason, summaryOf, legendOf, flaggedRows, fairnessNote, fairnessTests, listOrder, levelChange, asLastScan, lastScanSaid } from "./features/scan.js";
 import { MEASURED, COLOR, OLD_COLOR } from "./constants/index.js";
 import { oddLines } from "./features/ai.js";
+import { read as readLimit } from "./pages/limits.js";
 import { strengthHint, asStrength, levelAt, levelWord } from "./pages/strength.js";
 import { exactFixes, safeUndo } from "./features/autofix.js";
 import { readdirSync, readFileSync } from "node:fs";
@@ -203,6 +204,9 @@ assert.equal(summaryOf([{ severity: "High" }, { severity: null }]), "1 of 2 rows
   assert.equal(lines.at(-1), "+ 10 more words the AI found out of place.");
   assert.equal(oddLines(Array.from({ length: K.CAP }, (_, k) => ({ row: k, col: 0, value: `w${k}`, why: "x" })), ["Item"], 0, 0).length, K.CAP, "exactly CAP lines need no more line");
 }
+// AH-170: a limit box's text: empty is no limit, a number is the limit, anything else is refused (a number box dropped
+// letters and read empty, so the limit was taken off without a word)
+assert.deepEqual(["", "  ", " -10 ", "1e3", "0.5", "abc", "12abc", "1,000", "-"].map((value) => readLimit({ value })), [null, null, -10, 1000, 0.5, NaN, NaN, NaN, NaN]);
 // AH-166: the legend only when the list holds 2+ severities: one severity alone repeated the summary ("5 of 300 rows look
 // wrong." over "Probably wrong: 5"). Worst first, each with its count
 assert.deepEqual(legendOf([{ severity: "Medium" }, { severity: "Medium" }, { severity: null }]), []);

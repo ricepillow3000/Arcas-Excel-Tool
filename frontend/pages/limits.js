@@ -13,19 +13,30 @@ export function openLimitsEditor() {
     const row = document.createElement("div");
     row.className = "limits-row";
     row.dataset.column = col;
-    row.innerHTML = `<div>${esc(col)}</div><input type="number" aria-label="${esc(col)}: flag below" value="${asNumber(b[2])}">` +
-      `<input type="number" aria-label="${esc(col)}: flag above" value="${asNumber(b[3])}">`;
+    // text, not type="number": the browser dropped letters typed in a number box and read it as empty, so the limit was
+    // taken off without a word (AH-170). Each box is read below, and anything but a number is refused
+    row.innerHTML = `<div>${esc(col)}</div><input type="text" inputmode="decimal" aria-label="${esc(col)}: flag below" value="${asNumber(b[2])}">` +
+      `<input type="text" inputmode="decimal" aria-label="${esc(col)}: flag above" value="${asNumber(b[3])}">`;
     box.appendChild(row);
   }
   only("limits-editor");
 }
 
+// Pure: a limit box's text -> null (empty: no limit), its number, or NaN (not a number: refused)
+export const read = (x) => (x.value.trim() === "" ? null : Number.isFinite(Number(x.value)) ? Number(x.value) : NaN);
+
 export async function saveLimitsAndRescan() {
   const limits = (await getLimits()) || {}; // columns changed before stay changed
   let bad = null; // [column, input]: low above high - nothing is saved
+  for (const row of document.querySelectorAll("#limits-rows .limits-row[data-column]")) {
+    const k = [...row.querySelectorAll("input")].findIndex((x) => Number.isNaN(read(x)));
+    if (k < 0) continue;
+    $("limits-error").textContent = `${row.dataset.column}: type a number in "Flag ${k ? "above" : "below"}", or leave it empty for no limit.`;
+    return row.querySelectorAll("input")[k].focus();
+  }
   document.querySelectorAll("#limits-rows .limits-row[data-column]").forEach((row) => {
     const ins = [...row.querySelectorAll("input")];
-    const [lo, hi] = ins.map((x) => (x.value === "" ? null : parseFloat(x.value)));
+    const [lo, hi] = ins.map(read);
     const [noteLo, noteHi, wasLo, wasHi] = state.lastLimits[row.dataset.column] || [];
     if (lo === (wasLo ?? null) && hi === (wasHi ?? null)) return; // unchanged: keeps following the data
     // the "noted" band (shown nowhere) stays inside the new flag limits; moved wholly past it, it becomes the flag band
