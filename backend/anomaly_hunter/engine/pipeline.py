@@ -866,6 +866,8 @@ def _cent(x):
 def _decimals(x):
     """How many decimals a column is written with: the fewest that hold 95% of its values (0 = whole numbers)."""
     x = x[np.isfinite(x)]
+    if not len(x):  # no number on the rows read (all on a skipped row): the mean of nothing was an HTTP 500 (fuzz, 2026-11-16)
+        return 0
     return next((d for d in range(7) if (np.abs(x - np.round(x, d)) < 1e-9).mean() >= 0.95), 6)
 
 
