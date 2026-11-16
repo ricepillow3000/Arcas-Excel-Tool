@@ -1508,6 +1508,23 @@ for (const [from, motion] of [["t-clean", "no-preference"], ["t-busy", "no-prefe
   await done(t, label, [API]);
 }
 console.log("AH-170 F1: a Row N link pressed on After fixes or mid-Scanning turns the sheet to its findings and lands on the row, with motion and without");
+// AH-170 F2: Back, then Forward, came back to a page's top: transition.js kept a page's place only at a link's click,
+// so the place a reader scrolled to before Back was never written into its history entry
+for (const motion of ["no-preference", "reduce"]) {
+  const t = await open("index.html", { width: 1280, height: 800, motion });
+  const p = t.page, label = `AH-170 F2 Back and Forward (${motion})`;
+  if (motion !== "reduce") await p.waitForTimeout(ENTERED);
+  await p.click('.foot a[href="privacy.html"]');
+  await p.waitForFunction(() => location.pathname.endsWith("/privacy.html") && document.getElementById("page").dataset.page === "privacy", null, { timeout: 5000 });
+  await p.waitForTimeout(1200);
+  await p.evaluate(() => scrollTo(0, 800)); await p.waitForTimeout(500);
+  await p.goBack(); await p.waitForFunction(() => document.getElementById("page").dataset.page === "home", null, { timeout: 5000 }); await p.waitForTimeout(1200);
+  await p.goForward(); await p.waitForFunction(() => document.getElementById("page").dataset.page === "privacy", null, { timeout: 5000 }); await p.waitForTimeout(1200);
+  const y = await p.evaluate(() => Math.round(scrollY));
+  assert.ok(Math.abs(y - 800) <= 50, `${label}: privacy.html came back at y ${y}, not where it was left (800)`);
+  await done(t, label, [API]);
+}
+console.log("AH-170 F2: Back and Forward return to where the reader left each page");
 // ---- the sample sheet's motion (AH-89, AH-91, AH-92; John 2026-11-02) ----
 // the skeleton: the real sheet waits with no colour on its values and a bar exactly where each value will land; it plays
 // once the sheet is 30% on screen (never before where row 11 starts below the fold: 1440 x 600 since AH-171), one band of light crosses
