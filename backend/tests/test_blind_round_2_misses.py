@@ -189,7 +189,58 @@ def test_a_crafted_sheet_of_160_number_columns_keeps_the_order_check_fast():
     r = np.random.default_rng(10)
     base = r.uniform(0, 1, (3000, 1))
     x = np.sort(base + r.uniform(0, 1, (3000, 160)), axis=1)  # every column at most the next: every pair an order
-    df, types, _ = load_from_records([f"N{k}" for k in range(160)], x.round(4).tolist())
+    df, types, _ = load_from_records([f"p{k}" for k in range(160)], x.round(4).tolist())  # every pair names an order
     t = time.perf_counter()
     pipeline.order(df, types, np.zeros(len(df), bool))
     assert time.perf_counter() - t < 2
+
+
+# AH-178 fix round 1: blind rounds 2-3 paired unrelated neighbours that merely sat in order (UFC's b_draw under b_wins,
+# hotels' booking_changes under agent, lng under lat): about 60 false Medium rows. Only headers that name an order
+def ordered(lo, hi, n=2000, breaks=(500, 1500), seed=11):
+    r = np.random.default_rng(seed)
+    rows = []
+    for i in range(n):
+        a = round(float(r.uniform(0, 50)), 1)
+        rows.append([f"r{i}", a, round(float(r.uniform(0, 9)), 1), round(a + float(r.uniform(0, 50)), 1)])
+    for i in breaks:
+        rows[i][1], rows[i][3] = rows[i][3], rows[i][1]
+    return scan(["id", lo, "other", hi], rows, fair=False)[1], rows
+
+
+@pytest.mark.parametrize("lo,hi", [("b_draw", "b_wins"), ("years_code_pro", "comp_total"), ("booking_changes", "agent"),
+                                   ("age", "height"), ("lng", "lat")])
+def test_unrelated_columns_that_happen_to_be_in_order_are_never_judged(lo, hi):
+    out, _ = ordered(lo, hi)
+    assert not flagged(out, " is above ")
+
+
+@pytest.mark.parametrize("lo,hi", [("min_temp", "max_temp"), ("Low", "High"), ("start_year", "end_year"),
+                                   ("avg_ticket_price", "top_ticket_price"), ("minTemp", "maxTemp")])
+def test_columns_whose_headers_name_an_order_are_judged(lo, hi):
+    out, rows = ordered(lo, hi)
+    assert flagged(out, " is above ") == [500, 1500]
+    assert f"{lo} {rows[500][1]} is above {hi} {rows[500][3]}" in out[500]["reason"], out[500]["reason"]
+
+
+def test_a_10th_percentile_is_judged_against_its_90th_with_the_50th_between():
+    rows = bands(n=2000, swaps=(400,))
+    heads = ["site", "Hourly 10th Percentile", "Hourly 50th Percentile", "Hourly 90th Percentile"]
+    out = scan(heads, rows, fair=False)[1]
+    assert f"Hourly 10th Percentile {rows[400][1]} is above Hourly 90th Percentile {rows[400][3]}" in out[400]["reason"]
+    assert flagged(out, " is above ") == [400]
+
+
+def test_a_stocks_close_above_its_high_and_low_above_its_open_are_named():
+    r = np.random.default_rng(12)
+    rows = []
+    for i in range(2000):
+        o, c = (round(float(v), 2) for v in r.uniform(90, 110, 2))
+        rows.append([f"d{i}", o, round(max(o, c) + float(r.uniform(0, 3)), 2), round(min(o, c) - float(r.uniform(0, 3)), 2), c])
+    rows[600][4] = round(rows[600][2] + 5, 2)
+    rows[1600][3] = round(rows[1600][1] + 0.5, 2)
+    rows[1600][4] = round(rows[1600][1] + 2, 2)  # its Close stays above its Low: only Low above Open is wrong
+    out = scan(["date", "Open", "High", "Low", "Close"], rows, fair=False)[1]
+    assert f"Close {rows[600][4]} is above High {rows[600][2]}" in out[600]["reason"], out[600]["reason"]
+    assert f"Low {rows[1600][3]} is above Open {rows[1600][1]}" in out[1600]["reason"], out[1600]["reason"]
+    assert flagged(out, " is above ") == [600, 1600]

@@ -1244,28 +1244,57 @@ def spellings(df, column_types, skip):
 
 ORDER_ROWS = 1000  # rows with both filled before an order is judged: blind round 2's probe of 42 real tables found the
 # planted swaps and 1 false row from 1,000 rows, about 25 false rows from 100 (AH-178)
-NEAR = 2  # an order sits side by side (Low/High, min/mean/max, Open/High/Low/Close): each number column against the next
-# 2, in sheet order, so a crafted wide sheet costs 2 pairs a column, never the square of its width
+# Only headers that name an order are judged (AH-178 fix round 1): any two neighbours that merely sat in order on 99.9% of
+# rows were judged, and blind rounds 2-3 got about 60 false Medium rows from unrelated pairs (UFC's b_draw under b_wins,
+# hotels' booking_changes under agent and required_car_parking_spaces under adr, age under height, lng under lat).
+# Two headers name an order when their words are the same but one each, and those two are (low end, high end) here,
+# or ranks that climb (10th < 90th, p10 < p90, q1 < q3, 25 < 75); the order is the one the words give
+LOWS, MIDS, HIGHS = {"min", "minimum", "lowest", "low"}, {"avg", "average", "mean", "median"}, \
+    {"max", "maximum", "top", "peak", "highest", "high"}
+ORDER_WORDS = {("min", "max"), ("minimum", "maximum"), ("low", "high"), ("lowest", "highest"), ("lower", "upper"),
+               ("lo", "hi"), ("start", "end"), ("begin", "end"), ("first", "last"), ("earliest", "latest"), ("from", "to"),
+               ("open", "high"), ("close", "high"), ("low", "open"), ("low", "close")} \
+    | set(itertools.product(LOWS, MIDS)) | set(itertools.product(MIDS, HIGHS))
+ORDER_VOCAB = {w for pair in ORDER_WORDS for w in pair}
+RANK = re.compile(r"([pq]?)(\d{1,9})(?:st|nd|rd|th)?")  # 9 digits at most: int() refuses a 4,300-digit run
+ORDER_COLS, ORDER_PAIRS = 300, 100  # in sheet order: a crafted wide sheet costs at most 300 columns' headers, 100 pairs
+
+
+def _order_words(col):
+    """'Hourly 10th Percentile' -> ['hourly', '10th', 'percentile']; 'minTemp' -> ['min', 'temp']: camelCase and any
+    mark split words, digits kept. A header of over 8 words names no order (and a 100,000-character one costs nothing)"""
+    w = re.findall(r"[a-z]*\d+(?:st|nd|rd|th)?|[a-z]+", re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", str(col)).lower())
+    return w if len(w) <= 8 else []
+
+
+def _names_order(x, y):
+    """Do header words x name the low end of an order whose high end y names?"""
+    diff = [(p, q) for p, q in zip(x, y) if p != q]
+    if not x or len(x) != len(y) or len(diff) != 1:
+        return False
+    p, q = diff[0]
+    m, n = RANK.fullmatch(p), RANK.fullmatch(q)
+    return (p, q) in ORDER_WORDS or bool(m and n and m[1] == n[1] and int(m[2]) < int(n[2]))
 
 
 def order(df, column_types, skip):
-    """A number column at most another on every other row (max(2, 0.1%) rows may break it), their values meeting where it
-    holds (an age never above an income is no order): the row where it is above (a 10th percentile above its 90th, a Low
+    """A number column at most another on every other row (max(2, 0.1%) rows may break it), their headers naming the
+    order and their values meeting where it holds: the row where it is above (a 10th percentile above its 90th, a Low
     above its High). Which of the two cells is wrong is unknown, so never a fix."""
     out = [[] for _ in range(len(df))]
-    nums = [c for c, t in column_types.items() if t == "number"]
-    for k, a in enumerate(nums):
-        for b in nums[k + 1:k + 1 + NEAR]:
-            x, y = (pd.to_numeric(df[c], errors="coerce").to_numpy(float) for c in (a, b))
-            both = ~skip & ~np.isnan(x) & ~np.isnan(y)
-            if both.sum() < ORDER_ROWS:
-                continue
-            for lo, hi, u, v in ((a, b, x, y), (b, a, y, x)):
-                above, holds = both & (u > v), both & (u <= v)
-                if 0 < above.sum() <= max(2, 0.001 * both.sum()) and u[holds].max() > v[holds].min():
-                    for i in np.flatnonzero(above):
-                        out[i].append(Why(f"{lo} {say(df[lo].iat[i])} is above {hi} {say(df[hi].iat[i])}, where {lo} is at "
-                                          f"most {hi} on {holds.sum()} of {both.sum()} rows", lo, hi))
+    words = {c: _order_words(c) for c, t in column_types.items() if t == "number"}
+    cols = [c for c, w in words.items() if any(x in ORDER_VOCAB or RANK.fullmatch(x) for x in w)][:ORDER_COLS]
+    pairs = (p for p in itertools.permutations(cols, 2) if _names_order(words[p[0]], words[p[1]]))
+    for lo, hi in itertools.islice(pairs, ORDER_PAIRS):
+        u, v = (pd.to_numeric(df[c], errors="coerce").to_numpy(float) for c in (lo, hi))
+        both = ~skip & ~np.isnan(u) & ~np.isnan(v)
+        if both.sum() < ORDER_ROWS:
+            continue
+        above, holds = both & (u > v), both & (u <= v)
+        if 0 < above.sum() <= max(2, 0.001 * both.sum()) and u[holds].max() > v[holds].min():
+            for i in np.flatnonzero(above):
+                out[i].append(Why(f"{lo} {say(df[lo].iat[i])} is above {hi} {say(df[hi].iat[i])}, where {lo} is at "
+                                  f"most {hi} on {holds.sum()} of {both.sum()} rows", lo, hi))
     return out
 
 
