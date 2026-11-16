@@ -666,7 +666,8 @@ def sums(df, column_types, skip, held=None):
     out = [[] for _ in range(len(df))]
     cols = numbers(column_types)
     done = _totals(df, cols, skip, out, held)
-    x = df[cols][~skip].dropna()
+    x = df[cols][~skip]
+    x = x.fillna({c: 0 for c in cols if x[c].isna().mean() >= SPARSE}).dropna()  # as _totals: a part blank on 95%+ of rows
     if len(cols) < 3 or len(x) < 20 * len(cols):  # few rows: least squares "fits" anything
         return out
     a = x.to_numpy(dtype=float)
@@ -698,6 +699,9 @@ def sums(df, column_types, skip, held=None):
     return out
 
 
+SPARSE = 0.95  # a number column blank on this share of rows: where blank, it adds nothing to a total (AH-174)
+
+
 # a header that says its column adds others up: "Total", "Total population", "All ages", "Sum", "TOTAL_CASES"
 TOTAL_HEAD = re.compile(r"\b(?:totals?|sum|all)\b")
 
@@ -718,6 +722,10 @@ def _totals(df, cols, skip, out, held=None):
     heads = named + [c for c in cols if c not in named]
     rows = df.index[~skip]
     a = df.loc[rows, cols].to_numpy(dtype=float) if len(cols) > 3 else None
+    # a part blank on 95%+ of rows adds nothing there: read as 0, so the rule is judged on the rows it is blank on and
+    # the 0-part rule below settles the rest. Left blank, every try with it had no rows: a total beside a part blank on
+    # 99.9% of rows was never judged, and its 51 for 15 was missed (blind round 1, AH-174)
+    b = None if a is None else np.where(np.isnan(a) & (np.isnan(a).mean(axis=0) >= SPARSE), 0.0, a)
     halves = {}  # as pairs: a column of whole numbers is exact, one written to d decimals off by up to half its last digit
     half = lambda c: halves.setdefault(c, 0.0 if (d := _decimals(a[:, nums[c]])) == 0 else 0.5 * 10.0 ** -d)
     for col in heads[:20] if a is not None else ():
@@ -732,7 +740,7 @@ def _totals(df, cols, skip, out, held=None):
             if col not in named and len(run) >= 3:  # a running sum that meets the column on under 10 rows is no try: every
                 # column of 30,000 rows x 45 tried every run in full took 100 s (AH-150)
                 tol = np.maximum(0.011, 1e-6 * np.abs(y))[:, None] + np.cumsum([half(c) for c in run]) + own
-                hit = (np.abs(y[:, None] - np.cumsum(a[:, [nums[c] for c in run]], axis=1)) <= tol).sum(axis=0)
+                hit = (np.abs(y[:, None] - np.cumsum(b[:, [nums[c] for c in run]], axis=1)) <= tol).sum(axis=0)
                 ks = [k for k in ks if hit[k - 1] >= 10]
             tries += [run[:k] for k in ks]
         best = None
@@ -744,7 +752,7 @@ def _totals(df, cols, skip, out, held=None):
                 for _ in range(2):  # a second pass judges the candidate again without the parts the first showed are none
                     if len(parts) < 3:
                         break
-                    p = a[:, [nums[c] for c in parts]]
+                    p = b[:, [nums[c] for c in parts]]
                     ok = ~np.isnan(y) & ~np.isnan(p).any(axis=1)
                     if not (p[ok] != 0).any(axis=0).all():  # every part counts somewhere
                         break
@@ -973,11 +981,13 @@ def _misspelt(rare, usual):
     ("japn" for "japan": 7.2%, plan/plain). Never one wrong letter in 4 (89%: Iran/Iraq, Mark/Mary), a consonant
     dropped (14.8%: Chad/Chard) or anything in 3 (Jon/John)."""
     # words joined by hyphens are read word by word: "Month-to-mnoth" was never read as words (blind round 36), and the
-    # word that differs is judged by its own length, so a region "Russia-SW" is no slip of "Russia-SE" (round 22, AH-32)
-    if "-" in rare + usual:
-        a, b = re.split(r"[\s-]+", rare), re.split(r"[\s-]+", usual)
-        diff = [(x, y) for x, y in zip(a, b) if x != y]
-        return len(a) == len(b) and len(diff) == 1 and _misspelt(*diff[0])
+    # word that differs is judged by its own length, so a region "Russia-SW" is no slip of "Russia-SE" (round 22, AH-32).
+    # So are words between any other marks: "East Aisa & Pacific", "ulrta_low_sulfur", "Irish Poundd (Punt)" were never
+    # judged (blind round 1, AH-174). The marks and digits between them must agree: "Room 1" is no slip of "Room 11"
+    if not (rare + usual).replace(" ", "").isalpha():
+        a, b = re.split(r"([\W\d_]+)", rare), re.split(r"([\W\d_]+)", usual)
+        diff = [(k, x, y) for k, (x, y) in enumerate(zip(a, b)) if x != y]  # words at even places, marks at odd
+        return len(a) == len(b) and len(diff) == 1 and diff[0][0] % 2 == 0 and _misspelt(*diff[0][1:])
     word = lambda w, lo: lo <= len(w) <= 60 and w.replace(" ", "").isalpha()
     if word(rare, 5) and word(usual, 5):
         return _one_edit(rare, usual) or _dropped(rare, usual)

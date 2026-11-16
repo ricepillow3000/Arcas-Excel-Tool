@@ -1925,5 +1925,61 @@
   "tests": [
    "backend/tests/test_ai_answers.py::test_a_column_the_request_names_is_kept_when_a_wide_row_is_trimmed"
   ]
+ },
+ {
+  "id": "likely-places-loosen",
+  "guard": "a likely value is written like its column (no more decimals)",
+  "file": "backend/anomaly_hunter/engine/detectors.py",
+  "old": " and (c == -v or _places(c) <= st[\"places\"]):",
+  "new": ":",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_blind_round_1.py::test_an_honest_epidemic_rate_written_like_its_column_is_never_a_likely_typo"
+  ]
+ },
+ {
+  "id": "likely-places-tighten",
+  "guard": "a likely value is written like its column (no more decimals)",
+  "file": "backend/anomaly_hunter/engine/detectors.py",
+  "old": "_places(c) <= st[\"places\"]",
+  "new": "_places(c) < st[\"places\"]",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_blind_round_1.py::test_a_real_x1000_slip_in_the_same_column_is_still_likely"
+  ]
+ },
+ {
+  "id": "long-id-loosen",
+  "guard": "whole numbers typed with 16+ significant digits are an identifier",
+  "file": "backend/anomaly_hunter/engine/load.py",
+  "old": "return int((digits >= 16).sum()) >= 5",
+  "new": "return int((digits >= 17).sum()) >= 5",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_blind_round_1.py::test_a_column_of_identifiers_too_long_for_a_number_is_an_id_and_gets_no_limits"
+  ]
+ },
+ {
+  "id": "long-id-tighten",
+  "guard": "whole numbers typed with 16+ significant digits are an identifier",
+  "file": "backend/anomaly_hunter/engine/load.py",
+  "old": "return int((digits >= 16).sum()) >= 5",
+  "new": "return int((digits >= 15).sum()) >= 5",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_blind_round_1.py::test_a_column_of_big_amounts_still_gets_its_limits"
+  ]
+ },
+ {
+  "id": "say-enotation-loosen",
+  "guard": "a reason quotes a cell without e-notation it was not typed in",
+  "file": "backend/anomaly_hunter/engine/detectors.py",
+  "old": "    return np.format_float_positional(float(v), precision=15, unique=False, fractional=False, trim=\"-\")",
+  "new": "    return f\"{float(v):.15g}\"",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_blind_round_1.py::test_a_number_is_quoted_without_e_notation",
+   "backend/tests/test_blind_round_1.py::test_a_column_of_big_amounts_still_gets_its_limits"
+  ]
  }
 ]

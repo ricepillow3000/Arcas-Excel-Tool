@@ -103,6 +103,15 @@ def _limits(x, k):
     if (x >= 0).mean() < 0.95:  # signed columns only: in a positive one, 0 and "15x below typical" are hard bounds
         v[3] = max(v[3], _round(_end_of_run(x, v[3], sd), step, True))
         v[2] = min(v[2], _round(-_end_of_run(-x, -v[2], sd), step, False))
+    # A column of at most 5 whole values from 0 to 9 is a code (sex 0/1/2, an answer 1-3): a code it writes 5+ times is one
+    # of its own, inside its limits. producer_male (1 x1081, 2 x84, 0 x7, 3 x1) had a weird low of 0.4, and its 7 honest
+    # 0s were Medium: limits_detector excuses a value written 5+ times, but never a 0, a "missing" stand-in elsewhere
+    # (blind round 1, AH-174). One written 4 times or fewer keeps its limits (the lone 3, a 0 typed into a 1-5 scale)
+    codes = x.value_counts()
+    if len(codes) <= 5 and x.between(0, 9).all() and (x == x.round()).all() and (codes >= 5).any():
+        often = codes.index[codes >= 5].astype(float)
+        v[0], v[2] = min(v[0], float(often.min())), min(v[2], float(often.min()))
+        v[1], v[3] = max(v[1], float(often.max())), max(v[3], float(often.max()))
     if not all(math.isfinite(t) for t in v):  # an infinite limit can't even be sent to the pane as JSON
         raise ValueError("no usual range")
     return tuple(v)

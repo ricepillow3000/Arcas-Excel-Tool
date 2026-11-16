@@ -34,6 +34,15 @@ def _is_id(name, num):
     return len(num) >= 20 and len(u) >= 0.95 * len(num) and u.diff().median() <= 2
 
 
+def _too_precise(s):
+    """5+ whole numbers typed with 16 or more significant digits, past what a number holds: identifiers, never amounts.
+    A prize list's VIAF numbers (19-22 digits for 56 of 952 rows, repeated once per prize) got limits, and a reason quoted
+    7276148997699859870006 as 7.27614899769986e+21 (blind round 1, AH-174). An amount is never measured to 16 digits:
+    one written that long (20892375800000000) has few significant ones."""
+    digits = s.astype(str).str.strip().str.extract(r"^[-+]?0*(\d+?)0*$")[0].str.len()
+    return int((digits >= 16).sum()) >= 5
+
+
 YEAR_LAST = r"^\s*(\d{1,2})[/.-](\d{1,2})[/.-]\d{2,4}"  # 05/01/2024, 5.1.24: day and month first, in either order
 
 
@@ -168,7 +177,7 @@ def _kind(s):
     num, err = _num(s), s.astype(str).str.strip().str.match(EXCEL_ERROR)
     # Excel errors (#DIV/0!) are broken numbers, not a sign the column is text - as long as most cells are numbers
     if num.notna().mean() >= 0.5 and num[~err].notna().mean() >= 0.9:
-        return "id" if _is_id(s.name, num.dropna()) else "number"
+        return "id" if _is_id(s.name, num.dropna()) or _too_precise(s) else "number"
     if _dates(s).notna().mean() >= 0.9:
         return "date"
     return "text"
