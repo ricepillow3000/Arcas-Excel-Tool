@@ -323,6 +323,23 @@ if (mode === "flow") {
     ok(home.vt && !home.names.length && (await page.isVisible("#results")), `AH-149: Back flies the title home to row ${r} - ` + JSON.stringify(home));
   }
 
+  // AH-170: keyboard focus follows each card action. It fell to the page (BODY) when the pressed button was hidden or
+  // turned off: opening a row, Accept, Undo, Next row and Back, and a keyboard user started again from the top
+  { const at = () => page.evaluate(() => { const a = document.activeElement; return a.closest("#flagged-list") ? "row " + /^Row (\d+)/.exec(a.innerText)?.[1] : a.id || a.tagName; });
+    const press = async (sel) => { await page.focus(sel); await page.keyboard.press("Enter"); await idle(); };
+    await press('#flagged-list button:has-text("Row 81 ")');
+    await page.waitForFunction(() => document.getElementById("fix-changes").children.length || document.getElementById("fix-explanation").textContent);
+    const steps = { opened: await at() };
+    await press("#fix-apply"); steps.accepted = await at();
+    await page.keyboard.press("Enter"); await idle(); steps.undone = await at(); // Enter on what has the focus: Undo
+    await page.keyboard.press("Enter"); await idle(); // and on Accept again, so Next row shows
+    await press("#fix-next"); steps.next = [await at(), await text("#fix-title")];
+    await press("#fix-back"); await page.waitForSelector("#results", { state: "visible" }); steps.back = await at();
+    const nextRow = /^Row (\d+)/.exec(steps.next[1])?.[1];
+    ok(steps.opened === "fix-title" && steps.accepted === "fix-undo" && steps.undone === "fix-apply" && steps.next[0] === "fix-title" && nextRow && nextRow !== "81" && steps.back === `row ${nextRow}`,
+      "AH-170: by keyboard, focus goes to the card's title on opening, to Undo after Accept, to Accept after Undo, to the next card's title after Next row, and back to its row after Back - " + JSON.stringify(steps));
+    await openRow(81); await page.click("#fix-undo"); await idle(); await back(); } // row 81 as it was, for what follows
+
   // 2) open a row's card, Accept (Agent 3 checks it again, highlight goes), Undo
   { // AH-94: the card turns in like a page (finite, so nothing waits on it forever) and lies flat by 800 ms
     await page.click('#flagged-list button:has-text("Row 11 ")');
@@ -1034,8 +1051,9 @@ if (mode === "flow") {
   await page.unroute("**/health", hang);
   ok(hung >= 1 && said && waited >= 9000 && waited < 20000 && !(await page.isVisible("#main-ui")),
     `an engine that never answers /health: after ${waited} ms the pane says Arcas has stopped (${hung} /health held)`);
-  await page.click("#retry-health"); await page.waitForSelector("#main-ui", { state: "visible", timeout: 10000 }).catch(() => {});
+  await page.focus("#retry-health"); await page.keyboard.press("Enter"); await page.waitForSelector("#main-ui", { state: "visible", timeout: 10000 }).catch(() => {});
   ok(await page.isVisible("#main-ui"), "and Try again opens the pane once the engine answers");
+  ok((await page.evaluate(() => document.activeElement.id)) === "scan", "AH-170: and focus goes from Try again, now hidden, to Find problems - " + (await page.evaluate(() => document.activeElement.id || document.activeElement.tagName)));
 }
 
 // AH-164: a note under an AI button is one short line at most; what it sends is a press away under "What is sent?" /
