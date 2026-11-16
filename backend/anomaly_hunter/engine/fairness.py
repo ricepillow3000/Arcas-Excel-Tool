@@ -16,7 +16,10 @@ DEMOGRAPHIC = {"age", "dob", "birth", "birthday", "birthdate", "gender", "sex", 
 LOCATION = {"location", "city", "state", "zip", "zipcode", "postal", "postcode", "country", "region", "neighborhood",
             "neighbourhood", "county"}
 MIN_GROUP = 20  # smaller groups prove nothing either way
-STRAY = 0.01    # an outcome's labels past its two that together are under 1% of its answers are left out (AH-172)
+# an outcome's labels past its two, each under MIN_GROUP rows and together under 5% of its answers, are left out (AH-172).
+# 1% kept a still_alive of deceased 166, alive 32 and Pending 2 three labels, and male alive 26% vs female 6% went
+# unsaid (blind round 2, AH-176): a label too small to be a group is too small to unmake the outcome
+STRAY = 0.05
 MAX_TESTS = 400  # each test is a crosstab (~5.6 ms): a crafted 40 x 40 sheet took 9 s per scan (2026-10-16)
 ALPHA = 0.01    # after a Bonferroni correction over every test of the scan: noise is not called bias
 HINT = 0.05     # a raw p-value this small, not confirmed after the correction: "not enough rows to tell"
@@ -142,7 +145,9 @@ NOT_OUTCOMES = [{"day", "night"}, {"am", "pm"}, {"morning", "evening"}, {"mornin
                 {"lunch", "dinner"}, {"breakfast", "lunch"}, {"breakfast", "dinner"}, {"house", "senate"},
                 {"democrat", "republican"}, {"democratic", "republican"}, {"dem", "rep"},
                 # AH-172 (blind round 1): which corner won a bout is a side, a season is when
-                {"red", "blue"}, {"summer", "winter"}]
+                {"red", "blue"}, {"summer", "winter"},
+                # AH-176 (blind round 2): where a youth meeting was held ("35% activity_mob Transnational vs 10%")
+                {"national", "transnational"}, {"national", "international"}]
 
 
 def _is_outcome(a, b):
@@ -186,12 +191,12 @@ def _outcomes(df, types, skip):
                 out[f"{c} rate"] = (x.eq(1).where(x.notna()), f"{c} = 1", c, "= 1")
         elif t == "text":
             # AH-172 (blind round 1): an answer's "NA" is no value, as a group's is (Yes 1882, No 1619, NA 542 was three
-            # labels, and Female Yes 37% vs 59% went unsaid), and labels that together are under 1% of the answers are
-            # left out and named (a winner's Draw 5 and No Contest 3 beside Red 3966 and Blue 3203)
+            # labels, and Female Yes 37% vs 59% went unsaid), and stray labels (STRAY) are left out and named (a
+            # winner's Draw 5 and No Contest 3 beside Red 3966 and Blue 3203)
             v = _labels(df[c], 50)
             v = v.where(v.notna() & ~_unknown(v)) if v is not None else None
             counts = v.value_counts() if v is not None else ()
-            if len(counts) > 2 and counts.iloc[2:].sum() < STRAY * counts.sum():
+            if len(counts) > 2 and (counts.iloc[2:] < MIN_GROUP).all() and counts.iloc[2:].sum() < STRAY * counts.sum():
                 rare[c] = counts.iloc[2:]
                 v, counts = v.where(v.isin(counts.index[:2])), counts.iloc[:2]
             if len(counts) == 2 and _is_outcome(*(str(k).casefold() for k in counts.index)):
@@ -428,8 +433,14 @@ RESPONDENTS = {"respondent", "respondents", "participant", "participants", "inte
 
 
 def _personal(col):
-    """A column of a person's own answer or life: a question or statement put to them, a birth or a death, a demographic."""
-    return _asked(col) or bool(set(_words(col)) & (AGED | DEMOGRAPHIC | {"death", "died", "deceased", "born"}))
+    """A column of a person's own answer or life: a question or statement put to them, a birth, a demographic (a death
+    date is never measured as missing: DEATH)."""
+    return _asked(col) or bool(set(_words(col)) & (AGED | DEMOGRAPHIC | {"born"}))
+
+
+# a blank death date is a person alive, never a value missing: "gender Female: 57% missing yearOfDeath vs 33% for Male -
+# a real gap" was said of artists still alive (blind round 2, AH-176). "deaths" stays: a count of deaths is a figure
+DEATH = {"death", "died", "deceased", "dod"}
 
 
 def _hosted(df, occasion, place):
@@ -672,7 +683,7 @@ def _coverage(blank, table, unrecorded, personal=False):
     leave blank as a matter of course, the middle place 10%+ blank: films' box office unknown for 46% of US and UK films
     ("country US: 48% missing box_office vs 32%"), members' middle names 0-38% blank by state; one place singled out
     against places that keep the column (Phoenix's incomes, 69% blank against 0%) stays a gap (AH-68). Not for a person's
-    own answer or life (personal): a survey's question skipped more in one region, a laureate's death date, any blank on a
+    own answer or life (personal): a survey's question skipped more in one region, a laureate's birth date, any blank on a
     survey's sheet, its rows its respondents (AH-68 review 1). Not by an answer's shape alone: a customer table's
     Approved (Yes/No) is a record, and its one state 62% blank is where the source kept it."""
     rates = table[True] / table.sum(axis=1)
@@ -712,6 +723,11 @@ def report(df, types, rows):
         cells = r.get("cells") or []
         if flagged.iat[i] and cells and all(c in blank_at and blank_at[c][i] for c in cells):
             flagged.iat[i] = False
+    # ...and a row flagged only for cells of the group column is no flag of that group: "participant_age under 30: 1.6%
+    # rows flagged for a value vs 0.5%" was the impossible ages (-1, -7184) that put those rows in the youngest band
+    # (blind round 2, AH-176)
+    only = [{c for c in r.get("cells") or [] if not (c in blank_at and blank_at[c][i])} if flagged.iat[i] else set()
+            for i, r in enumerate(rows)]
     counted = "rows flagged" if flagged.sum() == sum(r["severity"] in ("High", "Medium", "Low") for r in rows) else "rows flagged for a value"
     # ...and a column about people has its blanks measured too, by the other groups: artists' gender, nationality and
     # race left "N/A" for 25% of Non-White artists and 0.03% of White ones was "Non-White: 27% rows flagged vs 0.1% - a
@@ -722,7 +738,8 @@ def report(df, types, rows):
             missing[c] = missing[c] | _unknown(df[c])
     # ...never an option of a "select all that apply" question, whose blank is an answer (not chosen): "Male: 58% missing
     # Will you watch ... Macy's Parade vs 45% - a real gap" said who watches as if it were who skipped (AH-63)
-    blanks = {f"missing {c}": (b, f"missing {c}", c, "missing") for c, b in missing.items() if b.sum() >= 5 and not ALL_THAT_APPLY.search(str(c))}
+    blanks = {f"missing {c}": (b, f"missing {c}", c, "missing") for c, b in missing.items()
+              if b.sum() >= 5 and not ALL_THAT_APPLY.search(str(c)) and not set(_words(c)) & DEATH}
     outcomes, rare = _outcomes(df, types, prot)
     amounts = _amounts(df, types, prot)
     measures = {"flag rate": (flagged, counted, None, None), **blanks, **outcomes}
@@ -748,6 +765,8 @@ def report(df, types, rows):
         gcodes, gnames = pd.factorize(g, sort=True)
         for name, (hit, what, subject, label) in list(measures.items())[:left]:
             left -= 1
+            if kinds[name] == "flag":
+                hit = hit & ~pd.Series([c == {col} for c in only], index=df.index)
             if kinds[name] == "missing" and subject in prot and why == PROXY:
                 continue  # host cities only say which Games kept ages: coverage by place, never a gap (AH-66 review 2)
             if kinds[name] == "missing" and subject in prot and _coarser(g, df[subject], hit):
