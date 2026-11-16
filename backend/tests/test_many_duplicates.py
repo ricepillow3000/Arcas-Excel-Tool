@@ -143,3 +143,14 @@ def test_a_name_column_names_rows_when_its_labels_are_at_least_half_its_cells(ti
     rows[250][0] = rows[101][0]
     out = scan(cols, rows, fair=False)[1]
     assert (250 in flagged(out, "Duplicate of row")) == duplicate
+
+
+def test_a_row_with_its_own_id_and_name_repeated_exactly_is_a_duplicate_whatever_na_sits_in_another_column():
+    # AH-173 fix round 1 (blind round 1, Pokemon): lunala's row copied exactly, its url_icon "NA" like 229 of 950 rows, was
+    # no longer "Duplicate of row N": an id and a name tell the row apart, so the "NA" beside them is no unknown entrant
+    rng = np.random.default_rng(7)
+    rows = [[i + 1, f"mon{i}", "NA" if i % 4 == 0 else f"https://img.example/{i}.png", round(float(rng.uniform(1, 9)), 2)]
+            for i in range(60)]
+    rows.insert(21, list(rows[20]))
+    out = scan(["id", "name", "url", "size"], rows, fair=False)[1]
+    assert flagged(out, "Duplicate of row") == [21], [out[i]["reason"] for i in flagged(out, "Duplicate of row")]

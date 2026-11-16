@@ -57,13 +57,24 @@ def duplicates(df, errors_log=(), column_types=None):
         cells[i, at[c]] = f"text:{raw}"
     # a name not kept ("?", "*", Unknown) in a column whose labels mostly differ row to row (as many as half its cells) is no
     # proof of one record: a contest's unknown entrants with tied scores were 41 "Duplicate of row N" (AH-173)
+    kind = {c: (column_types or {}).get(c, "text" if df[c].dtype == object else "") for c in cols}
+    known = {}
     for c in cols:
-        if (column_types or {}).get(c, "text" if df[c].dtype == object else "") not in ("text", "id"):
+        v, filled = df[c].astype(str).str.strip(), ~_blank(df[c])
+        known[c] = filled & ~(v.str.fullmatch(NO_VALUE_WORD) | ~v.str.contains(r"\w"))
+    # a row with its own id or name (a column 95% distinct over 20+ known values) is told apart by it, whatever "NA" sits
+    # elsewhere: lunala copied exactly, its url_icon "NA" like 229 of 950 rows, was no duplicate (Pokemon, blind round 1,
+    # AH-173 fix round 1)
+    ids = [c for c in cols if kind[c] in ("text", "id", "number") and known[c].sum() >= MANY
+            and df[c][known[c]].astype(str).str.strip().nunique() >= 0.95 * known[c].sum()]
+    named = np.logical_or.reduce([known[c].to_numpy() for c in ids]) if ids else np.zeros(len(df), bool)
+    for c in cols:
+        if kind[c] not in ("text", "id"):
             continue
         v, filled = df[c].astype(str).str.strip(), ~_blank(df[c])
-        unknown = filled & (v.str.fullmatch(NO_VALUE_WORD) | ~v.str.contains(r"\w"))
-        if unknown.any() and v[filled & ~unknown].nunique() >= 0.5 * filled.sum():
-            for i in np.flatnonzero(unknown.to_numpy()):
+        unknown = filled & ~known[c]
+        if unknown.any() and v[known[c]].nunique() >= 0.5 * filled.sum():
+            for i in np.flatnonzero(unknown.to_numpy() & ~named):
                 cells[i, at[c]] = f"unknown:{i}"
     seen, out = {}, []
     keys = list(map(tuple, cells))
