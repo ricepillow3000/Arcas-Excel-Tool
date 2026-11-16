@@ -439,10 +439,13 @@ for (const f of SCRIPTS) {
   const items = [...proof.matchAll(/<div class="reveal-item">(?:<span class="rule" aria-hidden="true"><\/span>)?<dt>([\s\S]*?)<\/dt>\s*<dd>([\s\S]*?)<\/dd>\s*<\/div>/g)].map((m) => [text(m[1]), text(m[2]), m[2]]);
   assert.deepEqual(items.map(([n]) => n), [`${iFound} of ${iPlanted}`, `${bFound} of ${bPlanted}`, `${Math.max(+iFalse, +bFalse)}`], "the proof strip's figures");
   // in plain words since AH-148 ("bench" and "tuned on" were the engine room's words): the figures still the record's
-  assert.ok(items[0][1].includes(`found in ${iSheets} test sheets`) && items[1][1].includes(`found in ${bSheets} more test sheets it had never seen`), "the proof strip's benches");
-  assert.ok(items[2][1].includes(`${iClean} and ${bClean} clean rows`), "the proof strip's clean rows");
+  // AH-171: shorter, each figure's words alone, with no lede over them (585 px for three figures read as a wall)
+  assert.deepEqual(items.map(([, said]) => said), [`planted mistakes found in ${iSheets} test sheets`, `found in ${bSheets} more test sheets it had never seen`,
+    `correct rows called probably wrong in those test sheets, out of ${iClean} and ${bClean} clean rows`], "the proof strip's words");
+  assert.ok(!/sec-lede/.test(proof), "the proof strip still has a lede over its figures");
+  // ... and the strip links the record once, under it (each figure linked it, three links to one file)
   const PROOF = REPO + "/blob/main/docs/proof/2026-11-05-stress-test.md";
-  for (const [i, href] of [[0, PROOF], [1, PROOF], [2, PROOF]]) assert.ok(items[i][2].includes(`href="${href}"`), `proof item ${i + 1} does not link ${href}`);
+  assert.ok(proof.split(`href="${PROOF}"`).length === 2 && new RegExp(`</dl>[\\s\\S]*<p class="proof-from[^"]*">From the <a href="${PROOF.replace(/[.]/g, "\\.")}">stress test of 5 November 2026</a>\\.</p>`).test(proof), "the proof strip does not link the record once, under it");
   // only the measured figures here (AH-156); the licence went to the download it covers (AH-159, John: "the MIT License is
   // under the wrong spot"), and a quiet link leads on to the case studies' own page
   assert.ok(!/MIT License|LICENSE/.test(proof) && proof.includes('<a href="cases.html">See what it found in three public tables</a>'), "the proof strip still carries the licence, or no link to the case studies");
@@ -720,7 +723,7 @@ function woff2(file) {
     assert.ok(!m, `${p} still promises a result: "${m && m[0]}"`);
   }
   const proof = (/<section\b[^>]*\sid="proof"[\s\S]*?<\/section>/.exec(home) || [""])[0];
-  assert.ok(/<dt>0<\/dt>\s*<dd>correct rows called probably wrong in those test sheets\./.test(proof), "the proof strip's 0 does not say it was in those test sheets");
+  assert.ok(/<dt>0<\/dt>\s*<dd>correct rows called probably wrong in those test sheets, out of /.test(proof), "the proof strip's 0 does not say it was in those test sheets");
   const note = (/<\/dl>\s*<p class="proof-note[^"]*">([\s\S]*?)<\/p>/.exec(proof) || ["", ""])[1];
   assert.equal(note.replace(/<[^>]+>/g, "").trim(), "Real sheets are messier than test sheets. When Arcas misses something, tell John, and the next version learns from it.", "no line right under the proof strip that says Arcas can miss");
   assert.ok(note.includes('<a href="#contact">tell John</a>') && ids(home).includes("contact"), "the line under the proof strip does not link the contact form");
@@ -2070,7 +2073,7 @@ let reveal = null;
 }
 // the field fades under the text outside the hero and the navy band (AH-98): each prose, list and table block there lies
 // on a still layer of its own section's colour that reaches past it on every side; nothing in the hero or the band does
-for (const [file, must] of [["index.html", ["#proof .sec-lede", "#proof dl.proof", "#maker .maker", "#download .sec-lede", "#download dl.anchor", "#download .steps"]],
+for (const [file, must] of [["index.html", ["#proof .proof-note", "#proof .proof-from", "#proof dl.proof", "#maker .maker", "#download .sec-lede", "#download dl.anchor", "#download .steps"]],
   ["privacy.html", [".page-head p", ".toc", ".prose"]], ["support.html", [".page-head p", "#it .sec-lede", "#it .it-ledger"]], ["cases.html", [".page-head p", ".cases"]], ["code-signing.html", [".page-head p", ".it-ledger"]], ["checks.html", [".page-head p"]]]) {
   const t = await open(file, { width: 1440, motion: "reduce" });
   const r = await t.page.evaluate((must) => {
