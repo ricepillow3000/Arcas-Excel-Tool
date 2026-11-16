@@ -1,6 +1,6 @@
 import { SEV } from "../constants/index.js";
 import { state } from "../hooks/use-state.js";
-import { $, only, show } from "../utils/dom.js";
+import { $, dated, only, show } from "../utils/dom.js";
 import { rowFromAddress } from "../utils/sheet.js";
 import { act } from "../hooks/use-action.js";
 import { busy, notice } from "../components/progress.js";
@@ -25,10 +25,12 @@ export function onSelect(e) {
 // AH-157: while a row opens (Excel reads it, the engine may look for a typo) its fix area shows still bars, not an empty
 // held box (taskpane.html .fix-sk). The newest opening takes them off when it ends, however it ends
 let opening = 0;
-export async function openFix(i, selectInSheet, from = null) {
+// AH-170: focus goes to the card's title when it opens from the list or Next row (the button pressed was hidden, and
+// focus fell to the page); never when a cell picked in the sheet opens it, which would take the keys from Excel
+export async function openFix(i, selectInSheet, from = null, focus = !!from) {
   const me = ++opening;
   try {
-    await openRow(i, selectInSheet, from);
+    await openRow(i, selectInSheet, from, focus);
   } catch (e) { // AH-165: back to the list, where Find problems is: the card hides it, and the words say to click it
     if (me === opening && state.view === "fix-view") (state.fix = null, listRows());
     throw e;
@@ -37,7 +39,7 @@ export async function openFix(i, selectInSheet, from = null) {
   }
 }
 
-async function openRow(i, selectInSheet, from) { // from: the list's button pressed, if one was
+async function openRow(i, selectInSheet, from, focus) { // from: the list's button pressed, if one was
   const { columns, rows, startRow, startCol, sheet } = state.lastScan;
   const r = state.lastRows[i], u = state.undos[i]; // u: its fix was accepted - the card offers Undo
   if (r && !SEV[r.severity] && !u && state.decided[i] === "fixed") return selectFixed(i); // fixed before: nothing to undo here
@@ -46,7 +48,7 @@ async function openRow(i, selectInSheet, from) { // from: the list's button pres
   const at = from?.getBoundingClientRect();
   await morph(from?.querySelector(".row-head"), () => {
     $("fix-title").textContent = `Row ${startRow + i + 2}: ${SEV[r.severity]?.toLowerCase() ?? "fixed"}`;
-    $("fix-reason").textContent = plainReason(r.reason) || (u ? "Checked again after your fix: it looks right." : "Flagged by the checker.");
+    $("fix-reason").replaceChildren(...dated(plainReason(r.reason) || (u ? "Checked again after your fix: it looks right." : "Flagged by the checker.")));
     $("fix-intent").value = "";
     $("fix-status").textContent = "";
     $("fix-status").classList.remove("tick");
@@ -54,6 +56,7 @@ async function openRow(i, selectInSheet, from) { // from: the list's button pres
     show("fix-care", false);
     show("fix-label");
     $("fix-ask").textContent = "Ask AI";
+    $("ai-fold").open = false; // AH-175: Ask AI is folded under the card's fix, opened below when there is none
     $("fix-changes").innerHTML = "";
     $("fix-explanation").textContent = "";
     only("fix-view");
@@ -65,6 +68,7 @@ async function openRow(i, selectInSheet, from) { // from: the list's button pres
     turnIn(view, at ? at.top + at.height / 2 - view.getBoundingClientRect().top : null);
   }, () => $("fix-title"));
   if (state.fix !== f) return;
+  if (focus) $("fix-title").focus({ preventScroll: true });
   await Excel.run(async (ctx) => {
     const ws = ctx.workbook.worksheets.getItem(sheet);
     const range = ws.getRangeByIndexes(startRow + 1 + i, startCol, 1, columns.length).load("formulas");
@@ -77,7 +81,9 @@ async function openRow(i, selectInSheet, from) { // from: the list's button pres
   if (state.fix === f) rec = await suggestTypo(f, r, rec).catch(() => rec); // no typo found or engine busy: the advice stays
   const label = !rec.changes.length ? "What to check" : rec.typo ? "Possible typo: check it before you accept"
     : rec.guess ? "Best guess: check it before you accept" : "Suggested fix";
-  if (state.fix === f) await showFix(f, label, rec);
+  if (state.fix !== f) return;
+  $("ai-fold").open = !rec.changes.length; // no fix to offer: the way to ask for one shows
+  await showFix(f, label, rec);
 }
 
 // A row fixed before this scan that looks right now, with no Undo kept for it (Forget, an edit or a sort since, a cell
@@ -123,19 +129,21 @@ async function putBack(f, was, code, e) {
 }
 
 // Back to the list: the card's title flies home to its row (AH-149), or the list fades in where that can't be
-export function backToList() {
+export async function backToList() {
   const i = state.fix?.i;
   state.fix = null;
-  return morph($("fix-title"), () => { listRows(); fadeIn($("results")); },
-    () => $("flagged-list").children[state.order.indexOf(i)]?.querySelector(".row-head"));
+  const row = () => $("flagged-list").children[state.order.indexOf(i)]?.querySelector("button");
+  await morph($("fix-title"), () => { listRows(); fadeIn($("results")); }, () => row()?.querySelector(".row-head"));
+  (row() || $("list-title")).focus({ preventScroll: true }); // AH-170: back on the row it came from (or the list, row gone)
 }
 
 // The next row in the list (worst first) nobody accepted or dismissed yet - selected in the sheet, card open.
 export async function nextFix() {
   const order = state.order, at = order.indexOf(state.fix?.i);
   const next = [...order.slice(at + 1), ...order.slice(0, at + 1)].find((i) => !state.decided[i]);
-  if (next !== undefined) return openFix(next, true);
+  if (next !== undefined) return openFix(next, true, null, true);
   state.fix = null;
   listRows();
+  $("list-title").focus({ preventScroll: true });
   notice(`${doneOf(order, state.decided)} Click Find problems to check the whole sheet again.`.trim());
 }

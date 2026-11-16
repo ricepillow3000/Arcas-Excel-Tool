@@ -5,6 +5,8 @@ import { cutNote, r1c1ToA1, tableFromGrid, isDateFormat, excelDate, rowFromAddre
 import { issuesOf, recommendFix, typoKind, afterFix, unusualColumn } from "./features/fix.js";
 import { plainReason, summaryOf, legendOf, flaggedRows, fairnessNote, fairnessTests, listOrder, levelChange, asLastScan, lastScanSaid, doneOf } from "./features/scan.js";
 import { MEASURED, COLOR, OLD_COLOR } from "./constants/index.js";
+import { oddLines } from "./features/ai.js";
+import { read as readLimit } from "./pages/limits.js";
 import { strengthHint, asStrength, levelAt, levelWord } from "./pages/strength.js";
 import { exactFixes, safeUndo } from "./features/autofix.js";
 import { readdirSync, readFileSync } from "node:fs";
@@ -184,6 +186,27 @@ assert.deepEqual(fairnessTests(undefined), []);
 assert.equal(summaryOf([{ severity: null }, { severity: "Noted" }, { severity: null }]), "No problems found in 3 rows.");
 assert.equal(summaryOf([{ severity: "High" }, { severity: "Low" }, ...Array(1998).fill({ severity: null })]), "1 of 2,000 rows look wrong. 1 more is worth a quick check.");
 assert.equal(summaryOf([{ severity: "Low" }, { severity: "Low" }]), "Nothing clearly wrong in 2 rows. 2 are worth a quick check.");
+// AH-170: a sheet of one row is said in the singular ("No problems found in 1 rows." was said), as lastScanSaid does
+assert.equal(summaryOf([{ severity: null }]), "No problems found in 1 row.");
+assert.equal(summaryOf([{ severity: "Medium" }]), "1 of 1 row looks wrong.");
+assert.equal(summaryOf([{ severity: "Low" }]), "Nothing clearly wrong in 1 row. 1 is worth a quick check.");
+assert.equal(summaryOf([{ severity: "High" }, { severity: null }]), "1 of 2 rows look wrong.");
+// AH-170: Check words says each odd word once, in its column, with how many rows and the first few: one word in 100
+// cells gave 100 identical lines (the pane 9,700 px tall at 320 px). At most CAP (50) lines, then one line for the rest
+{
+  const odd = [5, 2, 95].map((row) => ({ row, col: 1, value: "Paris", why: "a city" })).concat([{ row: 7, col: 1, value: "Lyon", why: "<b>a city</b>" }]);
+  assert.deepEqual(oddLines(odd, ["When", "Region"], 0, 0), ['Column B (Region): "Paris" in 3 rows (4, 7 and 97). The AI says: a city', 'Row 9, column B (Region): "Lyon". The AI says: <b>a city</b>']);
+  const many = Array.from({ length: 100 }, (_, k) => ({ row: 99 - k, col: 0, value: "Central", why: "x" }));
+  assert.equal(oddLines(many, [""], 4, 2)[0], 'Column C: "Central" in 100 rows (6, 7, 8 and 97 more). The AI says: x', "rows in sheet order, a blank header left out");
+  const words = Array.from({ length: 60 }, (_, k) => ({ row: k, col: 0, value: `w${k}`, why: "x" }));
+  const lines = oddLines(words, ["Item"], 0, 0);
+  assert.equal(lines.length, K.CAP + 1);
+  assert.equal(lines.at(-1), "+ 10 more words the AI found out of place.");
+  assert.equal(oddLines(Array.from({ length: K.CAP }, (_, k) => ({ row: k, col: 0, value: `w${k}`, why: "x" })), ["Item"], 0, 0).length, K.CAP, "exactly CAP lines need no more line");
+}
+// AH-170: a limit box's text: empty is no limit, a number is the limit, anything else is refused (a number box dropped
+// letters and read empty, so the limit was taken off without a word)
+assert.deepEqual(["", "  ", " -10 ", "1e3", "0.5", "abc", "12abc", "1,000", "-"].map((value) => readLimit({ value })), [null, null, -10, 1000, 0.5, NaN, NaN, NaN, NaN]);
 // AH-166: the legend only when the list holds 2+ severities: one severity alone repeated the summary ("5 of 300 rows look
 // wrong." over "Probably wrong: 5"). Worst first, each with its count
 assert.deepEqual(legendOf([{ severity: "Medium" }, { severity: "Medium" }, { severity: null }]), []);
@@ -724,6 +747,21 @@ for (const f of readdirSync(new URL(".", import.meta.url)).filter((f) => f.endsW
   assert.ok(html.includes('<button id="clear-highlights" class="secondary">Remove highlights</button>'), "the hint names a button that is not there");
   assert.ok(/<summary>AI help \(optional, free\)<\/summary>\s*<p class="hint">Optional\. Arcas finds problems without AI\.<\/p>/.test(html), "AI help does not open by saying it is optional");
   assert.ok(readFileSync(new URL("features/fix.js", import.meta.url), "utf8").includes("Check it against the original receipt, invoice or report before you click Accept."), "a fix card's check against the source");
+}
+
+// AH-175: the pane simpler on first use: the slider, its hint and how it was tested fold under Find problems, closed, the
+// summary saying the level
+{
+  const level = /<details id="strength-box" class="more"[^>]*>\s*<summary>(.*?)<\/summary>([\s\S]*?)<\/details>\s*<\/div>\s*<button id="undo-auto"/.exec(html);
+  assert.ok(level && level[1].replace(/<[^>]+>/g, "") === "How hard to look: 5 of 10" && /id="strength-val"/.test(level[1]) && /id="strength"/.test(level[2])
+    && /id="strength-hint"/.test(level[2]) && /id="strength-tested"/.test(level[2]) && !/<details id="strength-box"[^>]*\bopen\b/.test(html), "the slider folded, closed, under a summary naming the level");
+}
+// AH-175: Ask AI folds under a card's fix, closed. What a card says (its status, a failure, the helpline message) stays
+// outside the fold, never hidden in it
+{
+  const ask = /<details id="ai-fold" class="more">\s*<summary>Want a different fix\? Ask AI<\/summary>\s*<div id="ai-box">([\s\S]*?)<\/div>\s*<\/details>\s*<p id="ai-off"/.exec(html);
+  assert.ok(ask && ["fix-intent", "fix-tries", "fix-ask", "fix-sends"].every((id) => ask[1].includes(`id="${id}"`)) && !["fix-care", "fix-status", "fix-changes"].some((id) => ask[1].includes(`id="${id}"`)),
+    "Ask AI folded on the card, its status, failures and helpline message outside the fold");
 }
 
 console.log("panel self-check passed");

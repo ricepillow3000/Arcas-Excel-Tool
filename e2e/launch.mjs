@@ -54,6 +54,7 @@ for (const width of [320, 360, 500]) { // Office's task pane: 320 px at its narr
   // AH-149 review: "Recommended" stood under the slider's left side, a band of empty space stood over the first view,
   // and each option's row was 80 px tall
   await page.waitForFunction(() => [...document.querySelectorAll("[data-enter]")].every((e) => !e.style.opacity && !e.style.transform), null, { timeout: 5000 });
+  await page.$eval("#strength-box", (d) => (d.open = true)); // AH-175: the slider is folded until pressed
   const lay = await page.evaluate(() => {
     const s = document.getElementById("strength").getBoundingClientRect(), w = document.querySelector(".slider-scale span:nth-child(2)").getBoundingClientRect();
     return { tick: s.left + s.width / 2, word: w.left + w.width / 2, status: document.getElementById("status").getBoundingClientRect().height,
