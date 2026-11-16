@@ -5,6 +5,7 @@ import { cutNote, r1c1ToA1, tableFromGrid, isDateFormat, excelDate, rowFromAddre
 import { issuesOf, recommendFix, typoKind, afterFix, unusualColumn } from "./features/fix.js";
 import { plainReason, summaryOf, legendOf, flaggedRows, fairnessNote, fairnessTests, listOrder, levelChange, asLastScan, lastScanSaid } from "./features/scan.js";
 import { MEASURED, COLOR, OLD_COLOR } from "./constants/index.js";
+import { oddLines } from "./features/ai.js";
 import { strengthHint, asStrength, levelAt, levelWord } from "./pages/strength.js";
 import { exactFixes, safeUndo } from "./features/autofix.js";
 import { readdirSync, readFileSync } from "node:fs";
@@ -184,6 +185,19 @@ assert.deepEqual(fairnessTests(undefined), []);
 assert.equal(summaryOf([{ severity: null }, { severity: "Noted" }, { severity: null }]), "No problems found in 3 rows.");
 assert.equal(summaryOf([{ severity: "High" }, { severity: "Low" }, ...Array(1998).fill({ severity: null })]), "1 of 2,000 rows look wrong. 1 more is worth a quick check.");
 assert.equal(summaryOf([{ severity: "Low" }, { severity: "Low" }]), "Nothing clearly wrong in 2 rows. 2 are worth a quick check.");
+// AH-170: Check words says each odd word once, in its column, with how many rows and the first few: one word in 100
+// cells gave 100 identical lines (the pane 9,700 px tall at 320 px). At most CAP (50) lines, then one line for the rest
+{
+  const odd = [5, 2, 95].map((row) => ({ row, col: 1, value: "Paris", why: "a city" })).concat([{ row: 7, col: 1, value: "Lyon", why: "<b>a city</b>" }]);
+  assert.deepEqual(oddLines(odd, ["When", "Region"], 0, 0), ['Column B (Region): "Paris" in 3 rows (4, 7 and 97). The AI says: a city', 'Row 9, column B (Region): "Lyon". The AI says: <b>a city</b>']);
+  const many = Array.from({ length: 100 }, (_, k) => ({ row: 99 - k, col: 0, value: "Central", why: "x" }));
+  assert.equal(oddLines(many, [""], 4, 2)[0], 'Column C: "Central" in 100 rows (6, 7, 8 and 97 more). The AI says: x', "rows in sheet order, a blank header left out");
+  const words = Array.from({ length: 60 }, (_, k) => ({ row: k, col: 0, value: `w${k}`, why: "x" }));
+  const lines = oddLines(words, ["Item"], 0, 0);
+  assert.equal(lines.length, K.CAP + 1);
+  assert.equal(lines.at(-1), "+ 10 more words the AI found out of place.");
+  assert.equal(oddLines(Array.from({ length: K.CAP }, (_, k) => ({ row: k, col: 0, value: `w${k}`, why: "x" })), ["Item"], 0, 0).length, K.CAP, "exactly CAP lines need no more line");
+}
 // AH-166: the legend only when the list holds 2+ severities: one severity alone repeated the summary ("5 of 300 rows look
 // wrong." over "Probably wrong: 5"). Worst first, each with its count
 assert.deepEqual(legendOf([{ severity: "Medium" }, { severity: "Medium" }, { severity: null }]), []);

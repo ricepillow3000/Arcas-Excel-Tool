@@ -8,6 +8,8 @@ import { plainReason } from "./scan.js";
 import { colLetter } from "../utils/sheet.js";
 import { isOurs, plainError } from "../utils/errors.js";
 import { recall } from "./memory.js";
+import { CAP } from "../constants/index.js";
+import { n } from "../utils/text.js";
 
 // Ask AI: the API client in the workflow (the engine forwards to Gemini). Optional; fixes work without it.
 // AH-151: with no key or invite of its own the engine uses John's relay ("free"), and the options say so
@@ -125,19 +127,37 @@ function careSaid(f, words) {
 // The engine sends only each text column's distinct words. Worth a look, not proof: nothing is changed in the sheet.
 export async function checkWords() {
   const { columns, rows, startRow, startCol } = state.lastScan;
-  // AH-35: each line says it is the AI's view, and names the cell by the sheet's own header and column letter: the
-  // engine's name for a repeated header ("Item.1") or a blank one ("") is not one the user can find
-  const at = (o) => `Row ${startRow + o.row + 2}, column ${colLetter(startCol + o.col)}${String(columns[o.col] ?? "").trim() ? ` (${columns[o.col]})` : ""}`;
   const item = (text) => Object.assign(document.createElement("li"), { textContent: text }); // AI text is never HTML
   busy("Asking the AI about your words…"); // AH-157: with its seconds; act() takes it off. The pane sat silent up to 300 s
   counting();
   try {
     const { odd, partial } = await post("/odd-text", { columns, rows }, 300);
-    $("odd-list").replaceChildren(...(odd.length ? odd.map((o) => item(`${at(o)}: "${o.value}". The AI says: ${o.why}`))
+    $("odd-list").replaceChildren(...(odd.length ? oddLines(odd, columns, startRow, startCol).map(item)
       : [item(partial ? "Nothing out of place so far." : "Nothing looks out of place.")]),
     ...(partial ? [item("Google got busy before every word was checked. Click again to check the rest. The finished part is kept.")] : []));
   } catch (e) { // Google busy (it often is), no key...: said right here, like Ask AI does
     // in the pane's notice box: as a bare line at body size it read as a heading (AH-149 review r2)
     $("odd-list").replaceChildren(Object.assign(item(plainError(e, "AI could not check")), { className: "notice" }));
   }
+}
+
+// Pure: the AI's odd words as lines. AH-35: each line says it is the AI's view, and names the cell by the sheet's own
+// header and column letter: the engine's name for a repeated header ("Item.1") or a blank one ("") is not one the user
+// can find. AH-170: one line per word in its column, with how many rows and the first 3, at most CAP lines: one odd word
+// in 100 cells gave 100 identical lines, and the pane was 9,700 px tall at 320 px
+export function oddLines(odd, columns, startRow, startCol) {
+  const words = new Map();
+  for (const o of odd) {
+    const k = JSON.stringify([o.col, o.value]);
+    if (!words.has(k)) words.set(k, { ...o, rows: [] });
+    words.get(k).rows.push(startRow + o.row + 2);
+  }
+  const col = (o) => `column ${colLetter(startCol + o.col)}${String(columns[o.col] ?? "").trim() ? ` (${columns[o.col]})` : ""}`;
+  const lines = [...words.values()].map((w) => {
+    const r = w.rows.sort((a, b) => a - b).map(n), first = r.slice(0, 3);
+    const list = r.length > 3 ? `${first.join(", ")} and ${n(r.length - 3)} more` : `${first.slice(0, -1).join(", ")} and ${first.at(-1)}`;
+    const where = r.length === 1 ? `Row ${r[0]}, ${col(w)}: "${w.value}"` : `C${col(w).slice(1)}: "${w.value}" in ${n(r.length)} rows (${list})`;
+    return `${where}. The AI says: ${w.why}`;
+  });
+  return lines.length > CAP ? [...lines.slice(0, CAP), `+ ${n(lines.length - CAP)} more words the AI found out of place.`] : lines;
 }
