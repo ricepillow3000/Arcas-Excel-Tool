@@ -463,6 +463,14 @@ rec = recommendFix(["Id", "year"], [["a", 2084]], 0, null, "year 2084 is far out
 assert.ok(rec.explanation.includes("mistyped year") && !rec.explanation.includes("Nothing here") && !rec.changes.length, rec.explanation);
 rec = recommendFix(["Id", "p10", "p90"], [["a", 30.1, 14.1]], 0, null, "p10 30.1 is above p90 14.1, where p10 is at most p90 on 1199 of 1200 rows", 0, 0);
 assert.ok(rec.explanation.includes("check both cells") && !rec.explanation.includes("Nothing here") && !rec.changes.length, rec.explanation);
+// AH-182: a column pasted twice and a gene name turned into a date say what to look for, and write nothing
+rec = recommendFix(["Id", "Series 2", "Series 3"], [["a", 5.2, 5.2]], 0, null, "Series 3 is the same 1,200 numbers as Series 2, row for row: was one column pasted twice?", 0, 0);
+assert.ok(rec.explanation.includes("one series pasted") && !rec.explanation.includes("Nothing here") && !rec.changes.length, rec.explanation);
+for (const reason of ['Gene "2-Sep" is a date among gene names: Excel turns names such as SEPT2 or MARCH1 into dates when they are typed or opened from a CSV',
+  "Gene 38962 is the date 2006-09-02 as Excel stores it, a date among gene names: Excel turns names such as SEPT2 or MARCH1 into dates when they are typed or opened from a CSV"]) {
+  rec = recommendFix(["Id", "Gene"], [["a", "2-Sep"]], 0, null, reason, 0, 0);
+  assert.ok(rec.explanation.includes("format the column as Text") && !rec.explanation.includes("Nothing here") && !rec.changes.length, rec.explanation);
+}
 rec = recommendFix(["Id", "Day"], [["a", 7.3]], 0, null, "Day 7.3 is not a whole number - every other Day is", 0, 0);
 assert.ok(rec.explanation.includes("check the decimal point"), rec.explanation);
 // AH-55: a name's bound and a share over 100 say what to look for, and write nothing

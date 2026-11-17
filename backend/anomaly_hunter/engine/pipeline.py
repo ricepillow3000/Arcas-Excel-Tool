@@ -2,6 +2,7 @@
 Shared by CLI and server."""
 import collections
 import datetime
+import hashlib
 import itertools
 import re
 
@@ -1400,6 +1401,65 @@ def formulas(df, column_types, skip, grid=None):
     return out, fix
 
 
+COPY_COLS = 300  # number columns compared, in sheet order: a crafted wide sheet costs at most 300 hashes
+
+
+def repeated_columns(df, column_types, skip, grid=None):
+    """AH-182: two number columns equal row for row, blank on the same rows: one series pasted twice (a student's data
+    series; Pruitt's spider papers and a 2016 Cell paper retracted for copied blocks of numbers). Each needs 10+ numbers
+    and 5+ distinct values, never in order (a time axis or an ID is no measurement) nor mostly formulas (=B2 is a copy
+    by design). One note (worth a check) on the first row both fill: which copy is wrong is unknown. On 129 public tables
+    one pair matched, a board-game table's max_playtime = playing_time, as the source has it."""
+    out, seen = [[] for _ in range(len(df))], {}
+    for j, col in [(j, c) for j, c in enumerate(df.columns) if column_types.get(c) == "number"][:COPY_COLS]:
+        x = np.where(skip, np.nan, pd.to_numeric(df[col], errors="coerce").to_numpy(float))
+        v = x[~np.isnan(x)]
+        d = np.diff(v)
+        if len(v) < 10 or len(np.unique(v)) < 5 or (d >= 0).all() or (d <= 0).all() \
+                or grid and 2 * sum(row[j] is not None for row in grid) > len(v):
+            continue
+        first = seen.setdefault(hashlib.sha256(np.nan_to_num(x, nan=np.inf).tobytes()).digest(), col)
+        if first != col:
+            out[int(np.flatnonzero(~np.isnan(x))[0])].append(
+                Why(f"{col} is the same {len(v):,} numbers as {first}, row for row: was one column pasted twice?", first, col))
+    return out
+
+
+GENE = re.compile(r"[A-Za-z]+[A-Za-z0-9.-]*")  # TP53, BRCA1, Sept2, HLA-DRB1: letters, then letters, digits, - and .
+MONTH = r"(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)"
+AS_DATE = re.compile(rf"\d{{1,2}}-{MONTH}(?:-\d{{2,4}})?|{MONTH}-\d{{1,4}}|\d{{4}}-\d\d-\d\d(?:[T ][\d:.]+)?", re.I)
+SERIALS = (36526, 73050)  # 2000-01-01 to 2099-12-31 as Excel's date serials: a date cell in a text column comes as one
+
+
+def gene_dates(df, column_types, skip):
+    """AH-182: Excel turns gene names into dates when they are typed or opened from a CSV (SEPT2 -> 2-Sep, MARCH1 ->
+    1-Mar): 19.6% of papers with Excel gene lists (Ziemann 2016), 30.9% in 2014-2020 (Abeysooriya 2021). In a text column
+    of gene symbols (20+ labels of 2 to 15 characters with a digit or in capitals, 90%+ of its filled cells, half of
+    them with a digit), a cell that is a date, or a whole number 36526 to 73050 (its serial), is no gene. Never a fix:
+    the old name is unknown."""
+    out = [[] for _ in range(len(df))]
+    for col, t in column_types.items():
+        if t != "text":
+            continue
+        s = df[col][~skip & ~_blank(df[col]).to_numpy()].astype(str).str.strip()
+        date = s.str.fullmatch(AS_DATE)
+        serial = pd.to_numeric(s.where(s.str.fullmatch(r"\d{5}(?:\.0+)?")), errors="coerce").between(*SERIALS)
+        digit = s.str.contains(r"\d")
+        gene = ~date & s.str.fullmatch(GENE) & s.str.len().between(2, 15) & (digit | (s == s.str.upper()))
+        # ...and half of them with a digit (TP53, BRCA1; HGNC's symbols mostly are): capitals alone were US states, whose
+        # stray ZIP and ISO date were 12 "dates among gene names" on 129 public tables (AH-182 build)
+        if gene.sum() < 20 or gene.mean() < 0.9 or 2 * (gene & digit).sum() < gene.sum():
+            continue
+        for i in s.index[date]:
+            out[i].append(Why(f'{col} "{s[i]}" is a date among gene names: Excel turns names such as SEPT2 or MARCH1 into '
+                              "dates when they are typed or opened from a CSV", col))
+        for i in s.index[serial]:
+            out[i].append(Why(f"{col} {say(float(s[i]))} is the date {_serial(s[i])} as Excel stores it, a date among gene "
+                              "names: Excel turns names such as SEPT2 or MARCH1 into dates when they are typed or opened "
+                              "from a CSV", col))
+    return out
+
+
 def knobs(strength=5):
     """How hard to look, 0-10 -> (level, k). k = how many robust spreads out a value must be to count as weird.
     5 = the tuned default (k 6, bench 51/51). Each step up lowers the bar ~10% and may add a check, so a row flagged
@@ -1460,6 +1520,7 @@ def score(df, column_types, errors_log, limits, order_by, strength=5, saved=(), 
     zeros = lost_zeros(df, column_types, skip)
     above = order(df, column_types, skip)  # AH-178: a 10th percentile above its 90th, a Low above its High
     calc, calc_fix = formulas(df, column_types, skip, grid)  # AH-152: a typed value or another formula among a column's formulas
+    genes = gene_dates(df, column_types, skip)  # AH-182: a gene name Excel turned into a date
     forms, many_forms = date_forms(df, column_types, skip)
     code, coded_top = codes(df, column_types, skip)
     spell, spell_fix, missed, spell_maybe, spell_exact = spellings(df, column_types, skip)
@@ -1468,6 +1529,7 @@ def score(df, column_types, errors_log, limits, order_by, strength=5, saved=(), 
                                                                  spread, strict=True)]  # all "worth a check" (Low)
     missed = [m + t + h + c + d + r + f + o for m, t, h, c, d, r, f, o in zip(missed, lim["top_reasons"], lim["held_reasons"], coded,
                                                                                typ_coded, repeats, many_forms, coded_top, strict=True)]  # a lone top value (AH-29), one its row's arithmetic confirms (AH-74), a placeholder code (AH-45), many repeats (AH-48), a date column of many forms (AH-76)
+    missed = [m + c for m, c in zip(missed, repeated_columns(df, column_types, skip, grid), strict=True)]  # AH-182: a column pasted twice
     if s >= ALONE:
         missed = [m + a for m, a in zip(missed, lim["alone_reasons"], strict=True)]
     rows = []
@@ -1499,7 +1561,7 @@ def score(df, column_types, errors_log, limits, order_by, strength=5, saved=(), 
                          "magnitude": 0.0})
             continue
         voted = [d for d in ran if d["votes"][i]]
-        hygiene = dup[i] + typ[i] + blank[i] + hole[i] + code[i] + far[i] + add[i] + spell[i] + zeros[i] + forms[i] + calc[i] + above[i]
+        hygiene = dup[i] + typ[i] + blank[i] + hole[i] + code[i] + far[i] + add[i] + spell[i] + zeros[i] + forms[i] + calc[i] + above[i] + genes[i]
         if not voted and not hygiene and not missed[i]:
             noted = as_typed(lim["noted_reasons"][i], i)
             rows.append({"severity": "Noted" if noted else None, "bucket": None,

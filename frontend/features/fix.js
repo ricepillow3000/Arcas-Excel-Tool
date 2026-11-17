@@ -209,6 +209,11 @@ const HINTS = [
   // AH-46: a sort puts blank cells last - the block at the end is where the sort put them, not where they went missing
   [/ is blank in \d+ of \d+ rows, all at the end of the table, which is sorted by /, "sorting puts blank cells last, so these rows " +
     "have no value here; if the column must always be filled, fill them in from the source"],
+  // AH-182: one number column pasted twice, and a gene name Excel turned into a date: said, nothing written
+  [/ is the same [\d,]+ numbers as .+, row for row: was one column pasted twice\?$/, "two columns that match row for row are " +
+    "usually one series pasted where another belongs; check both against the source, and if the source repeats them, leave both"],
+  [/ a date among gene names: /, "find the gene's name in the source (2-Sep was SEPT2, 1-Mar was MARCH1; both are now renamed " +
+    "SEPTIN2 and MARCHF1) and type it back, then format the column as Text so Excel keeps it as typed"],
 ];
 
 // Pure: the column an "only unusual" reason points at (an odd mix across columns, or a break in a series), else null
