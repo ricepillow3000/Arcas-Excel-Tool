@@ -1374,10 +1374,25 @@ if (mode === "flow") {
     const calm = await browser.newPage({ ignoreHTTPSErrors: true, viewport: { width: 360, height: 900 }, reducedMotion: "reduce" });
     const heard = [];
     calm.on("pageerror", (e) => heard.push(e.message));
+    // AH-183: on Windows CI (PR #120, run 43966622884) #main-ui stayed hidden for the whole wait and the run said
+    // nothing else. Every /health and every other failed request is kept, so the next timeout says why: a module that
+    // fails to load leaves the pane on its first screen with no page error (AH-43, trust.mjs)
+    const t0 = Date.now(), health = [], failed = [], where = (u) => new URL(u).pathname;
+    calm.on("request", (q) => { if (where(q.url()) === "/health") health.push({ q, at: Date.now() - t0, outcome: "pending" }); });
+    calm.on("response", (s) => { const h = health.find((h) => h.q === s.request()); if (h) h.outcome = `${s.status()} in ${Date.now() - t0 - h.at} ms`; });
+    calm.on("requestfailed", (q) => { const h = health.find((h) => h.q === q), why = q.failure()?.errorText;
+      if (h) h.outcome = `failed: ${why}`; else failed.push(`${where(q.url())}: ${why}`); });
     await calm.route("https://appsforoffice.microsoft.com/**", (r) => r.fulfill({ contentType: "text/javascript", body: fs.readFileSync(DIR + "fake-office.js", "utf8") }));
     await calm.goto("https://127.0.0.1:5055/taskpane.html");
     await calm.evaluate((rows) => __load("Sales", rows, [0]), rows);
-    await calm.waitForSelector("#main-ui", { state: "visible" });
+    await calm.waitForSelector("#main-ui", { state: "visible" }).catch(async (e) => {
+      // #skeleton sits in #app-body, hidden until Office.onReady: app-body hidden beside sideload-msg = app.js never ran
+      const shown = await calm.evaluate(() => ({ office: typeof Office, ...Object.fromEntries(["sideload-msg", "app-body", "skeleton", "server-down", "main-ui"]
+        .map((id) => [id, document.getElementById(id)?.checkVisibility() ?? null])) })).catch(() => null);
+      console.error("calm page after the wait:", JSON.stringify({ shown, heard, health: health.map(({ at, outcome }) => ({ at, outcome })), failed, ms: Date.now() - t0 }));
+      if (process.env.SHOTS) await calm.screenshot({ path: `${process.env.SHOTS}/pane-calm-timeout.png` }).catch(() => {});
+      throw e;
+    });
     const still = () => calm.evaluate(() => document.getAnimations().filter((a) => a.timeline === document.timeline && (a.transitionProperty ? [a.transitionProperty]
       : a.effect.getKeyframes().flatMap(Object.keys)).some((p) => /transform|opacity|translate|scale|rotate/.test(p))).length);
     const seen = [];
