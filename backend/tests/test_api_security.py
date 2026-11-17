@@ -627,7 +627,8 @@ def test_the_kit_installer_seals_the_invite_code_the_way_the_app_does_and_never_
     kit, home = tmp_path / "kit", tmp_path / "home"
     kit.mkdir()
     home.mkdir()
-    (kit / "invite-code.txt").write_text("inv_" + "f" * 24 + "\r\n", encoding="utf-8")
+    # newline="": write_text would translate this \n to \r\n on Windows, leaving \r\r\n in the kit
+    (kit / "invite-code.txt").write_text("inv_" + "f" * 24 + "\r\n", encoding="utf-8", newline="")
     monkeypatch.setattr(sys, "argv", ["-c", str(kit / "install.bat"), str(home)])  # what python -c sees: %~f0, %AH%
     # nosemgrep: exec-detected - install.bat's own line, read from the repo file above, never from input
     exec(m[1], {})  # noqa: S102 - install.bat's own line, read from the file above
@@ -702,3 +703,20 @@ def test_every_package_the_app_imports_is_declared_and_every_declared_one_is_use
     assert declared - used == set(), "declared but imported nowhere"
     exe = {name(r) for r in project["optional-dependencies"]["exe"]}
     assert exe <= tools, exe - tools
+def test_a_mutant_that_plants_nothing_is_an_error_never_a_survivor():
+    """AH-189: mutations.json holds \n and a Windows working tree holds \r\n, so every multi-line mutant planted
+    nothing there and the run printed SURVIVED - a mutation run inventing the one answer it exists to find."""
+    import pathlib
+    import sys
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "tools"))
+    import mutate
+
+    windows = "def f():\r\n    if not x.size:\r\n        return 6\r\n    return 7\r\n"
+    linux = windows.replace("\r\n", "\n")
+    guard = "    if not x.size:\n        return 6\n"
+    # the one mutant, written with \n as mutations.json writes it, plants on both checkouts
+    assert mutate.plant(windows, guard, "", "id") == "def f():\r\n    return 7\r\n"
+    assert mutate.plant(linux, guard, "", "id") == "def f():\n    return 7\n"
+    # and a mutant whose text is not in the file is loud, never a quiet survivor
+    with pytest.raises(RuntimeError, match="nothing was planted"):
+        mutate.plant(windows, "    if not y.size:\n", "", "decimals-empty-loosen")

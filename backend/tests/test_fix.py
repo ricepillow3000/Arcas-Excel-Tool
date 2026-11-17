@@ -6,6 +6,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 import pytest
 
 from anomaly_hunter.ai import client
+from anomaly_hunter import sealed
 from anomaly_hunter import server
 from anomaly_hunter.server import create_app
 
@@ -450,7 +451,8 @@ def test_pasted_key_turns_on_free_ai_and_can_be_removed(monkeypatch, tmp_path):
     assert c.get("/health").get_json()["ai_available"] is False
     assert c.post("/key", json={"key": "  AIzaTest_key-123 "}).get_json() == {  # gitleaks:allow - made-up test key
         "ai_available": True, "ai_provider": "gemini", "message": "Key works. AI help is on."}
-    assert (tmp_path / "gemini-key.txt").read_text() == "AIzaTest_key-123"
+    # sealed.read, not read_text: on Windows the file is DPAPI-sealed (AH-104) and the app reads it this way
+    assert sealed.read(tmp_path / "gemini-key.txt") == "AIzaTest_key-123"
     assert c.get("/health").get_json()["ai_provider"] == "gemini"
     for bad in ({"key": "<script>"}, {"key": "a b"}, {"key": 5}, {}):
         assert c.post("/key", json=bad).status_code == 400, bad
@@ -458,7 +460,7 @@ def test_pasted_key_turns_on_free_ai_and_can_be_removed(monkeypatch, tmp_path):
         assert c.post("/key", json=junk).status_code == 400, junk
     # Google's newer keys (bound to a service account) look like "AQ.Ab8x...": a dot is part of the key
     assert c.post("/key", json={"key": "AQ.Ab8_madeUp-Test.key"}).get_json()["ai_available"] is True
-    assert (tmp_path / "gemini-key.txt").read_text() == "AQ.Ab8_madeUp-Test.key"
+    assert sealed.read(tmp_path / "gemini-key.txt") == "AQ.Ab8_madeUp-Test.key"
     assert c.post("/key", json={"key": ""}).get_json()["ai_available"] is False
     assert not (tmp_path / "gemini-key.txt").exists()
 
@@ -481,7 +483,7 @@ def test_an_invite_code_uses_johns_relay_never_a_key(monkeypatch, tmp_path):
     monkeypatch.setattr(client, "RELAY_URL", client.GEMINI_URL.rsplit("/v1beta", 1)[0])  # the stub stands in for the relay
     c = create_app().test_client()
     assert c.post("/key", json={"key": "inv_" + "a" * 24}).get_json()["ai_provider"] == "relay"
-    assert (tmp_path / "invite-code.txt").read_text() == "inv_" + "a" * 24 and not (tmp_path / "gemini-key.txt").exists()
+    assert sealed.read(tmp_path / "invite-code.txt") == "inv_" + "a" * 24 and not (tmp_path / "gemini-key.txt").exists()
     r = post(BODY)
     assert r.status_code == 200 and r.get_json()["changes"] == [{"cell": "C3", "new": "50"}]
     headers, _ = got[-1]
