@@ -132,10 +132,14 @@ async function open(ctx, file, { scan = false, limits = false } = {}) {
     const scan = cs("#scan"), track = cs(".slider-track"), fill = cs(".slider-fill");
     return { canvas, scanBorder: [scan.borderTopWidth, scan.borderTopStyle], track: track.backgroundColor, fill: fill.backgroundColor, sw };
   });
+  // AH-184: the finish line over the foot bar is a background too
+  const done = await page.evaluate(async () => { const { notice } = await import("./components/progress.js"); notice("1 of 2 rows done.", 0.5);
+    const b = getComputedStyle(document.getElementById("status"), "::before"); return [b.backgroundColor, b.opacity]; });
   ok(parseFloat(m.scanBorder[0]) >= 1 && m.scanBorder[1] !== "none", "forced colours: the Find problems button has a visible border - " + JSON.stringify(m.scanBorder));
   ok(m.track !== m.canvas && !/rgba\(0, 0, 0, 0\)/.test(m.track) && m.fill !== m.track && m.fill !== m.canvas,
     `forced colours: the slider's track and fill show against the page - ${JSON.stringify(m)}`);
   ok(new Set(m.sw).size === 3 && !m.sw.includes(m.canvas), "forced colours: the three swatches stay three different colours - " + JSON.stringify(m.sw));
+  ok(done[1] === "1" && done[0] !== m.canvas && !/^rgba\(.*, 0\)$/.test(done[0]), "AH-184: forced colours: the finish line stays drawn - " + JSON.stringify({ done, canvas: m.canvas }));
   await page.close(); await ctx.close();
 }
 
