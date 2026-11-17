@@ -1,4 +1,4 @@
-# Motion on the website (AH-83, AH-84, AH-85, AH-89 to AH-93, AH-138, AH-148)
+# Motion on the website (AH-83, AH-84, AH-85, AH-89 to AH-93, AH-138, AH-148, AH-183)
 
 How the site moves, and how to change it. The real code is in `site/styles.css` (tokens and states), `site/boot.js`
 (the first mark), `site/motion.js` (entrance, reveal, glide, the wheel's catch-up, scroll fallback), `site/home.js` (the
@@ -562,3 +562,33 @@ Alive, and still plain to read:
   flagged by more than one type (All findings 7, the types 10); the case studies' text flows from the top of each
   equal-height card, the room left under the credit; the footer's links take eight of the twelve columns, so the
   support page's seven fit on one line at 1280 and 1440.
+
+## AH-183 (John, 2026-11-17): the sample comes alive
+
+John: "take out the boring stuff, add the fun stuff, keep the colours and look, do not over-engineer". The rule for
+picking: the visitor does something, or sees their sheet come alive; decoration alone stayed out. Every rule above holds:
+only `transform` and `opacity` move, on `--ease-out`, once, and under `prefers-reduced-motion` nothing below moves.
+`tools/test_site.mjs` (its AH-183 block) and `test_site_sample.py` hold each one.
+
+- **The sheet's map.** Beside "60 rows · 5 columns" lies a strip of the sheet's own paper with one mark a row, rows 2 to
+  61 (`.sheet-map`, `aria-hidden`, written in the page, never built from data): wine where the engine says probably
+  wrong, outlined where worth a check, as the key says. It sits on the title's line, so the bar keeps its height; on a
+  phone its marks are under 2 px wide, so they touch and a row worth a check is a half-height mark. A flagged mark's
+  colour is its `::before`, shown while the mark has its row's `data-kind`: a filter that leaves the row out, After fixes
+  for a row it mends, the skeleton and an Accept fade it over `--fill-dur`. Forced colours draw it in the theme's own.
+- **The Scanning tab reads the map.** While its bar fills (1.1 s), the marks light from 0.25 to full, one a fixed step
+  apart ((1100 - `--pop-in`) / 60 ms), each over `--pop-in`, so the last is lit as the bar is full and a flagged row shows
+  its colour as the scan reaches it. One run per choosing; leaving the tab cancels it (AH-147 holds).
+- **The fix lands in its cell.** The row is the After fixes row at once, as before (AH-171: the tests and readers read it
+  straight after the press). With motion a picture of the old cell, `span.roll` (its paint read before the swap, clipped
+  to the cell, `aria-hidden`), lies over the new one: the old value lifts 0.6em as the picture fades while the new cell
+  rises 0.6em into place, 360 ms; then the cell's gold line, now its `::after` (it was an inset shadow), draws from the
+  left by `scaleX` over `--fill-dur`. The picture is removed when it has faded.
+- **A picture for a jump.** The boxes of the rows flagged for a jump in Total (5, 21, 41 and 57) draw the sheet's 60
+  Totals as one navy line (`<symbol id="totals">`, its points the sample's own: a step a row, the lowest Total at the
+  foot), their own row a wine dot, under "Total, rows 2 to 61". The regular peaks show the jump may be real. As the box
+  opens, a paper mask over the chart slides off to the right by `scaleX`, 600 ms, once a box opened; at rest the mask is
+  `scaleX(0)`, so without the script, or with reduced motion, the chart is simply there. Never `stroke-dashoffset`.
+- Not built: step numbers lit by the scroll, a scroll progress line, a 201-square proof grid, a FLIP for the filters
+  (decoration, or page height the budget does not have).
+

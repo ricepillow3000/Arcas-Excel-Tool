@@ -3828,6 +3828,101 @@ console.log(`page transitions: ${measured.moving} ms of motion on screen (${meas
   assert.deepEqual(miss, [], `AH-159:\n${miss.join("\n")}`);
   console.log("AH-159: the home page within 6 screens at 1280 x 800 and 10 at 390 x 844; the headline's one word in the wine, in the headline's own font, upright, nothing under it; John's photo 240 x 300");
 }
+// ---- AH-183 (John, 2026-11-17: "take out the boring stuff, add the fun stuff, keep the colours and look"): in the sample,
+// a map of the sheet's 60 rows beside its title, lit as the table is (by each filter, After fixes and each Accept); the
+// Scanning tab lights it row by row while its bar fills; an accepted fix lands in its cell (the old value lifts away, the
+// new one rises in, then its gold line draws); a jump's box draws the sheet's 60 Totals, its row a dot, shown once by a
+// paper mask sliding away. Each plays once, only transform and opacity move, and nothing moves under reduced motion ----
+{
+  const miss = [], want = (ok, what) => { if (!ok) miss.push(what); };
+  const lit = (p) => p.$$eval("#preview .sheet-map i", (is) => is.map((i, k) => (+getComputedStyle(i, "::before").opacity > 0.5 ? k + 2 : 0)).filter(Boolean).join());
+  const moves = (els) => els.flatMap((el) => el.getAnimations({ subtree: true }).map((a) => ({ on: a.effect.pseudoElement || el.tagName.toLowerCase(), delay: a.effect.getTiming().delay, dur: a.effect.getComputedTiming().duration,
+    runs: a.effect.getComputedTiming().iterations, ease: a.effect.getTiming().easing, props: [...new Set(a.effect.getKeyframes().flatMap((f) => Object.keys(f).filter((k) => !["offset", "computedOffset", "easing", "composite"].includes(k))))].join() })));
+  for (const [width, motion] of [[1280, "no-preference"], [390, "reduce"]]) {
+    const t = await open("index.html", { width, height: 800, motion });
+    const p = t.page, label = `AH-183 at ${width}px (${motion})`, still = motion === "reduce", settle = () => p.waitForTimeout(still ? 50 : 600);
+    if (!still) await p.waitForTimeout(ENTERED);
+    await p.evaluate((y) => scrollTo(0, y), await frameAt(p));
+    await p.waitForFunction(() => !document.getElementById("preview").hasAttribute("data-loading"), null, { timeout: 4000 }).catch(() => {});
+    await settle();
+    // the map: on the title's line, one mark a row in one line, the bar its old height
+    const map = await p.evaluate(() => { const m = document.querySelector("#preview .sheet-map"), top = document.querySelector("#preview .ws-top"), b = m.getBoundingClientRect(), s = top.querySelector(":scope > span").getBoundingClientRect(), tb = top.getBoundingClientRect();
+      const is = [...m.querySelectorAll("i")].map((i) => i.getBoundingClientRect());
+      return { h: Math.round(tb.height), line: b.top >= s.top - 4 && b.bottom <= s.bottom + 4, row: is.length === 60 && is.every((r, k) => r.width > 0.5 && Math.abs(r.top - is[0].top) < 0.5 && (!k || r.left >= is[k - 1].right - 0.01)), inside: b.right <= tb.right && b.left >= s.right };
+    });
+    want(map.h === (width > 760 ? 52 : 74) && map.line && map.row && map.inside, `${label}: the map ${JSON.stringify(map)}`);
+    want((await lit(p)) === "5,11,21,22,31,41,57", `${label}: the map lights rows ${await lit(p)}`);
+    for (const [k, rows] of [["label", "31"], ["time", "5,21,22,41,57"], ["all", "5,11,21,22,31,41,57"]]) {
+      await p.click(`.typology button[data-kind="${k}"]`); await settle();
+      want((await lit(p)) === rows, `${label}: under ${k} the map lights rows ${await lit(p)}, not ${rows}`);
+    }
+    await p.click("#t-clean"); await settle();
+    want((await lit(p)) === "5,21,41,57", `${label}: on After fixes the map lights rows ${await lit(p)}`);
+    // Scanning lights the map row by row, a fixed step apart, within the bar's fill, opacity only, once
+    await p.click("#t-busy");
+    const s = await p.evaluate(() => [...document.querySelectorAll("#preview .sheet-map i")].map((i) => i.getAnimations().map((a) => [a.effect.getTiming().delay, a.effect.getComputedTiming().iterations, a.effect.getKeyframes().map((f) => Object.keys(f).filter((k) => !["offset", "computedOffset", "easing", "composite"].includes(k)).join()).join()])));
+    if (still) want(s.every((a) => a.length === 0), `${label}: Scanning moves the map: ${JSON.stringify(s.filter((a) => a.length))}`);
+    else {
+      const step = s[1] && s[1][0] ? s[1][0][0] : 0;
+      want(step > 0 && s.every((a, k) => a.length === 1 && Math.abs(a[0][0] - k * step) < 0.01 && a[0][1] === 1 && a[0][2] === "opacity,opacity") && 59 * step <= 1100, `${label}: Scanning's map ${JSON.stringify(s.slice(0, 3))} ... ${JSON.stringify(s.slice(-1))}`);
+      await p.waitForTimeout(450);
+      const mid = await p.evaluate(() => { const is = [...document.querySelectorAll("#preview .sheet-map i")]; return [+getComputedStyle(is[0]).opacity, +getComputedStyle(is[59]).opacity]; });
+      want(mid[0] > 0.99 && mid[1] < 0.5, `${label}: half way through the scan the map's first and last marks are ${mid}`);
+    }
+    await p.waitForFunction(() => document.getElementById("t-found").getAttribute("aria-selected") === "true", null, { timeout: 3500 }).catch(() => {});
+    await settle();
+    want((await p.$$eval("#preview .sheet-map i", (is) => is.reduce((n, i) => n + i.getAnimations().length, 0))) === 0 && (await lit(p)) === "5,11,21,22,31,41,57", `${label}: after Scanning the map is not still, or lights ${await lit(p)}`);
+    // Accept: the fix lands in its cell
+    await p.click('.rowbtn[aria-controls="m11"]');
+    await p.waitForFunction(() => !document.getElementById("m11").hidden);
+    await p.click("#m11 .m-accept");
+    const a = await p.evaluate(() => {
+      // the cell itself is rising (a transform): its row's number, which stays put, gives the row's top
+      const td = document.querySelector("#r11 td.mended"), r = td.getBoundingClientRect(), top = td.parentElement.querySelector("th").getBoundingClientRect().top, g = [...document.querySelectorAll("#preview .roll")], gr = g[0] && g[0].getBoundingClientRect();
+      return { ghosts: g.length, said: g[0] ? g[0].textContent : "", hidden: g[0] ? g[0].getAttribute("aria-hidden") : "", over: !!gr && Math.abs(gr.left - r.left) < 1 && Math.abs(gr.top - top) < 1 && Math.abs(gr.width - r.width) < 1 && Math.abs(gr.height - r.height) < 1,
+        all: document.getAnimations().filter((x) => x.playState === "running" && x.effect.getComputedTiming().iterations === Infinity).length };
+    });
+    const cellMoves = await p.$$eval("#r11 td.mended, #preview .roll", moves);
+    if (still) want(a.ghosts === 0 && cellMoves.length === 0, `${label}: Accept moves something: ${JSON.stringify([a, cellMoves])}`);
+    else {
+      const of = (on) => cellMoves.filter((x) => x.on === on);
+      const [cell] = of("td"), [line] = of("::after");
+      want(a.ghosts === 1 && a.said === "-5" && a.hidden === "true" && a.over && a.all === 0, `${label}: the old value over the fixed cell ${JSON.stringify(a)}`);
+      want(cell && cell.props === "opacity,transform" && cell.dur >= 300 && cell.dur <= 400 && line && line.props === "transform" && line.delay >= cell.dur - 1 && cellMoves.every((x) => x.runs === 1 && /cubic-bezier\(0?\.16, 1, 0?\.3, 1\)/.test(x.ease)) && of("span").length >= 1,
+        `${label}: the fix's landing ${JSON.stringify(cellMoves)}`);
+      await p.waitForTimeout(1000);
+    }
+    const after = await p.evaluate(() => ({ ghosts: document.querySelectorAll("#preview .roll").length, moving: document.querySelector("#r11 td.mended").getAnimations({ subtree: true }).length,
+      line: new DOMMatrix(getComputedStyle(document.querySelector("#r11 td.mended"), "::after").transform).a, gold: getComputedStyle(document.querySelector("#r11 td.mended"), "::after").backgroundColor }));
+    want(after.ghosts === 0 && after.moving === 0 && after.line === 1 && after.gold === "rgb(153, 125, 58)", `${label}: after Accept ${JSON.stringify(after)}`);
+    await settle();
+    want((await lit(p)) === "5,21,22,31,41,57", `${label}: after row 11's Accept the map lights rows ${await lit(p)}`);
+    // a jump's box: its chart drawn whole inside the box, the line navy, its row's dot wine on its Total; with motion a
+    // paper mask slides off it once as the box opens
+    for (const n of [5, 57]) {
+      await p.click(`.rowbtn[aria-controls="m${n}"]`);
+      await p.waitForFunction((n) => !document.getElementById(`m${n}`).hidden, n);
+      const m = (await p.$$eval(`#m${n} .m-chart`, moves)).filter((x) => x.on === "::after");
+      if (still) want(m.length === 0, `${label}: row ${n}'s chart moves ${JSON.stringify(m)}`);
+      else want(m.length === 1 && m[0].props === "transform" && m[0].dur === 600 && m[0].runs === 1, `${label}: row ${n}'s chart's reveal ${JSON.stringify(m)}`);
+      await settle();
+      const c = await p.evaluate((n) => {
+        const box = document.getElementById(`m${n}`), dd = box.querySelector(".m-chart"), svg = dd && dd.querySelector("svg"), dot = svg && svg.querySelector("circle"), use = svg && svg.querySelector("use");
+        const b = box.getBoundingClientRect(), r = svg ? svg.getBoundingClientRect() : { width: 0 }, d = dot ? dot.getBoundingClientRect() : null, k = (n - 2) * 232 / 59 + 4;
+        const sym = document.querySelector("#totals polyline"); // drawn in the use's currentColor
+        return { inside: !!svg && r.left >= b.left && r.right <= b.right && r.top >= b.top && r.bottom <= b.bottom, w: Math.round(r.width), drawn: use ? Math.round(use.getBBox().width) : 0,
+          dot: d ? Math.abs(d.left + d.width / 2 - (r.left + k * r.width / 240)) < 1.5 : false, ink: sym && use && sym.getAttribute("stroke") === "currentColor" ? getComputedStyle(use).color : "", wine: dot ? getComputedStyle(dot).fill : "",
+          mask: dd ? new DOMMatrix(getComputedStyle(dd, "::after").transform).a : -1 };
+      }, n);
+      want(c.inside && c.w >= (width > 760 ? 240 : 150) && c.w <= 240 && c.drawn >= 230 && c.dot && c.ink === "rgb(12, 25, 56)" && c.wine === "rgb(107, 30, 46)", `${label}: row ${n}'s chart ${JSON.stringify(c)}`);
+      want(Math.abs(c.mask) < 0.001, `${label}: row ${n}'s mask is drawn at rest (${c.mask})`);
+      await p.keyboard.press("Escape"); await settle();
+    }
+    await done(t, label, [API]);
+  }
+  assert.deepEqual(miss, [], `AH-183:\n${miss.join("\n")}`);
+  console.log("AH-183: the sheet's map lit as the table is (filters, After fixes, Accept), Scanning lights it row by row once, an accepted fix lands in its cell then draws its gold line, a jump's box draws the sheet's Totals with its row marked, revealed once; nothing moves under reduced motion");
+}
 await browser.close();
 server.close();
 console.log("website browser check passed");

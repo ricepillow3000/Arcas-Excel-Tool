@@ -111,6 +111,21 @@ export function countUp(el) {
   }
 }
 
+// A row decided while its card was open turns to its done look in front of you (AH-184), once, as the list comes back: the
+// tag and swatch it had lie over the new ones (aria-hidden) and fade out while "Fixed" fades in, 250 ms once the row's
+// head has flown home (.42 s, ::view-transition-group(row-title)). Opacity only. Reduced motion: the done look at once
+export function turnDone(li, old) {
+  if (still() || !li.animate) return;
+  const was = document.createElement("span");
+  was.className = `was ${old.className}`;
+  was.setAttribute("aria-hidden", "true");
+  was.append(old.querySelector(".swatch"), old.querySelector(".sev"));
+  li.querySelector(".row-head").append(was);
+  const fade = { duration: 250, delay: 420, easing: EASE };
+  li.querySelector(".sev").animate([{ opacity: 0 }, { opacity: 1 }], { ...fade, fill: "backwards" });
+  was.animate([{ opacity: 1 }, { opacity: 0 }], { ...fade, fill: "forwards" }).finished.catch(() => {}).then(() => was.remove());
+}
+
 // Back to the list: a short fade, no movement (under 400 ms, so the list is there as soon as it is wanted)
 export function fadeIn(el) {
   if (!el || still() || !el.animate) return;
