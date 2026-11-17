@@ -6,12 +6,12 @@
 <title>Arcas code signing policy: what is signed, by whom, and until when it is not</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: https://*.goatcounter.com; font-src 'self'; connect-src 'self' https://api.github.com; base-uri 'none'; form-action 'none'">
-<meta name="description" content="The code signing policy for Arcas.exe: it has applied to the SignPath Foundation, only the release built from the public source is signed, and who approves it.">
+<meta name="description" content="The code signing policy for Arcas.exe: it is not code-signed, the SignPath Foundation declined the free open-source program on 3 November 2026, and only the release built from the public source would be signed.">
 <link rel="canonical" href="https://ricepillow3000.github.io/excel-anomaly-hunter/code-signing.html">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Arcas">
 <meta property="og:title" content="Arcas code signing policy: what is signed, by whom, and until when it is not">
-<meta property="og:description" content="The code signing policy for Arcas.exe: it has applied to the SignPath Foundation, only the release built from the public source is signed, and who approves it.">
+<meta property="og:description" content="The code signing policy for Arcas.exe: it is not code-signed, the SignPath Foundation declined the free open-source program on 3 November 2026, and only the release built from the public source would be signed.">
 <meta property="og:url" content="https://ricepillow3000.github.io/excel-anomaly-hunter/code-signing.html">
 <meta property="og:image" content="https://ricepillow3000.github.io/excel-anomaly-hunter/assets/og-card.png">
 <meta property="og:image:width" content="1200">
@@ -41,16 +41,18 @@
   <section class="page-head">
     <div class="wrap cols">
       <h1 data-enter="left" id="code-signing-title">Code signing policy</h1>
-      <p class="calm" data-enter="left">Arcas has applied to the SignPath Foundation's free code signing program for open-source projects. Until the application is accepted and the release build signs the file, Arcas.exe is not code-signed, and Windows may warn about it.</p>
+      <p class="calm" data-enter="left">Arcas.exe is not code-signed, so Windows may warn you when you download or open it. Arcas applied to the SignPath Foundation's free signing program for open-source projects and was declined on 3 November 2026: that program asks for public visibility, such as stars, forks and write-ups elsewhere, which a project one month old does not have. It was not a judgment on the code. Signing means buying a certificate, which has not been done.</p>
     </div>
   </section>
 
-  <!-- SignPath's free open-source signing (AH-100) asks for this policy; it moved here from the home page (AH-159), where
-       #code-signing still says it and links here -->
+  <!-- The code signing policy (AH-100); it moved here from the home page (AH-159), where #code-signing still says it and
+       links here. AH-168: the SignPath Foundation declined the free program on 2026-11-03, so the Status row states the
+       decline and the attribution sentence its program asked for is gone -->
   <section class="section band-panel" id="code-signing" aria-labelledby="code-signing-title">
     <div class="wrap cols" data-reveal-group>
       <dl class="it-ledger calm" data-reveal-group="rows">
-        <div class="reveal-item"><span class="rule" aria-hidden="true"></span><dt>Once accepted</dt><dd>Releases will say: "Free code signing provided by <a href="https://signpath.io">SignPath.io</a>, certificate by <a href="https://signpath.org">SignPath Foundation</a>."</dd></div>
+        <div class="reveal-item"><span class="rule" aria-hidden="true"></span><dt>Status</dt><dd>Declined by the <a href="https://signpath.org">SignPath Foundation</a> on 3 November 2026, for too little public visibility, not for the code. Arcas may apply again once more people know it.</dd></div>
+        <div class="reveal-item"><span class="rule" aria-hidden="true"></span><dt>What would change it</dt><dd>A code signing certificate, which costs money and checks a real person's identity. The ones that fit an open-source project like this one are Certum's Open Source Code Signing and Microsoft's Azure Artifact Signing. Until one is bought every release stays unsigned, and the release notes tell you how to open it.</dd></div>
         <div class="reveal-item"><span class="rule" aria-hidden="true"></span><dt>What gets signed</dt><dd>Only Arcas.exe as built by this repository's GitHub Actions workflow (<a href="https://github.com/ricepillow3000/excel-anomaly-hunter/blob/main/.github/workflows/build-exe.yml">build-exe.yml</a>) from the public source code, after its tests pass, including the install on a fresh Windows PC. Nothing built anywhere else, and no other project's files.</dd></div>
         <div class="reveal-item"><span class="rule" aria-hidden="true"></span><dt>Team roles</dt><dd>Committer and reviewer: <a href="https://github.com/ricepillow3000">John Nguyen</a>. Approver: John Nguyen. Changes from anyone else are reviewed by John before they are merged.</dd></div>
         <div class="reveal-item"><span class="rule" aria-hidden="true"></span><dt>Privacy</dt><dd>This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it. <a href="privacy.html">Privacy &amp; security</a> says what AI help sends when you click it.</dd></div>
