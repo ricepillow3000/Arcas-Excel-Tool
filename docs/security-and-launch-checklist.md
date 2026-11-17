@@ -418,7 +418,7 @@ Those two failures cost more than two tests: `tools/mutate.py`'s `baseline()` ru
 |---|---|
 | CI workflows parse | pass |
 | security lint (ruff, Bandit rules) | pass, all checks passed |
-| secrets anywhere in the git history | pass, "no secret in any commit of the history" |
+| secrets anywhere in the git history | pass at the time of the run, "no secret in any commit of the history" - **and red in every clone since**, see the note below |
 | pane self-check | pass |
 | website links and scripts | pass - but see the caveat below |
 | relay abuse tests | pass |
@@ -434,6 +434,33 @@ planted and killed: `relay-nosniff-refusal-loosen`, `relay-nosniff-answer-loosen
 `relay-format-schema-loosen`, which had been silently unplanted on Windows until `mutate.plant` existed, and `relay-burst-preauth-loosen` and `relay-burst-bucket-tighten` for the refusal metering.
 
 The mutation run, accounted for exactly, since "174 guards" on its own is the kind of round number this section exists to avoid. Of **176** mutants: **166 judged in the sweep run, 164 killed and 2 survived in 766 s**; the 2 new refusal-metering mutants judged separately, both killed; **6 not run at all** because only the browser test catches them (`--e2e`: highlight-ours-loosen/-tighten, fillrow-ours-loosen/-tighten, fillrow-undo-loosen, autofix-default-loosen); and **2 unjudgeable** because AH-177's two red tests are in `baseline()`'s set (uninstall-order-loosen, uninstall-self-loosen). The **2 survivors, `home-chmod-loosen` and `chmod-fchmod-loosen`, and both are vacuous**: their only tests are the POSIX permission ones, which carry `@pytest.mark.skipif(os.name == "nt")` because `%LOCALAPPDATA%`'s own ACL is what protects the folder on Windows. A skipped test cannot kill a mutant, and `tools/mutate.py` reads a pytest exit code of 0 as "the test passed", so it reports SURVIVED for a guard nothing actually tried. That is the same class of false answer as item 18(b) and it is noise rather than false assurance - a removed guard would also read as survived, which is loud - so it is left as a note for AH-180's Windows-fidelity work rather than fixed here.
+
+### The history layer went red after this run, for a reason outside this work
+
+Both gate runs above read a clean history. Hours later Pod 2 pushed `legal/AH-178` (PR #122), whose commit `9f72c41`
+spells a fake relay invite code out in full in a test parametrize case - 20 characters after `inv_`, so it matches
+`tools/secret_history.py`'s own `(?<![\w-])inv_[A-Za-z0-9_-]{20,64}` shape, with no self-identifying prefix and no
+`gitleaks:allow` marker. Every other invite in that file is built by concatenation, which the scanner cannot see in
+source, so this is the only one.
+
+The layer reads `git log --all -p` (`tools/secret_history.py`:42), and CI checks out with `fetch-depth: 0`
+(`security.yml`:20), so the stale ref is in `--all` for a run on **any** branch, `main` included. Measured in this
+clone after a plain `git fetch`:
+
+    9f72c41f  backend/tests/test_hostile_input.py: a relay invite code
+    1 secret(s) in the history: revoke each one first, then rewrite the history
+
+Nothing of AH-176's is implicated: the file named does not exist in commit `8359d56`. There is nothing to revoke - the
+value is a made-up fake - but the gate cannot know that, which is the point of it.
+
+It cannot be fixed by a later commit, because the layer reads history rather than the working tree, and it cannot be
+fixed by a force-push: the `protect-all-branches` ruleset blocks `deletion` and `non_fast_forward` on `~ALL` with an
+empty `bypass_actors`, so the stale ref is permanent until John changes that rule. **Two consequences worth stating
+before anyone merges anything:** no clone in this repo can show a green gate until the ref is gone, and merging
+AH-178 as it stands would move that literal into `main`'s own history permanently. The right order is the literal out
+of AH-178's history first, then the merge. Adding the value to `secret_history.py`'s `FAKES` list would widen a
+secret scanner's blind spot to paper over a test literal, which `CLAUDE.md`'s "never get a gate green by loosening it"
+forbids; Pod 2 put that on the record as a thing not to do, and this file agrees.
 
 ### Not run on this machine (and where it is covered)
 
