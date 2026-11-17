@@ -32,7 +32,7 @@ Rule for picking: the visitor DOES something or SEES their data come alive. Pure
    real (AH-167 humility).
 
 Not built (website): step numbers lighting on scroll, scroll progress line, 201-square grid, FLIP filter (all
-decoration or page height; see LIBRARIES.md D for the rest).
+decoration or page height; see the research file, section D, for the rest).
 
 ## Build: pane (AH-184), one Builder, worktree `.claude/worktrees/ah184`
 5. **A finish line you can see** (item 5: Watermelon checklist progress, Bklit bar reveal). A 2 px gold hairline
