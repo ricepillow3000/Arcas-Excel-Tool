@@ -1,5 +1,5 @@
 // Browser test of the REAL pane against the REAL engine, with fake-office.js standing in for Excel.
-// Run via e2e/all.sh (needs node + playwright with chromium, and the repo's .venv). Modes: flow ai nokey.
+// Run via e2e/all.sh (needs node + playwright with chromium, and the repo's .venv). Modes: flow ai live nokey.
 import { createRequire } from "node:module";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import fs from "node:fs";
@@ -35,6 +35,15 @@ await page.exposeFunction("__unhandled", (kind, what) => unhandled.push(`${kind}
 await page.addInitScript(() => {
   addEventListener("unhandledrejection", (e) => __unhandled("unhandledrejection", String(e.reason?.stack || e.reason)));
   addEventListener("error", (e) => __unhandled("error", String(e.error?.stack || e.message)));
+});
+// AH-181: checking as you work is on unless turned off, and the other modes edit cells on purpose to test what a scan and
+// a fix do (a sort, a retyped cell): there it is off, so no check of its own adds a /scan call. Mode live turns it on, with
+// an AudioContext that counts the tones it is asked to play in place of the speaker
+if (mode !== "live") await page.addInitScript(() => localStorage.setItem("anomalyHunterLive", "0"));
+else await page.addInitScript(() => {
+  window.__tones = 0;
+  const node = () => ({ connect: (x) => x, frequency: {}, gain: { setValueAtTime() {}, exponentialRampToValueAtTime() {} }, start() { window.__tones++; }, stop() {} });
+  window.AudioContext = class { state = "running"; currentTime = 0; destination = node(); createOscillator() { return node(); } createGain() { return node(); } resume() { return Promise.resolve(); } };
 });
 // a failure this test causes on purpose: the console lines matching `expected` are its own; anything else still counts
 const failing = async (expected, fn) => { const k = errors.length; await fn(); errors.splice(k, Infinity, ...errors.slice(k).filter((e) => !expected.test(e))); };
@@ -1450,6 +1459,63 @@ if (mode === "flow") {
   ok(ready && st.failed && st.empty && st.name === "" && heard.length === 0,
     "opened mid cell-edit: the sheet-name read fails quietly, the pane still gets ready - " + JSON.stringify({ ready, ...st, heard }));
   await busy.close();
+}
+
+if (mode === "live") { // AH-180, AH-181
+  // three tabs of one experiment, each a time axis and a series; the third holds its own series until the paste below
+  const wave = (k) => Array.from({ length: 40 }, (_, i) => Math.round(100 * Math.sin(i * 1.3 + k)) / 10 + 50);
+  const series = (k, head) => [["Time (s)", head], ...wave(k).map((v, i) => [i, v])];
+  await page.evaluate(([a, b, c]) => { __load("Series 1", a); __load("Series 2", b); __load("Series 3", c); __activate("Series 1"); },
+    [series(1, "Signal"), series(2, "Signal"), series(3, "Response")]);
+  const note = () => page.evaluate(() => { const n = document.getElementById("live-note"); return n.checkVisibility() ? n.textContent.replace(/\s+/g, " ").trim() : ""; });
+  const chimes = () => page.evaluate(() => window.__tones / 2); // two notes a chime
+  const waitNote = async (has) => { const t0 = Date.now();
+    await page.waitForFunction((has) => document.getElementById("live-note").checkVisibility() && document.getElementById("live-note").textContent.includes(has), has, { timeout: 8000 }).catch(() => {});
+    return Date.now() - t0; };
+  await page.click("#live-box summary"); // a press in the pane: the browser lets it make sound from now on
+  ok(await page.isChecked("#live") && await page.isChecked("#live-sound"), "AH-181: Check the cells I change and Play a sound are on unless turned off");
+  await page.waitForFunction(() => [...document.querySelectorAll("[data-enter]")].every((e) => !e.style.opacity && !e.style.transform), null, { timeout: 5000 });
+  const scanAt = await page.evaluate(() => document.getElementById("scan").getBoundingClientRect().top);
+  // a wild value typed into a tab that is not the one shown
+  await page.evaluate(() => __edit("Sales", "C30", 77777));
+  const ms = await waitNote('Sheet "Sales", cell C30:');
+  const said = await note();
+  ok(said.includes('Sheet "Sales", cell C30: ') && said.includes("Units is 77777") && ms < 3500, `AH-181: a wild value typed on a tab not shown is said with its cell in ${ms} ms - ${said}`);
+  ok(await chimes() === 1, `AH-181: and one chime - ${await chimes()}`);
+  { const m = await page.evaluate(() => ({ scan: document.getElementById("scan").getBoundingClientRect().top, crest: document.querySelector("#live-note img").alt,
+      buttons: [...document.querySelectorAll("#live-note button")].map((b) => b.getBoundingClientRect().height), pos: getComputedStyle(document.getElementById("live-note")).position }));
+    ok(m.scan === scanAt && m.pos === "fixed" && m.crest === "" && m.buttons.every((h) => h >= 44), "AH-181: the note lies over the pane's foot, with the crest, moving nothing, its buttons 44 px tall - " + JSON.stringify({ ...m, scanAt })); }
+  await contrast("the note of a check as you work");
+  await page.click("#live-show");
+  await page.waitForFunction(() => window.__selection === "Sales!C30", null, { timeout: 3000 }).catch(() => {});
+  ok(await page.evaluate(async () => [window.__selection, await Excel.run(async (ctx) => ctx.workbook.worksheets.getActiveWorksheet().name)].join()) === "Sales!C30,Sales",
+    "AH-181: Show me brings that tab in front and selects the cell");
+  await page.click("#live-close");
+  ok(!(await note()), "AH-181: Close takes the note away");
+  // an ordinary value: said quietly in the notice that the cell was checked, with no note and no chime
+  await page.evaluate(() => __edit("Sales", "B45", "Central"));
+  const t45 = Date.now();
+  await page.waitForFunction(() => document.getElementById("notice").textContent === 'Checked B45 on "Sales": nothing unusual.', null, { timeout: 8000 }).catch(() => {});
+  const quiet = { ms: Date.now() - t45, said: await text("#notice"), note: await note(), chimes: await chimes() };
+  ok(quiet.said === 'Checked B45 on "Sales": nothing unusual.' && quiet.ms < 3500 && !quiet.note && quiet.chimes === 1,
+    "AH-181: an ordinary value typed is said checked in the notice, with no note and no chime - " + JSON.stringify(quiet));
+  // the pane's own writes are never checked: Accept writes a cell and no note comes
+  await find();
+  await openRow(11);
+  await page.click("#fix-apply"); await idle();
+  await page.waitForTimeout(3000);
+  ok((await text("#fix-status")).startsWith("Accepted") && !(await note()) && await chimes() === 1, "AH-181: Accept writes its fix and raises no note - " + (await note()));
+  await back();
+  // turned off: an edit is not checked
+  await page.click("#live");
+  await page.evaluate(() => __edit("Sales", "C40", 88888));
+  await page.waitForTimeout(3000);
+  ok(!(await note()) && await page.evaluate(() => localStorage.getItem("anomalyHunterLive")) === "0", "AH-181: with Check the cells I change off, an edit raises no note");
+  await page.click("#live");
+  // AH-180: series 2's numbers pasted on tab 3, under its own header
+  await page.evaluate((col) => __paste("Series 3", "B2", col.map((v) => [v])), wave(2));
+  const pms = await waitNote('"Series 3" holds the same 40 numbers as "Series 2"');
+  ok((await note()).includes('"Series 3" holds the same 40 numbers as "Series 2", in the same order.') && await chimes() === 2, `AH-180: pasting series 2's numbers on tab 3 is said at once (${pms} ms), with a chime - ${await note()}`);
 }
 
 // proof for people, at rest: the pointer off every button first (the full-page picture moved the page under it, and a

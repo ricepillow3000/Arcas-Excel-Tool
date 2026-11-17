@@ -25,12 +25,14 @@ export async function activeSheet() {
 // are: utils/sheet.js tells a date column by them). This was 3x the data in one call - the freeze on big sheets. AH-152:
 // each cell's R1C1 formula (null where it holds none) goes to the engine too, so a typed 250 among a column's
 // =RC[-2]*RC[-1] is seen; half the rows a slice keep each call the size it was. most: the rows read from the top at most
-// (AH-169: what the pane says before a scan reads only the header and the first 500 rows)
-export async function readSheet(onSlice, most = Infinity) {
+// (AH-169: what the pane says before a scan reads only the header and the first 500 rows). AH-181: `sheetKey` (a name or
+// an id) reads that tab instead of the active one, and a sheet whose used rows `fits` refuses is not read: {sheet, big: true}
+export async function readSheet(onSlice, most = Infinity, sheetKey = null, fits = () => true) {
   return Excel.run(async (ctx) => {
-    const sheet = ctx.workbook.worksheets.getActiveWorksheet().load("name");
+    const sheet = (sheetKey ? ctx.workbook.worksheets.getItem(sheetKey) : ctx.workbook.worksheets.getActiveWorksheet()).load("name");
     const used = sheet.getUsedRange().load("rowIndex, columnIndex, rowCount, columnCount");
     await ctx.sync();
+    if (!fits(used.rowCount)) return { sheet: sheet.name, big: true };
     const { rowIndex: r0, columnIndex: c0, columnCount: w } = used;
     const total = Math.min(used.rowCount, Math.floor(maxCells() / w), most);
     const top = sheet.getRangeByIndexes(r0, c0, Math.min(total, 30), w).load("numberFormat");
@@ -50,21 +52,22 @@ export async function readSheet(onSlice, most = Infinity) {
 }
 
 // AH-180: every tab (at most TABS), in workbook order, as [{id, sheet, table}]: its first TAB_ROWS rows read as readSheet
-// reads them (null when it holds no table). One call for the list and the used ranges, then one per tab. A workbook of one
-// tab reads nothing
+// reads them (null when it holds no table). skip(id): a tab read before, given without `table`. One call for the list and
+// the used ranges, then one per tab read. A workbook of one tab reads nothing
 const TABS = 20, TAB_ROWS = 5000;
-export async function readTabs() {
+export async function readTabs(skip = () => false) {
   return Excel.run(async (ctx) => {
     const list = ctx.workbook.worksheets.load("items/name, items/id");
     await ctx.sync();
     if (list.items.length < 2) return [];
     const items = list.items.slice(0, TABS);
-    const used = items.map((ws) => ws.getUsedRangeOrNullObject(true).load("isNullObject, rowIndex, columnIndex, rowCount, columnCount"));
+    const used = items.map((ws) => !skip(ws.id) && ws.getUsedRangeOrNullObject(true).load("isNullObject, rowIndex, columnIndex, rowCount, columnCount"));
     await ctx.sync();
     const tabs = [];
     for (const [k, ws] of items.entries()) {
       const u = used[k], t = { id: ws.id, sheet: ws.name };
       tabs.push(t);
+      if (!u) continue;
       if (u.isNullObject) { t.table = null; continue; }
       const w = u.columnCount, rows = Math.min(u.rowCount, TAB_ROWS, Math.max(1, Math.floor(READ_CELLS / (2 * w))));
       const part = ws.getRangeByIndexes(u.rowIndex, u.columnIndex, rows, w).load("values, formulasR1C1");
@@ -74,6 +77,16 @@ export async function readTabs() {
       t.table = tableFromGrid(part.values, top.numberFormat, u.rowIndex, u.columnIndex, formulas);
     }
     return tabs;
+  });
+}
+
+// AH-181: "Show me": that tab in front and the cell selected (a tab alone when no cell is named)
+export async function showCell(sheetName, cell) {
+  await Excel.run(async (ctx) => {
+    const ws = ctx.workbook.worksheets.getItem(sheetName);
+    ws.activate();
+    if (cell) ws.getRange(cell).select();
+    await ctx.sync();
   });
 }
 

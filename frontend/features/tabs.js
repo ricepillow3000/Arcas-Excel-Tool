@@ -50,14 +50,36 @@ export const copiedSaid = (p) => `"${p.sheet}" holds the same ${n(p.count)} numb
 export const lastRowSaid = (last) => (last === 65536 || last === 1048576
   ? `This sheet's data reaches Excel's last row (${n(last)}). If it came from a bigger file, the rows past it were cut off when it opened.` : "");
 
-// Find problems: every tab read, and the lines said under the results: the cut-off row, then the copied pairs (at most 3,
-// the scanned sheet's first). A failure to read the tabs says nothing: the scan has its results
+// Each tab's measures, kept by its id until that tab changes (features/live.js drops it), so a check as you work reads
+// only the tabs it has not read yet; and the pairs said last, so a pair is said once until it goes and comes back
+const cache = new Map();
+let said = new Set();
+const key = (p) => `${p.sheet}\u0000${p.other}`;
+export const dropTab = (id) => cache.delete(id);
+
+async function pairsNow() {
+  const tabs = await readTabs((id) => cache.has(id));
+  for (const t of tabs) if (t.table !== undefined) cache.set(t.id, t.table ? measures(t.table) : []);
+  return copiedTabs(tabs.map((t) => ({ sheet: t.sheet, measured: cache.get(t.id) || [] })));
+}
+
+// Find problems: every tab read again, and the lines said under the results: the cut-off row, then the copied pairs (at
+// most 3, the scanned sheet's first). A failure to read the tabs says nothing: the scan has its results
 export async function bookNotes(s) {
   const lines = lastRowSaid(s.last) ? [lastRowSaid(s.last)] : [];
   try {
-    const pairs = copiedTabs((await readTabs()).map((t) => ({ sheet: t.sheet, measured: t.table ? measures(t.table) : [] })));
+    cache.clear();
+    const pairs = await pairsNow();
+    said = new Set(pairs.map(key));
     const mine = (p) => p.sheet === s.sheet || p.other === s.sheet;
     lines.push(...[...pairs.filter(mine), ...pairs.filter((p) => !mine(p))].slice(0, 3).map(copiedSaid));
   } catch { /* the tabs could not be read: nothing said */ }
   return lines;
+}
+
+// Check as you work: a pair with the edited tab that was not there at the last look
+export async function newPairs(sheet) {
+  const pairs = await pairsNow(), fresh = pairs.filter((p) => (p.sheet === sheet || p.other === sheet) && !said.has(key(p)));
+  said = new Set(pairs.map(key));
+  return fresh;
 }

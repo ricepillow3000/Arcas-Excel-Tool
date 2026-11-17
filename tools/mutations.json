@@ -2289,5 +2289,49 @@
   "tests": [
    "node frontend/selfcheck.js"
   ]
+ },
+ {
+  "id": "live-ours-loosen",
+  "guard": "check as you work never checks the pane's own write",
+  "file": "frontend/features/live.js",
+  "old": " || e.triggerSource === \"ThisLocalAddin\";",
+  "new": ";",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "live-ours-tighten",
+  "guard": "check as you work never checks the pane's own write",
+  "file": "frontend/features/live.js",
+  "old": "e.triggerSource === \"ThisLocalAddin\";",
+  "new": "!!e.triggerSource;",
+  "kind": "tighten",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "live-rows-loosen",
+  "guard": "check as you work only on a sheet of at most 20,000 rows",
+  "file": "frontend/features/live.js",
+  "old": "(rows) => rows <= LIVE_ROWS;",
+  "new": "(rows) => rows <= LIVE_ROWS + 1;",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "live-rows-tighten",
+  "guard": "check as you work only on a sheet of at most 20,000 rows",
+  "file": "frontend/features/live.js",
+  "old": "(rows) => rows <= LIVE_ROWS;",
+  "new": "(rows) => rows < LIVE_ROWS;",
+  "kind": "tighten",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
  }
 ]

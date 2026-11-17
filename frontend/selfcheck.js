@@ -16,6 +16,7 @@ import { asHighlights, KEPT } from "./features/highlight.js";
 import * as K from "./constants/index.js";
 import { remember, forget, recall, clearAll, MAX_KEPT, OFFERED } from "./features/memory.js";
 import { measures, copiedTabs, copiedSaid, lastRowSaid } from "./features/tabs.js";
+import { newFindings, findingKeys, inRange, ignored, liveable, liveOn, soundOn, noteSaid, checkedSaid, LIVE_ROWS } from "./features/live.js";
 
 // Fixed / Dismissed are kept in the workbook under a code per row, so they outlive the pane (2026-10-20: a dismissed
 // row came back flagged after a reload, an accepted fix vanished). Same values = same code, on any PC, every time.
@@ -815,6 +816,51 @@ for (const f of readdirSync(new URL(".", import.meta.url)).filter((f) => f.endsW
   assert.equal(lastRowSaid(1048576), "This sheet's data reaches Excel's last row (1,048,576). If it came from a bigger file, the rows past it were cut off when it opened.");
   assert.equal(lastRowSaid(65536), "This sheet's data reaches Excel's last row (65,536). If it came from a bigger file, the rows past it were cut off when it opened.");
   for (const last of [65535, 1048575, 300, undefined]) assert.equal(lastRowSaid(last), "");
+}
+
+// AH-181: check as you work. An edit our own write made, or one from another person's copy, is never checked; a sheet
+// past LIVE_ROWS rows is not checked as you type; both switches are on unless turned off; a finding is new only in a cell
+// that was changed and not already found there for the same reason
+{
+  assert.equal(ignored({ source: "Local", triggerSource: "ThisLocalAddin" }, false), true, "our own write");
+  assert.equal(ignored({ source: "Remote", triggerSource: "Unknown" }, false), true, "a co-author's edit");
+  assert.equal(ignored({ source: "Local", triggerSource: "Unknown" }, true), true, "while a scan, Accept or Undo runs");
+  assert.equal(ignored({ source: "Local", triggerSource: "Unknown" }, false), false, "the user's own edit");
+  assert.equal(ignored({ source: "Local" }, false), false, "the user's edit in an Excel older than 1.14 (no triggerSource)");
+  assert.equal(LIVE_ROWS, 20000);
+  assert.equal(liveable(20000), true);
+  assert.equal(liveable(20001), false);
+  const box = new Map();
+  globalThis.localStorage = { getItem: (k) => box.get(k) ?? null, setItem: (k, v) => box.set(k, String(v)), removeItem: (k) => box.delete(k) };
+  assert.ok(liveOn() && soundOn(), "on unless turned off");
+  box.set(K.LIVE_KEY, "0"); box.set(K.SOUND_KEY, "0");
+  assert.ok(!liveOn() && !soundOn(), "off once turned off");
+  box.set(K.LIVE_KEY, "1");
+  assert.ok(liveOn());
+  globalThis.localStorage = { getItem() { throw new Error("off"); } };
+  assert.ok(liveOn() && soundOn(), "no storage: on");
+  delete globalThis.localStorage;
+  for (const [a, cell, at] of [["B12", "B12", true], ["B2:B41", "B30", true], ["B2:B41", "C30", false], ["Series 3!$B$2:$B$41", "B41", true], ["B2:B41", "B42", false],
+    ["A1:B2, D4", "D4", true], ["C:C", "C9000", true], ["5:7", "Z6", true], ["5:7", "Z8", false], [undefined, "A1", false]]) assert.equal(inRange(a, cell), at, `${a} ${cell}`);
+  const s = { columns: ["Item", "Units"], startRow: 0, startCol: 0, names: {} };
+  const rows = [{ severity: null }, { severity: "Medium", magnitude: 2, cells: ["Units"], reason: "Units weird limit is 90; this is 900 (likely 90)" },
+    { severity: "High", magnitude: 1, cells: ["Units"], reason: "Units weird limit is 90; this is -5 (likely 5)" },
+    { severity: "Low", magnitude: 9, cells: ["Item"], reason: "Item is odd" }, { severity: "Medium", magnitude: 5, cells: ["Units"], reason: "Units weird limit is 90; this is 9000" }];
+  // sheet rows: row i is sheet row i + 2 (the header on row 1)
+  assert.deepEqual(newFindings(rows, s, {}, ["B3:B6"]).map((f) => f.cell), ["B4", "B6", "B3"], "surest first, then biggest");
+  assert.deepEqual(newFindings(rows, s, {}, ["B3:B4"]).map((f) => f.cell), ["B4", "B3"], "only in the cells changed");
+  assert.deepEqual(newFindings(rows, s, { 2: "dismissed" }, ["B3:B6"]).map((f) => f.cell), ["B6", "B3"], "never a row fixed or dismissed");
+  assert.deepEqual(newFindings(rows, s, {}, ["A5"]).map((f) => f.cell), ["A5"]);
+  assert.deepEqual(newFindings(rows, s, {}, ["B3:B6"], findingKeys(rows, s)), [], "found there before for the same reason: not new");
+  assert.deepEqual([...findingKeys(rows.slice(0, 2), s)], ["B3|Units weird limit is 90; this is 900 (likely 90)"]);
+  assert.equal(noteSaid("Series 3", newFindings(rows, s, {}, ["B4"])[0], 0, {}), 'Sheet "Series 3", cell B4: Very likely wrong. Units is -5, below its usual limit of 90 (likely 5).');
+  const two = [{ severity: "Medium", magnitude: 1, cells: ["Units", "Item"], reason: "Item 7 does not add up: Units × 2 = 1800; Units weird limit is 90; this is 900" }];
+  assert.equal(noteSaid("Sales", newFindings(two, s, {}, ["B2"])[0], 0), 'Sheet "Sales", cell B2: Probably wrong. Units is 900, above its usual limit of 90.', "the line about the changed cell");
+  assert.equal(noteSaid("Sales", newFindings(two, s, {}, ["A2"])[0], 0), 'Sheet "Sales", cell A2: Probably wrong. Item 7 does not add up: Units × 2 = 1800.');
+  assert.equal(checkedSaid("Series 3", ["B12"]), 'Checked B12 on "Series 3": nothing unusual.');
+  assert.equal(checkedSaid("Series 3", ["B2:B500"]), 'Checked B2:B500 on "Series 3": nothing unusual.');
+  assert.equal(checkedSaid("S", ["A1", "B2", "A1", "C3", "D4", "E5"]), 'Checked A1, B2, C3 and 2 more on "S": nothing unusual.', "each address once, 3 named");
+  assert.equal(noteSaid("Sales", newFindings(rows, s, {}, ["B3"])[0], 3, {}), 'Sheet "Sales", cell B3: Probably wrong. Units is 900, above its usual limit of 90 (likely 90). And 3 more in what you changed.');
 }
 
 console.log("panel self-check passed");

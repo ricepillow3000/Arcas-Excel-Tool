@@ -17,7 +17,8 @@ def words(page):
 def test_every_privacy_page_says_what_the_pane_keeps_how_to_clear_it_and_the_relays_terms_as_configured():
     caps = tomllib.loads((ROOT / "relay" / "wrangler.toml").read_text(encoding="utf-8"))["vars"]
     promises = (
-        "anomalyHunterAutoFix", "anomalyHunterPowerBi", "anomalyHunterAiMemory", "localStorage",  # the pane's own keys, by name
+        "anomalyHunterAutoFix", "anomalyHunterPowerBi", "anomalyHunterAiMemory", "anomalyHunterLive", "anomalyHunterSound",
+        "localStorage",  # the pane's own keys, by name
         "Forget what this workbook saved", "Options > Saved in this workbook", "It changes no cell",
         # the relay's counter is the last day's until the next day's first call replaces it (relay/worker.js Counter)
         "for the last day anyone used it", "The first call of a new day replaces it",
@@ -287,11 +288,18 @@ def test_every_privacy_page_says_what_the_pane_reads_before_a_scan_and_that_it_s
     assert "const ROWS = 500," in (ROOT / "frontend/features/profile.js").read_text(encoding="utf-8")
 
 
-def test_every_privacy_page_says_what_the_copied_tabs_check_reads_and_that_it_sends_and_saves_nothing():
-    """AH-180: Find problems reads every tab to find two holding the same numbers, on this PC. The pages say how much it
-    reads, and the pane reads exactly that much."""
+def test_every_privacy_page_says_what_the_copied_tabs_check_and_check_as_you_work_read_and_that_they_send_and_save_nothing():
+    """AH-180: Find problems reads every tab to find two holding the same numbers, on this PC. AH-181: Check as you work
+    reads the sheet a user changes, on this PC, and keeps its two switches there. The pages say how much is read and the
+    switches' names, and the pane reads exactly that much and keeps them under those names."""
     said = ("Find problems also reads the first 5,000 rows of every tab (up to 20) on your PC, to say when two tabs hold the "
-            "same numbers; it sends nothing to the internet and saves nothing.")
+            "same numbers; it sends nothing to the internet and saves nothing.",
+            "Check as you work reads the sheet you change on your PC, a moment after you change it, to say when a cell you "
+            "changed looks wrong; it sends nothing to the internet and saves nothing.",
+            "The two Check as you work switches (anomalyHunterLive and anomalyHunterSound) are saved there too.")
     for page in PAGES:
-        assert said in words(page), page
+        assert [p for p in said if p not in words(page)] == [], page
     assert "const TABS = 20, TAB_ROWS = 5000;" in (ROOT / "frontend/services/excel.js").read_text(encoding="utf-8")
+    constants = (ROOT / "frontend/constants/index.js").read_text(encoding="utf-8")
+    assert '"anomalyHunterLive"' in constants and '"anomalyHunterSound"' in constants
+    assert "scanRequest(s, false)" in (ROOT / "frontend/features/live.js").read_text(encoding="utf-8")  # no Power BI copy

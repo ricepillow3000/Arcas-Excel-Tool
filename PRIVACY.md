@@ -16,6 +16,8 @@ A scan runs on your PC and sends nothing to the internet. Your sheet's data leav
 - Before a scan, the pane reads your sheet's header and first 500 rows on your PC to say what the scan will check; it sends nothing to the internet and saves nothing.
 - Find problems also reads the first 5,000 rows of every tab (up to 20) on your PC, to say when two tabs hold the same
   numbers; it sends nothing to the internet and saves nothing.
+- Check as you work reads the sheet you change on your PC, a moment after you change it, to say when a cell you changed
+  looks wrong; it sends nothing to the internet and saves nothing.
 - Files in `%LOCALAPPDATA%\AnomalyHunter`:
 
   | File | What it holds |
@@ -51,7 +53,8 @@ A scan runs on your PC and sends nothing to the internet. Your sheet's data leav
 - The pane saves the auto-fix switch (`anomalyHunterAutoFix`) and the Power BI switch (`anomalyHunterPowerBi`) in
   Excel's storage for the pane (its localStorage) on this PC. Ask AI's memory (`anomalyHunterAiMemory`) is saved there
   too: up to 200 fixes you accepted with **Accept**, in any workbook, each with its column name, the kind of fix, and
-  the old and new values. Undo takes a fix back out.
+  the old and new values. Undo takes a fix back out. The two Check as you work switches (`anomalyHunterLive` and
+  `anomalyHunterSound`) are saved there too.
 - Install also adds a startup entry, a trusted add-in folder for Excel, and a certificate in your Windows account
   that works only for `localhost` and `127.0.0.1` (the key that made it is never saved).
 

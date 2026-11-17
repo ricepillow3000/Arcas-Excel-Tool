@@ -178,6 +178,13 @@
 
       <div class="settings-band">
       <h2>Options</h2>
+      <!-- AH-181: features/live.js -->
+      <details id="live-box" class="more">
+        <summary>Check as you work</summary>
+        <label class="check"><input type="checkbox" id="live" /> Check the cells I change</label>
+        <label class="check"><input type="checkbox" id="live-sound" /> Play a sound</label>
+        <p id="live-hint" class="hint">A moment after you change a sheet, Arcas checks it again on this PC and tells you here when something you changed looks wrong. It works while this pane is open.</p>
+      </details>
       <details class="more">
         <summary>Auto-fix (optional)</summary>
         <label class="check"><input type="checkbox" id="auto-fix" /> Fix exact mistakes by itself</label>
@@ -219,6 +226,16 @@
         <button id="forget-book" class="secondary">Forget what this workbook saved</button>
         <p id="forget-state" class="hint" role="status" aria-live="polite"></p>
       </details>
+      </div>
+
+      <!-- AH-181: what checking as you work found, over the pane's foot so nothing under it moves -->
+      <div id="live-note" role="status" aria-live="polite" hidden>
+        <img src="assets/crest2-32.png" srcset="assets/crest2-64.png 2x" width="32" height="32" alt="">
+        <div id="live-text"></div>
+        <div class="row-buttons">
+          <button id="live-show" class="secondary">Show me</button>
+          <button id="live-close" class="secondary">Close</button>
+        </div>
       </div>
 
       <footer id="pane-footer">
