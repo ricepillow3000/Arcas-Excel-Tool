@@ -103,7 +103,7 @@ can be charged by Google for what AI help uses; without billing, the free tier c
   Microsoft's privacy terms apply.
 - The pane loads only its own files and Microsoft's Office script; its Content Security Policy blocks everything
   else. The fonts are on your PC.
-- GoatCounter: this project's website, never the add-in, the pane or the engine, may count its page views with GoatCounter once John turns the counter on. Each page view then sends GoatCounter one request with the page's address on this site and nothing else: no cookie, no referrer, no title, no screen size, and nothing at all under Do Not Track or Global Privacy Control. Like any server, GoatCounter's sees your IP address and browser with that request. [GoatCounter's privacy policy](https://www.goatcounter.com/help/privacy) says what it keeps.
+- GoatCounter: this project's website, never the add-in, the pane or the engine, counts its page views with GoatCounter. Each page view sends GoatCounter one request with the page's address on this site and nothing else: no cookie, no referrer, no title, no screen size, and nothing at all under Do Not Track or Global Privacy Control. Like any server, GoatCounter's sees your IP address and browser with that request. [GoatCounter's privacy policy](https://www.goatcounter.com/help/privacy) says what it keeps.
 - Nothing is sold, and nothing is used for ads or tracking.
 
 ## Your control
@@ -128,6 +128,8 @@ can be charged by Google for what AI help uses; without billing, the free tier c
   their settings. It never touches your workbooks, so settings a scan saved inside a workbook stay there until you use
   Forget what this workbook saved in each one.
 - To remove your invite, ask John the way you got it.
+- Data-protection law where you live may give you rights over data about you: to see it (access), correct it (rectification), have it deleted (erasure), limit how it is used (restriction), take it elsewhere (portability) and say no to its use (objection). Almost nothing about you ever reaches John, so for most of these there is nothing to ask for: a scan stays on your PC, this website's counter keeps no name and no cookie, and the relay counts calls under a one-way hash with no IP address in it. What does exist is what you chose to send: a GitHub issue you wrote, which you can edit or delete yourself, and an email or a call you made. To use any of these rights, write to John at john4000.nguyen@gmail.com.
+- Why this is allowed, and how long it lasts: AI help runs on your instruction, each time you click it. This website's visit count rests on John's legitimate interest in knowing how many people come, and you can switch it off for yourself with Do Not Track or Global Privacy Control in your browser. Nothing is kept on a timer because there is almost nothing to keep: the relay holds one number for the last day anyone used it, and your sheet is never stored off your PC at all. If you think John has any of this wrong, you may complain to the data-protection authority where you live.
 - You can edit or delete your own GitHub issue; John can delete it if you ask. Copies made while it was public
   may remain. John holds no other data about you.
 

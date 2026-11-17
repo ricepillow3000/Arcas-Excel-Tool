@@ -36,7 +36,9 @@ cryptography==50.0.2
 cyclonedx-python-lib==11.12.0
     # via pip-audit
 defusedxml==0.7.1
-    # via py-serializable
+    # via
+    #   anomaly-hunter (pyproject.toml)
+    #   py-serializable
 docstring-parser==0.18.0
     # via anthropic
 et-xmlfile==2.0.0
