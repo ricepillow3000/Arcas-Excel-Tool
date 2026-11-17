@@ -4,7 +4,7 @@ import math
 import numpy as np
 import pandas as pd
 
-from anomaly_hunter.engine.detectors import spread
+from anomaly_hunter.engine.detectors import _signed, spread
 from anomaly_hunter.engine.load import numbers
 from anomaly_hunter.engine.pipeline import summary_rows
 from anomaly_hunter.powerbi import FORMULA_START, inert
@@ -41,7 +41,7 @@ def suggest_limits_dict(df, number_columns, k=6):
         x = df.loc[keep, c].dropna()
         try:
             if len(x):
-                out[c] = _limits(x, k)
+                out[c] = _limits(x, k, _signed(c, df.columns))
         except (ValueError, OverflowError):  # 1e-100 next to 1e99: no usual range exists - no limits, not a crash
             continue
     return out
@@ -73,7 +73,7 @@ def _log_shaped(pos, med, q10, q90):
     return lmed - l10 > 0 and abs(math.log((l90 - lmed) / (lmed - l10))) < abs(math.log(up / down))
 
 
-def _limits(x, k):
+def _limits(x, k, signed=False):
     """One column's (b_lo, b_hi, w_lo, w_hi) - see suggest_limits_dict."""
     # A column of 0s and 1s is a yes/no flag: a rare 1 is a "yes", never a value past a limit. Bob Ross's MOON, 1 in 3
     # of 403 paintings, read "weird limit is 0.056; this is 1", 36 Medium+ rows on a clean table (round 37, AH-56).
@@ -91,7 +91,10 @@ def _limits(x, k):
         lg = np.log(pos)  # highs on log scale, positives only: 42% zero tips would widen it 20x
         lmed, lsd = float(lg.median()), spread(lg)
         v[1], v[3] = (max(v[j], _round(float(np.exp(lmed + m * lsd)), step, True)) for j, m in ((1, 3), (3, k)))
-    if (x >= 0).mean() >= 0.95:  # counts/prices: a negative is weird, so lows stop at 0
+    # counts/prices: a negative is weird, so lows stop at 0. Not under a header whose quantity can go below zero where the
+    # column writes 5+ negatives: a weather table's 113 honest sub-zero temperatures (-1 to -39 F in 17,983) were each
+    # Medium past a weird low of 0 (blind round 2, AH-177). A lone minus there still stands alone (a flipped Balance)
+    if (x >= 0).mean() >= 0.95 and not (signed and (x < 0).sum() >= 5):
         v[0], v[2] = max(v[0], 0.0), max(v[2], 0.0)
         if (x == 0).mean() >= 0.05:  # zero is a regular value (weekends, no-sale days), not an error
             v[0] = v[2] = 0.0
@@ -103,6 +106,15 @@ def _limits(x, k):
     if (x >= 0).mean() < 0.95:  # signed columns only: in a positive one, 0 and "15x below typical" are hard bounds
         v[3] = max(v[3], _round(_end_of_run(x, v[3], sd), step, True))
         v[2] = min(v[2], _round(-_end_of_run(-x, -v[2], sd), step, False))
+    # A column of at most 5 whole values from 0 to 9 is a code (sex 0/1/2, an answer 1-3): a code it writes 5+ times is one
+    # of its own, inside its limits. producer_male (1 x1081, 2 x84, 0 x7, 3 x1) had a weird low of 0.4, and its 7 honest
+    # 0s were Medium: limits_detector excuses a value written 5+ times, but never a 0, a "missing" stand-in elsewhere
+    # (blind round 1, AH-174). One written 4 times or fewer keeps its limits (the lone 3, a 0 typed into a 1-5 scale)
+    codes = x.value_counts()
+    if len(codes) <= 5 and x.between(0, 9).all() and (x == x.round()).all() and (codes >= 5).any():
+        often = codes.index[codes >= 5].astype(float)
+        v[0], v[2] = min(v[0], float(often.min())), min(v[2], float(often.min()))
+        v[1], v[3] = max(v[1], float(often.max())), max(v[3], float(often.max()))
     if not all(math.isfinite(t) for t in v):  # an infinite limit can't even be sent to the pane as JSON
         raise ValueError("no usual range")
     return tuple(v)
