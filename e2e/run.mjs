@@ -1116,6 +1116,13 @@ if (mode === "flow") {
   await page.focus("#retry-health"); await page.keyboard.press("Enter"); await page.waitForSelector("#main-ui", { state: "visible", timeout: 10000 }).catch(() => {});
   ok(await page.isVisible("#main-ui"), "and Try again opens the pane once the engine answers");
   ok((await page.evaluate(() => document.activeElement.id)) === "scan", "AH-170: and focus goes from Try again, now hidden, to Find problems - " + (await page.evaluate(() => document.activeElement.id || document.activeElement.tagName)));
+  // AH-180: a student copied three series onto three tabs and pasted series 2 again on the third, under its own header
+  { const wave = (k) => Array.from({ length: 40 }, (_, i) => Math.round(100 * Math.sin(i * 1.3 + k)) / 10 + 50);
+    const series = (k, head) => [["Time (s)", head], ...wave(k).map((v, i) => [i, v])];
+    await page.evaluate(([a, b, c]) => { __load("Series 1", a); __load("Series 2", b); __load("Series 3", c); }, [series(1, "Signal"), series(2, "Signal"), series(2, "Response")]);
+    await find();
+    ok((await text("#book-notes")).startsWith('"Series 3" holds the same 40 numbers as "Series 2", in the same order. If you meant to paste a different series there, the same one went in twice.'),
+      "AH-180: Find problems says, first under its results, the tab that holds another tab's numbers - " + (await text("#book-notes"))); }
 }
 
 // AH-164: a note under an AI button is one short line at most; what it sends is a press away under "What is sent?" /

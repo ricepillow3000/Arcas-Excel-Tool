@@ -15,6 +15,7 @@ import { WORKBOOK_KEYS } from "./features/forget.js";
 import { asHighlights, KEPT } from "./features/highlight.js";
 import * as K from "./constants/index.js";
 import { remember, forget, recall, clearAll, MAX_KEPT, OFFERED } from "./features/memory.js";
+import { measures, copiedTabs, copiedSaid, lastRowSaid } from "./features/tabs.js";
 
 // Fixed / Dismissed are kept in the workbook under a code per row, so they outlive the pane (2026-10-20: a dismissed
 // row came back flagged after a reload, an accepted fix vanished). Same values = same code, on any PC, every time.
@@ -775,6 +776,45 @@ for (const f of readdirSync(new URL(".", import.meta.url)).filter((f) => f.endsW
   const ask = /<details id="ai-fold" class="more">\s*<summary>Want a different fix\? Ask AI<\/summary>\s*<div id="ai-box">([\s\S]*?)<\/div>\s*<\/details>\s*<p id="ai-off"/.exec(html);
   assert.ok(ask && ["fix-intent", "fix-tries", "fix-ask", "fix-sends"].every((id) => ask[1].includes(`id="${id}"`)) && !["fix-care", "fix-status", "fix-changes"].some((id) => ask[1].includes(`id="${id}"`)),
     "Ask AI folded on the card, its status, failures and helpline message outside the fold");
+}
+
+// AH-180: a student copied 3 series onto 3 tabs and pasted series 2 again on the third. A column counts as a measure only
+// with 10+ numbers, 5+ different values, neither rising nor falling all the way (a time axis, an ID) and at most half of
+// its numbers formulas (=Series2!B2 is a copy by design). Each edge both ways
+{
+  const tab = (sheet, cols, calc) => ({ sheet, columns: cols.map((_, j) => `c${j}`), rows: cols[0].map((_, i) => cols.map((c) => c[i])), calc });
+  const wave = (k, len = 12) => Array.from({ length: len }, (_, i) => Math.round(100 * Math.sin(i * 1.3 + k)) / 10);
+  const time = Array.from({ length: 12 }, (_, i) => i);
+  assert.deepEqual(measures(tab("A", [time, wave(1)])), [wave(1)], "a time axis is no measure");
+  assert.deepEqual(measures(tab("A", [time.map((v) => -v), wave(1)])).length, 1, "nor one that only falls");
+  const once = [9, ...time.slice(1)]; // rising all the way but its first step
+  assert.deepEqual(measures(tab("A", [once])), [once], "a column that breaks its rise once is a measure");
+  assert.equal(measures(tab("A", [wave(1, 10)])).length, 1, "10 numbers are enough");
+  assert.equal(measures(tab("A", [wave(1, 9)])).length, 0, "9 are not");
+  assert.equal(measures(tab("A", [[1, 2, 3, 4, 5, 1, 2, 3, 4, 5]])).length, 1, "5 different values are enough");
+  assert.equal(measures(tab("A", [[1, 2, 3, 4, 1, 2, 3, 4, 1, 2]])).length, 0, "4 are not");
+  assert.equal(measures(tab("A", [[...wave(1, 10), "n/a", "", true]])).length, 1, "text and blanks are skipped");
+  const made = (k) => Array.from({ length: 10 }, (_, i) => [i < k ? "=RC[-1]" : null]);
+  assert.equal(measures(tab("A", [wave(1, 10)], made(5))).length, 1, "half its numbers formulas: still a measure");
+  assert.equal(measures(tab("A", [wave(1, 10)], made(6))).length, 0, "more than half: a copy by design");
+  // the student's case: tab 3 has its own header over series 2's numbers
+  const s1 = tab("Series 1", [time, wave(1)]), s2 = tab("Series 2", [time, wave(2)]), s3 = { ...tab("Series 3", [time, wave(2)]), columns: ["Seconds", "Response"] };
+  assert.deepEqual(copiedTabs([s1, s2, s3]), [{ sheet: "Series 3", other: "Series 2", columns: 1, count: 12 }]);
+  assert.deepEqual(copiedTabs([s1, s2, tab("Series 3", [time, wave(3)])]), [], "a shared time column alone is no copy");
+  const age = wave(9);
+  assert.deepEqual(copiedTabs([tab("A", [age, wave(1)]), tab("B", [age, wave(2)])]), [], "one shared column beside others that differ is no copy");
+  assert.deepEqual(copiedTabs([tab("A", [wave(1), wave(2)]), tab("B", [wave(3)]), tab("C", [wave(2), wave(1)])]), [{ sheet: "C", other: "A", columns: 2, count: 24 }],
+    "three tabs: the later one paired with the one it copies, its columns in any order");
+  assert.deepEqual(copiedTabs([tab("A", [time]), tab("B", [time])]), [], "no measure, no copy");
+  assert.deepEqual(copiedTabs([{ sheet: "A", measured: [wave(1)] }, tab("B", [wave(1)])]).map((p) => p.other), ["A"], "a tab's measures read before are used as they are");
+  assert.equal(copiedSaid({ sheet: "Series 3", other: "Series 2", columns: 1, count: 1200 }),
+    '"Series 3" holds the same 1,200 numbers as "Series 2", in the same order. If you meant to paste a different series there, the same one went in twice.');
+  assert.equal(copiedSaid({ sheet: "B", other: "A", columns: 2, count: 24 }),
+    '"B" holds the same 24 numbers as "A", in 2 columns, in the same order. If you meant to paste a different series there, the same one went in twice.');
+  // a sheet whose data ends on Excel's last row (or the old one's) was likely cut off when it opened
+  assert.equal(lastRowSaid(1048576), "This sheet's data reaches Excel's last row (1,048,576). If it came from a bigger file, the rows past it were cut off when it opened.");
+  assert.equal(lastRowSaid(65536), "This sheet's data reaches Excel's last row (65,536). If it came from a bigger file, the rows past it were cut off when it opened.");
+  for (const last of [65535, 1048575, 300, undefined]) assert.equal(lastRowSaid(last), "");
 }
 
 console.log("panel self-check passed");

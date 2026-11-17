@@ -2201,5 +2201,93 @@
   "tests": [
    "backend/tests/test_gene_dates.py::test_a_date_serial_from_2000_to_2099_is_flagged_with_the_date_it_reads_as"
   ]
+ },
+ {
+  "id": "tabs-numbers-loosen",
+  "guard": "a copied tab is compared on its measures: 10+ numbers",
+  "file": "frontend/features/tabs.js",
+  "old": "export const MIN_NUMBERS = 10,",
+  "new": "export const MIN_NUMBERS = 9,",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "tabs-numbers-tighten",
+  "guard": "a copied tab is compared on its measures: 10+ numbers",
+  "file": "frontend/features/tabs.js",
+  "old": "export const MIN_NUMBERS = 10,",
+  "new": "export const MIN_NUMBERS = 11,",
+  "kind": "tighten",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "tabs-distinct-loosen",
+  "guard": "a measure has 5+ different values",
+  "file": "frontend/features/tabs.js",
+  "old": "MIN_DISTINCT = 5;",
+  "new": "MIN_DISTINCT = 4;",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "tabs-distinct-tighten",
+  "guard": "a measure has 5+ different values",
+  "file": "frontend/features/tabs.js",
+  "old": "MIN_DISTINCT = 5;",
+  "new": "MIN_DISTINCT = 6;",
+  "kind": "tighten",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "tabs-monotone-loosen",
+  "guard": "a measure never rises or falls all the way (a time axis, an ID)",
+  "file": "frontend/features/tabs.js",
+  "old": "const monotone = rising(nums) || rising(nums.map((v) => -v));",
+  "new": "const monotone = false;",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "tabs-monotone-tighten",
+  "guard": "a measure never rises or falls all the way (a time axis, an ID)",
+  "file": "frontend/features/tabs.js",
+  "old": "a.every((v, k) => !k || v >= a[k - 1])",
+  "new": "a.every((v, k) => k < 2 || v >= a[k - 1])",
+  "kind": "tighten",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "tabs-formulas-loosen",
+  "guard": "a measure is at most half formulas (a tab built from another is a copy by design)",
+  "file": "frontend/features/tabs.js",
+  "old": "2 * made <= nums.length",
+  "new": "made <= nums.length",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "tabs-formulas-tighten",
+  "guard": "a measure is at most half formulas (a tab built from another is a copy by design)",
+  "file": "frontend/features/tabs.js",
+  "old": "2 * made <= nums.length",
+  "new": "2 * made < nums.length",
+  "kind": "tighten",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
  }
 ]

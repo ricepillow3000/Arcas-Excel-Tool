@@ -285,3 +285,13 @@ def test_every_privacy_page_says_what_the_pane_reads_before_a_scan_and_that_it_s
     for page in PAGES:
         assert said in words(page), page
     assert "const ROWS = 500," in (ROOT / "frontend/features/profile.js").read_text(encoding="utf-8")
+
+
+def test_every_privacy_page_says_what_the_copied_tabs_check_reads_and_that_it_sends_and_saves_nothing():
+    """AH-180: Find problems reads every tab to find two holding the same numbers, on this PC. The pages say how much it
+    reads, and the pane reads exactly that much."""
+    said = ("Find problems also reads the first 5,000 rows of every tab (up to 20) on your PC, to say when two tabs hold the "
+            "same numbers; it sends nothing to the internet and saves nothing.")
+    for page in PAGES:
+        assert said in words(page), page
+    assert "const TABS = 20, TAB_ROWS = 5000;" in (ROOT / "frontend/services/excel.js").read_text(encoding="utf-8")

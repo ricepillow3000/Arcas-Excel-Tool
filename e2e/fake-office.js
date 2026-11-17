@@ -15,7 +15,7 @@
     return `${cd}${L(cn)}${rd}${rn + 1}`;
   });
   function makeSheet(name) {
-    const cells = {}; const ws = { name, cells, changed: [], selected: [] };
+    const cells = {}; const ws = { name, id: name, cells, changed: [], selected: [] };
     const cell = (r, c) => (cells[r + "," + c] ||= { v: "", f: null, nf: "General", fill: null });
     const range = (r0, c0, nr, nc) => {
       window.__ranges = (window.__ranges || 0) + 1; // Excel objects made: highlights must only touch flagged rows
@@ -57,6 +57,7 @@
     getActiveWorksheet: () => sheets[active], getItem: (n) => { if (!sheets[n]) throw Object.assign(new Error("ItemNotFound"), { code: "ItemNotFound" }); return sheets[n]; }, // as Office.js names it
     getItemOrNullObject: (n) => sheets[n] || { isNullObject: true, load() { return this; } },
     add: (n) => (sheets[n] = makeSheet(n)),
+    load() { return this; }, get items() { return Object.values(sheets); }, // in the order the tabs were made
   } };
   sheets.Sheet1 = makeSheet("Sheet1");
   const settings = {};

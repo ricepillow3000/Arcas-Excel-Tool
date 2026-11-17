@@ -44,7 +44,36 @@ export async function readSheet(onSlice, most = Infinity) {
     }
     await ctx.sync();
     const t = tableFromGrid(values, top.numberFormat, r0, c0, formulas);
-    return t && { ...t, sheet: sheet.name, cut: total < used.rowCount && [r0 + total, r0 + used.rowCount] };
+    // last: the sheet's last used row, 1-based (AH-180: one on Excel's last row was likely cut off when it opened)
+    return t && { ...t, sheet: sheet.name, cut: total < used.rowCount && [r0 + total, r0 + used.rowCount], last: r0 + used.rowCount };
+  });
+}
+
+// AH-180: every tab (at most TABS), in workbook order, as [{id, sheet, table}]: its first TAB_ROWS rows read as readSheet
+// reads them (null when it holds no table). One call for the list and the used ranges, then one per tab. A workbook of one
+// tab reads nothing
+const TABS = 20, TAB_ROWS = 5000;
+export async function readTabs() {
+  return Excel.run(async (ctx) => {
+    const list = ctx.workbook.worksheets.load("items/name, items/id");
+    await ctx.sync();
+    if (list.items.length < 2) return [];
+    const items = list.items.slice(0, TABS);
+    const used = items.map((ws) => ws.getUsedRangeOrNullObject(true).load("isNullObject, rowIndex, columnIndex, rowCount, columnCount"));
+    await ctx.sync();
+    const tabs = [];
+    for (const [k, ws] of items.entries()) {
+      const u = used[k], t = { id: ws.id, sheet: ws.name };
+      tabs.push(t);
+      if (u.isNullObject) { t.table = null; continue; }
+      const w = u.columnCount, rows = Math.min(u.rowCount, TAB_ROWS, Math.max(1, Math.floor(READ_CELLS / (2 * w))));
+      const part = ws.getRangeByIndexes(u.rowIndex, u.columnIndex, rows, w).load("values, formulasR1C1");
+      const top = ws.getRangeByIndexes(u.rowIndex, u.columnIndex, Math.min(rows, 30), w).load("numberFormat");
+      await ctx.sync();
+      const formulas = part.formulasR1C1.map((row) => row.map((f) => (typeof f === "string" && f.startsWith("=") ? f : null)));
+      t.table = tableFromGrid(part.values, top.numberFormat, u.rowIndex, u.columnIndex, formulas);
+    }
+    return tabs;
   });
 }
 

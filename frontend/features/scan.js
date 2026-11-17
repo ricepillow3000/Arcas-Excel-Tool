@@ -14,6 +14,7 @@ import { autoFix, autoOn, autoUndo } from "./autofix.js";
 import { codes, decisionsFor, rowHash } from "./decisions.js";
 import { undosFor } from "./undo-store.js";
 import { hideProfile } from "./profile.js";
+import { bookNotes } from "./tabs.js";
 
 // Keep each scan for Power BI (a plain-text copy of the sheet on this PC): off unless turned on, like auto-fix
 export const powerBiOn = () => { try { return localStorage.getItem(POWER_BI_KEY) === "1"; } catch { return false; } };
@@ -65,6 +66,7 @@ async function scan(auto, held, t0) {
     power_bi: powerBiOn(), start_row: s.startRow, sheet: String(s.sheet).slice(0, 31),
     decisions: Object.keys(decided).length ? s.rows.map((_, i) => decided[i] || null) : null,
     formulas: s.calc.some((r) => r.some(Boolean)) ? s.calc : null }, 300); // AH-152: each cell's formula, only if any
+  const notes = await bookNotes(s); // AH-180: read before the results land, so nothing moves when they do
   if (held) await new Promise((go) => setTimeout(go, Math.max(0, HOLD - (Date.now() - t0))));
   scanning(false); // the results take the skeleton's place
   state.lastStrength = level; // Agent 3 judges fixes at the level this scan used
@@ -75,6 +77,7 @@ async function scan(auto, held, t0) {
   Object.assign(state, { hashes, codes: keys, decided });
   $("sheet-name").textContent = s.sheet;
   renderResults(body.rows, s, body.fairness);
+  $("book-notes").replaceChildren(...notes.map((line) => Object.assign(document.createElement("p"), { className: "notice", textContent: line })));
   if (auto !== false) {
     const said = levelChange(before, { level, rows: body.rows, hashes, sheet: s.sheet });
     $("level-change").textContent = said;
