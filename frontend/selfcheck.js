@@ -15,6 +15,8 @@ import { WORKBOOK_KEYS } from "./features/forget.js";
 import { asHighlights, KEPT } from "./features/highlight.js";
 import * as K from "./constants/index.js";
 import { remember, forget, recall, clearAll, MAX_KEPT, OFFERED } from "./features/memory.js";
+import { measures, copiedTabs, copiedSaid, lastRowSaid } from "./features/tabs.js";
+import { findingsAt, inRange, ignored, liveable, liveOn, soundOn, noteSaid, checkedSaid, LIVE_ROWS } from "./features/live.js";
 
 // Fixed / Dismissed are kept in the workbook under a code per row, so they outlive the pane (2026-10-20: a dismissed
 // row came back flagged after a reload, an accepted fix vanished). Same values = same code, on any PC, every time.
@@ -458,6 +460,19 @@ assert.ok(rec.explanation.includes("probably real or entered in other units"), r
 // worth-a-check reasons say what to look for, never "Nothing here is clearly broken"
 rec = recommendFix(["Id", "When"], [["a", "2084-03-01"]], 0, null, "When 2084-03-01 is far outside the column's dates (2018-01-02 to 2019-12-30)", 0, 0);
 assert.ok(rec.explanation.includes("mistyped year") && !rec.explanation.includes("Nothing here"), rec.explanation);
+// AH-178: a year column's far year, and a column above the one it is at most on every other row: said, nothing written
+rec = recommendFix(["Id", "year"], [["a", 2084]], 0, null, "year 2084 is far outside the column's years (1981 to 2022)", 0, 0);
+assert.ok(rec.explanation.includes("mistyped year") && !rec.explanation.includes("Nothing here") && !rec.changes.length, rec.explanation);
+rec = recommendFix(["Id", "p10", "p90"], [["a", 30.1, 14.1]], 0, null, "p10 30.1 is above p90 14.1, where p10 is at most p90 on 1199 of 1200 rows", 0, 0);
+assert.ok(rec.explanation.includes("check both cells") && !rec.explanation.includes("Nothing here") && !rec.changes.length, rec.explanation);
+// AH-182: a column pasted twice and a gene name turned into a date say what to look for, and write nothing
+rec = recommendFix(["Id", "Series 2", "Series 3"], [["a", 5.2, 5.2]], 0, null, "Series 3 is the same 1,200 numbers as Series 2, row for row: was one column pasted twice?", 0, 0);
+assert.ok(rec.explanation.includes("one series pasted") && !rec.explanation.includes("Nothing here") && !rec.changes.length, rec.explanation);
+for (const reason of ['Gene "2-Sep" is a date among gene names: Excel turns names such as SEPT2 or MARCH1 into dates when they are typed or opened from a CSV',
+  "Gene 38962 is the date 2006-09-02 as Excel stores it, a date among gene names: Excel turns names such as SEPT2 or MARCH1 into dates when they are typed or opened from a CSV"]) {
+  rec = recommendFix(["Id", "Gene"], [["a", "2-Sep"]], 0, null, reason, 0, 0);
+  assert.ok(rec.explanation.includes("format the column as Text") && !rec.explanation.includes("Nothing here") && !rec.changes.length, rec.explanation);
+}
 rec = recommendFix(["Id", "Day"], [["a", 7.3]], 0, null, "Day 7.3 is not a whole number - every other Day is", 0, 0);
 assert.ok(rec.explanation.includes("check the decimal point"), rec.explanation);
 // AH-55: a name's bound and a share over 100 say what to look for, and write nothing
@@ -762,6 +777,88 @@ for (const f of readdirSync(new URL(".", import.meta.url)).filter((f) => f.endsW
   const ask = /<details id="ai-fold" class="more">\s*<summary>Want a different fix\? Ask AI<\/summary>\s*<div id="ai-box">([\s\S]*?)<\/div>\s*<\/details>\s*<p id="ai-off"/.exec(html);
   assert.ok(ask && ["fix-intent", "fix-tries", "fix-ask", "fix-sends"].every((id) => ask[1].includes(`id="${id}"`)) && !["fix-care", "fix-status", "fix-changes"].some((id) => ask[1].includes(`id="${id}"`)),
     "Ask AI folded on the card, its status, failures and helpline message outside the fold");
+}
+
+// AH-180: a student copied 3 series onto 3 tabs and pasted series 2 again on the third. A column counts as a measure only
+// with 10+ numbers, 5+ different values, neither rising nor falling all the way (a time axis, an ID) and at most half of
+// its numbers formulas (=Series2!B2 is a copy by design). Each edge both ways
+{
+  const tab = (sheet, cols, calc) => ({ sheet, columns: cols.map((_, j) => `c${j}`), rows: cols[0].map((_, i) => cols.map((c) => c[i])), calc });
+  const wave = (k, len = 12) => Array.from({ length: len }, (_, i) => Math.round(100 * Math.sin(i * 1.3 + k)) / 10);
+  const time = Array.from({ length: 12 }, (_, i) => i);
+  assert.deepEqual(measures(tab("A", [time, wave(1)])), [wave(1)], "a time axis is no measure");
+  assert.deepEqual(measures(tab("A", [time.map((v) => -v), wave(1)])).length, 1, "nor one that only falls");
+  const once = [9, ...time.slice(1)]; // rising all the way but its first step
+  assert.deepEqual(measures(tab("A", [once])), [once], "a column that breaks its rise once is a measure");
+  assert.equal(measures(tab("A", [wave(1, 10)])).length, 1, "10 numbers are enough");
+  assert.equal(measures(tab("A", [wave(1, 9)])).length, 0, "9 are not");
+  assert.equal(measures(tab("A", [[1, 2, 3, 4, 5, 1, 2, 3, 4, 5]])).length, 1, "5 different values are enough");
+  assert.equal(measures(tab("A", [[1, 2, 3, 4, 1, 2, 3, 4, 1, 2]])).length, 0, "4 are not");
+  assert.equal(measures(tab("A", [[...wave(1, 10), "n/a", "", true]])).length, 1, "text and blanks are skipped");
+  const made = (k) => Array.from({ length: 10 }, (_, i) => [i < k ? "=RC[-1]" : null]);
+  assert.equal(measures(tab("A", [wave(1, 10)], made(5))).length, 1, "half its numbers formulas: still a measure");
+  assert.equal(measures(tab("A", [wave(1, 10)], made(6))).length, 0, "more than half: a copy by design");
+  // the student's case: tab 3 has its own header over series 2's numbers
+  const s1 = tab("Series 1", [time, wave(1)]), s2 = tab("Series 2", [time, wave(2)]), s3 = { ...tab("Series 3", [time, wave(2)]), columns: ["Seconds", "Response"] };
+  assert.deepEqual(copiedTabs([s1, s2, s3]), [{ sheet: "Series 3", other: "Series 2", columns: 1, count: 12 }]);
+  assert.deepEqual(copiedTabs([s1, s2, tab("Series 3", [time, wave(3)])]), [], "a shared time column alone is no copy");
+  const age = wave(9);
+  assert.deepEqual(copiedTabs([tab("A", [age, wave(1)]), tab("B", [age, wave(2)])]), [], "one shared column beside others that differ is no copy");
+  assert.deepEqual(copiedTabs([tab("A", [wave(1), wave(2)]), tab("B", [wave(3)]), tab("C", [wave(2), wave(1)])]), [{ sheet: "C", other: "A", columns: 2, count: 24 }],
+    "three tabs: the later one paired with the one it copies, its columns in any order");
+  assert.deepEqual(copiedTabs([tab("A", [time]), tab("B", [time])]), [], "no measure, no copy");
+  assert.deepEqual(copiedTabs([{ sheet: "A", measured: [wave(1)] }, tab("B", [wave(1)])]).map((p) => p.other), ["A"], "a tab's measures read before are used as they are");
+  assert.equal(copiedSaid({ sheet: "Series 3", other: "Series 2", columns: 1, count: 1200 }),
+    '"Series 3" holds the same 1,200 numbers as "Series 2", in the same order. If you meant to paste a different series there, the same one went in twice.');
+  assert.equal(copiedSaid({ sheet: "B", other: "A", columns: 2, count: 24 }),
+    '"B" holds the same 24 numbers as "A", in 2 columns, in the same order. If you meant to paste a different series there, the same one went in twice.');
+  // a sheet whose data ends on Excel's last row (or the old one's) was likely cut off when it opened
+  assert.equal(lastRowSaid(1048576), "This sheet's data reaches Excel's last row (1,048,576). If it came from a bigger file, the rows past it were cut off when it opened.");
+  assert.equal(lastRowSaid(65536), "This sheet's data reaches Excel's last row (65,536). If it came from a bigger file, the rows past it were cut off when it opened.");
+  for (const last of [65535, 1048575, 300, undefined]) assert.equal(lastRowSaid(last), "");
+}
+
+// AH-181: check as you work. An edit our own write made, or one from another person's copy, is never checked; a sheet
+// past LIVE_ROWS rows is not checked as you type; both switches are on unless turned off; a finding is new only in a cell
+// that was changed and not already found there for the same reason
+{
+  assert.equal(ignored({ source: "Local", triggerSource: "ThisLocalAddin" }, false), true, "our own write");
+  assert.equal(ignored({ source: "Remote", triggerSource: "Unknown" }, false), true, "a co-author's edit");
+  assert.equal(ignored({ source: "Local", triggerSource: "Unknown" }, true), true, "while a scan, Accept or Undo runs");
+  assert.equal(ignored({ source: "Local", triggerSource: "Unknown" }, false), false, "the user's own edit");
+  assert.equal(ignored({ source: "Local" }, false), false, "the user's edit in an Excel older than 1.14 (no triggerSource)");
+  assert.equal(LIVE_ROWS, 20000);
+  assert.equal(liveable(20000), true);
+  assert.equal(liveable(20001), false);
+  const box = new Map();
+  globalThis.localStorage = { getItem: (k) => box.get(k) ?? null, setItem: (k, v) => box.set(k, String(v)), removeItem: (k) => box.delete(k) };
+  assert.ok(liveOn() && soundOn(), "on unless turned off");
+  box.set(K.LIVE_KEY, "0"); box.set(K.SOUND_KEY, "0");
+  assert.ok(!liveOn() && !soundOn(), "off once turned off");
+  box.set(K.LIVE_KEY, "1");
+  assert.ok(liveOn());
+  globalThis.localStorage = { getItem() { throw new Error("off"); } };
+  assert.ok(liveOn() && soundOn(), "no storage: on");
+  delete globalThis.localStorage;
+  for (const [a, cell, at] of [["B12", "B12", true], ["B2:B41", "B30", true], ["B2:B41", "C30", false], ["Series 3!$B$2:$B$41", "B41", true], ["B2:B41", "B42", false],
+    ["A1:B2, D4", "D4", true], ["C:C", "C9000", true], ["5:7", "Z6", true], ["5:7", "Z8", false], [undefined, "A1", false]]) assert.equal(inRange(a, cell), at, `${a} ${cell}`);
+  const s = { columns: ["Item", "Units"], startRow: 0, startCol: 0, names: {} };
+  const rows = [{ severity: null }, { severity: "Medium", magnitude: 2, cells: ["Units"], reason: "Units weird limit is 90; this is 900 (likely 90)" },
+    { severity: "High", magnitude: 1, cells: ["Units"], reason: "Units weird limit is 90; this is -5 (likely 5)" },
+    { severity: "Low", magnitude: 9, cells: ["Item"], reason: "Item is odd" }, { severity: "Medium", magnitude: 5, cells: ["Units"], reason: "Units weird limit is 90; this is 9000" }];
+  // sheet rows: row i is sheet row i + 2 (the header on row 1)
+  assert.deepEqual(findingsAt(rows, s, {}, ["B3:B6"]).map((f) => f.cell), ["B4", "B6", "B3"], "surest first, then biggest");
+  assert.deepEqual(findingsAt(rows, s, {}, ["B3:B4"]).map((f) => f.cell), ["B4", "B3"], "only in the cells changed");
+  assert.deepEqual(findingsAt(rows, s, { 2: "dismissed" }, ["B3:B6"]).map((f) => f.cell), ["B6", "B3"], "never a row fixed or dismissed");
+  assert.deepEqual(findingsAt(rows, s, {}, ["A5"]).map((f) => f.cell), ["A5"]);
+  assert.equal(noteSaid("Series 3", findingsAt(rows, s, {}, ["B4"])[0], 0, {}), 'Sheet "Series 3", cell B4: Very likely wrong. Units is -5, below its usual limit of 90 (likely 5).');
+  const two = [{ severity: "Medium", magnitude: 1, cells: ["Units", "Item"], reason: "Item 7 does not add up: Units × 2 = 1800; Units weird limit is 90; this is 900" }];
+  assert.equal(noteSaid("Sales", findingsAt(two, s, {}, ["B2"])[0], 0), 'Sheet "Sales", cell B2: Probably wrong. Units is 900, above its usual limit of 90.', "the line about the changed cell");
+  assert.equal(noteSaid("Sales", findingsAt(two, s, {}, ["A2"])[0], 0), 'Sheet "Sales", cell A2: Probably wrong. Item 7 does not add up: Units × 2 = 1800.');
+  assert.equal(checkedSaid("Series 3", ["B12"]), 'Checked B12 on "Series 3": nothing unusual.');
+  assert.equal(checkedSaid("Series 3", ["B2:B500"]), 'Checked B2:B500 on "Series 3": nothing unusual.');
+  assert.equal(checkedSaid("S", ["A1", "B2", "A1", "C3", "D4", "E5"]), 'Checked A1, B2, C3 and 2 more on "S": nothing unusual.', "each address once, 3 named");
+  assert.equal(noteSaid("Sales", findingsAt(rows, s, {}, ["B3"])[0], 3, {}), 'Sheet "Sales", cell B3: Probably wrong. Units is 900, above its usual limit of 90 (likely 90). And 3 more in what you changed.');
 }
 
 console.log("panel self-check passed");

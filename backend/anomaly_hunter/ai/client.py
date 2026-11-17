@@ -225,7 +225,7 @@ def _fix_prompt(columns, rows, i, start_row, start_col, reason, intent, formulas
         "the headers and values and follow that field's conventions and units.\n"
         f"Data range: {first}{top}:{last}{top + len(rows)} (row {top} = headers).\n"
         "Columns: " + ", ".join(f"{letters[j]}={_one_line(columns[j])[:100]}" for j in keep)
-        + (" (only the columns nearest the flagged cell are shown)" if len(keep) < len(columns) else "") + "\n"
+        + (" (only the flagged cell's nearest columns and any the user's request names are shown)" if len(keep) < len(columns) else "") + "\n"
         f"Flagged {line(i)}\n"
         + (f"Formulas in that row: {'; '.join(calc)} - fix their inputs rather than overwrite them, unless asked.\n" if calc else "")
         + f"Why it was flagged: {_one_line(reason or 'unknown')[:500]}\n"
@@ -533,7 +533,12 @@ def suggest_fix(columns, rows, row_index, start_row, start_col, reason, intent, 
     memory = up to 20 fixes the user accepted before in this column, newest first, as {h, k, o, n} (AH-143, AH-153)."""
     hits = [j for j, c in enumerate(columns) if str(c) and str(c) in (reason or "")]
     flagged = max(hits, key=lambda j: len(str(columns[j])), default=0)  # "Column 31" over "Column 3"
-    nearest = sorted(range(len(columns)), key=lambda j: abs(j - flagged))
+    # AH-42: a column the typed request names goes right after the flagged one ("fix the Email typo" on a wide row sent
+    # only Amount's neighbours, and the Email write was left out as blind). Whole words only: "page" does not name Age
+    words = lambda t: " ".join("".join(ch if ch.isalnum() else " " for ch in str(t).lower()).split())
+    req = f" {words(intent)} "
+    named = {j for j, c in enumerate(columns) if words(c) and f" {words(c)} " in req}
+    nearest = sorted(range(len(columns)), key=lambda j: (j != flagged, j not in named, abs(j - flagged)))
     def tries():  # fewer rows around it first (5, 2, 0), then the columns furthest from the flagged one
         yield from ((c, len(columns)) for c in (5, 2, 0))
         # AH-140: a prompt only grows with n, so the widest that fits is found by halving (one by one, 16,000 columns took 81 s)

@@ -30,6 +30,7 @@ from anomaly_hunter.agents import checker, scan_agent
 from anomaly_hunter.ai import care, client
 from anomaly_hunter.engine.load import load_from_records
 from anomaly_hunter.engine.pipeline import knobs
+from anomaly_hunter.engine.profile import profile
 from anomaly_hunter.sealed import write_private as _write_private
 
 # the pane, served as-is: beside the code in a checkout, inside the bundle in the one-file app (unpacked to _MEIPASS)
@@ -235,6 +236,15 @@ def create_app(scan_csv=None):
             "severity_counts": Counter(r["severity"] for r in out if r["severity"]),
             "bucket_counts": Counter(r["bucket"] for r in out if r["bucket"]),
             "detectors": status, "k": knobs(_strength(body))[1]}}
+
+    @app.post("/profile")
+    def profile_route():
+        """AH-169: what the sheet looks like and what a scan will check, said before it, on this PC only: no AI, no
+        file, nothing kept. The pane sends the header and the first 500 rows; the body is checked as /scan's is."""
+        body = request.get_json(silent=True)
+        if err := _bad(body):
+            return {"error": err}, 400
+        return profile(body["columns"], body["rows"])
 
     def ai(call):
         """Run an AI call (Gemini, the relay or Claude); map its failures to HTTP errors the panel shows as-is."""

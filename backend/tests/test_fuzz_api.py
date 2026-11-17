@@ -97,3 +97,14 @@ def test_a_column_of_near_zero_numbers_with_one_big_value_scans_without_an_engin
         r = c.post(route, json={"columns": ["Id", "Amt", "Qty"], "rows": rows, "strength": 10, **extra})
         assert r.status_code == 200, r.get_json()
         assert "Infinity" not in r.get_data(as_text=True) and "NaN" not in r.get_data(as_text=True)
+
+
+@pytest.mark.filterwarnings("error::RuntimeWarning")
+def test_a_sheet_whose_number_columns_are_filled_only_on_a_skipped_row_scans_without_an_engine_error():
+    # the fuzz test found it 2026-11-16 (on main too): a blank row and a row "0, 0, 0, 1e100" left every number column
+    # empty on the rows the totals check reads, and the decimals of an empty column were a mean of nothing -> HTTP 500
+    rows = [[None] * 5, [None, 0, 0, 0, 1e100]]
+    c = APP.test_client()
+    for route, extra in (("/scan", {}), ("/check", {"row_index": 1, "changes": [{"col": 4, "value": 1}]})):
+        r = c.post(route, json={"columns": ["", "", "", "", ""], "rows": rows, "strength": 10, **extra})
+        assert r.status_code == 200, r.get_json()

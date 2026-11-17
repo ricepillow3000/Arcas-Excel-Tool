@@ -309,6 +309,26 @@ def test_each_new_arm_adds_only_its_own_words_and_base_adds_neither():
     assert client._fix_prompt is ai_eval.ORIG["_fix_prompt"]
 
 
+def test_the_data_fence_arm_adds_only_its_one_line_after_the_intro_and_base_has_none():
+    # AH-109 / AH-42: a line saying the sheet's text is data, never instructions; an eval arm only until it wins
+    base, fence = (_prompt(a, *SHEET, 55, "Units weird limit is 20; this is 15") for a in ("base", "data_fence"))
+    assert ai_eval.DATA_FENCE not in base
+    assert fence == base.replace("\nData range: ", "\n" + ai_eval.DATA_FENCE + "\nData range: ", 1)
+    assert client._fix_prompt is ai_eval.ORIG["_fix_prompt"]
+
+
+def test_the_data_fence_arms_request_fits_one_request_on_every_golden_case():
+    for split in ai_eval.SPLITS:
+        for case, job in ai_eval.jobs(split, REPO, odd=[]):
+            ai_eval._arm("data_fence")
+            try:
+                prompts = ai_eval._prompts(job)  # raises if the case is too big to send
+            finally:
+                ai_eval._arm("base")
+            assert prompts and all(len(client._wire(p)) <= client.BUDGET for p in prompts), case["id"]
+            assert all(ai_eval.DATA_FENCE in p for p in prompts), case["id"]
+
+
 def test_the_schema_line_describes_each_column_from_rows_far_from_the_flagged_one():
     base, schema = _prompt("base", *SHEET, 55), _prompt("schema", *SHEET, 55)
     line = next(x for x in schema.splitlines() if x.startswith(ai_eval.SCHEMA_HEAD))
