@@ -2336,7 +2336,7 @@
  },
  {
   "id": "relay-nosniff-refusal-loosen",
-  "guard": "relay: every refusal says nosniff (AH-176)",
+  "guard": "relay: every refusal says nosniff (AH-189)",
   "file": "relay/worker.js",
   "old": "{ status, headers: { \"Content-Type\": \"application/json\", \"X-Content-Type-Options\": \"nosniff\" } });",
   "new": "{ status, headers: { \"Content-Type\": \"application/json\" } });",
@@ -2347,7 +2347,7 @@
  },
  {
   "id": "relay-nosniff-answer-loosen",
-  "guard": "relay: Google's answer, passed through, says nosniff (AH-176)",
+  "guard": "relay: Google's answer, passed through, says nosniff (AH-189)",
   "file": "relay/worker.js",
   "old": "headers: { \"Content-Type\": \"application/json\", \"X-Content-Type-Options\": \"nosniff\", ...(m ?",
   "new": "headers: { \"Content-Type\": \"application/json\", ...(m ?",
@@ -2358,7 +2358,7 @@
  },
  {
   "id": "relay-burst-preauth-loosen",
-  "guard": "relay: a cheap refusal is metered too, so a garbage flood is not free (AH-176)",
+  "guard": "relay: a cheap refusal is metered too, so a garbage flood is not free (AH-189)",
   "file": "relay/worker.js",
   "old": "      if (!env.BURST) return resp; // a deploy from before BURST: go on, exactly as the counted path does",
   "new": "      return resp;",
@@ -2369,7 +2369,7 @@
  },
  {
   "id": "relay-burst-bucket-tighten",
-  "guard": "relay: refusals spend their own bucket, never a real caller's minute (AH-176)",
+  "guard": "relay: refusals spend their own bucket, never a real caller's minute (AH-189)",
   "file": "relay/worker.js",
   "old": "refusals ??= \"no:\" + await hmac(env.GEMINI_KEY,",
   "new": "refusals ??= \"\" + await hmac(env.GEMINI_KEY,",
@@ -2380,7 +2380,7 @@
  },
  {
   "id": "decimals-empty-loosen",
-  "guard": "a column with no number does not take the mean of nothing (main's fix, mutant from AH-176)",
+  "guard": "a column with no number does not take the mean of nothing (main's fix, mutant from AH-189)",
   "file": "backend/anomaly_hunter/engine/pipeline.py",
   "old": "    if not len(x):  # no number on the rows read (all on a skipped row): the mean of nothing was an HTTP 500 (fuzz, 2026-11-16)\n        return 0\n",
   "new": "",

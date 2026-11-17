@@ -22,7 +22,7 @@ const MAX_BODY = 8 * 1024;
 // min(90, left)); Gemini took 3.8 s to 90 s+ for the same request (2026-10-11)
 const GOOGLE_WAIT_MS = 90_000;
 
-// AH-176: nosniff on every answer - the engine reads JSON, but a browser opened on the relay must not run it as
+// AH-189: nosniff on every answer - the engine reads JSON, but a browser opened on the relay must not run it as
 // anything else. ponytail: no CSP here, the relay renders no HTML
 const json = (status, body) => new Response(JSON.stringify(body),
   { status, headers: { "Content-Type": "application/json", "X-Content-Type-Options": "nosniff" } });
@@ -74,7 +74,7 @@ async function hmac(key, text) {
 
 export default {
   async fetch(req, env) {
-    // AH-176: a refusal is metered too. BURST used to be asked only at the counter, past the 404, 401, 413 and 400
+    // AH-189: a refusal is metered too. BURST used to be asked only at the counter, past the 404, 401, 413 and 400
     // checks, so a flood of garbage from one host was unmetered: no minute limit, no counter entry, no Google call, and
     // one Workers invocation each. The free plan allows 100,000 a day FOR THE WHOLE ACCOUNT, refused ones included, and
     // past that Cloudflare answers 1027 and Ask AI is dead for invite and free users alike until the next day.

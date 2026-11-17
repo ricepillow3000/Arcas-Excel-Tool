@@ -202,18 +202,26 @@ for (const f of fs.readdirSync(path.join(SITE, "assets")).filter((f) => /\.(png|
     }
   }
 }
-// SignPath's free open-source signing (AH-100) asks for a "Code signing policy" page, with the sentence its releases will
-// carry; until the exe is signed the page must say it is not, never claim a signature. Since AH-159 the policy is its own
-// page, code-signing.html, and the home page's #code-signing (every released Arcas.exe's notes and the SignPath
-// application link there) is one line in the download that says it and links the policy
+// The "Code signing policy" page (AH-100) says what is signed and by whom; until the exe is signed it must say it is
+// not, and never claim a signature. AH-168: the SignPath Foundation declined the free open-source program on
+// 3 November 2026 (too little public visibility, not the code), so the page states the decline with its date and no
+// file claims a pending application any more. Since AH-159 the policy is its own page, code-signing.html, and the home
+// page's #code-signing (every released Arcas.exe's notes and old links land there) is one line in the download that
+// says it and links the policy
 {
   const page = html["code-signing.html"], home = html["index.html"];
   const sec = (/<section\b[^>]*\sid="code-signing"[^>]*>([\s\S]*?)<\/section>/.exec(page) || [])[1];
   assert.ok(sec, 'code-signing.html has no section id="code-signing"');
   const text = (/<main[\s\S]*<\/main>/.exec(page) || [""])[0].replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/\s+/g, " ");
   assert.equal((/<h1\b[^>]*>([\s\S]*?)<\/h1>/.exec(page) || [])[1], "Code signing policy", 'code-signing.html\'s heading is not "Code signing policy"');
-  assert.ok(text.includes("Free code signing provided by SignPath.io, certificate by SignPath Foundation"), "the code signing policy lacks SignPath's attribution sentence");
   assert.ok(/Arcas\.exe is not code-signed/.test(text), "the code signing policy does not say the exe is not code-signed yet");
+  // AH-168: the decline is a fact a visitor and their IT team can read, with the date, and it says what it was not about
+  assert.ok(/declined/i.test(text), "the code signing policy does not say the SignPath Foundation application was declined (AH-168)");
+  assert.ok(text.includes("3 November 2026"), "the code signing policy does not date the SignPath Foundation decline (AH-168)");
+  assert.ok(/not a judgment on the code/i.test(text), "the code signing policy does not say the decline was not about the code (AH-168)");
+  // no page, and nothing a release or a future reader meets, may claim the application is still open
+  for (const p of PAGES) assert.ok(!/has applied|application is accepted|Once accepted|awaiting SignPath|waiting on SignPath/i.test(html[p]),
+    `${p}: still claims a pending SignPath application (AH-168)`);
   const dl = (/<section\b[^>]*\sid="download"[\s\S]*?<\/section>/.exec(home) || [""])[0], line = (/<p\b[^>]*\sid="code-signing"[^>]*>([\s\S]*?)<\/p>/.exec(dl) || [])[1] || "";
   assert.ok(/not code-signed yet/.test(line) && /<a href="code-signing\.html">code signing policy<\/a>/.test(line), `the home page's #code-signing, in the download, does not say it is not signed and link the policy: "${line}"`);
   const sig = (/<dt>Signature<\/dt><dd>([\s\S]*?)<\/dd>/.exec(home) || [])[1] || "";
@@ -400,7 +408,7 @@ for (const f of SCRIPTS) {
   for (const p of ["index.html", "support.html"]) assert.ok(html[p].includes('<p class="reply">John replies within 2 business days.</p>'), `${p}: no "John replies within 2 business days." beside the form`);
   assert.ok(!/no reply-time promise/.test(html["support.html"]), "support.html still says there is no reply-time promise");
   // the form's link opens the repository's contact issue form, whose fields are the ones support.js fills
-  const yml = fs.readFileSync(path.join(SITE, "..", ".github", "ISSUE_TEMPLATE", "contact.yml"), "utf8");
+  const yml = fs.readFileSync(path.join(SITE, "..", ".github", "ISSUE_TEMPLATE", "contact.yml"), "utf8").split("\r\n").join("\n"); // ponytail: a Windows checkout (core.autocrlf) returns CRLF; the field and option checks below match on a bare newline
   for (const id of ["name", "topic", "message"]) assert.ok([...yml.matchAll(/\n\s+id: (\w+)\n/g)].some((m) => m[1] === id), `contact.yml has no field id ${id}`);
   for (const o of ["A question", "A problem", "An idea"]) assert.ok(yml.includes(`        - ${o}\n`), `contact.yml's topic lacks "${o}"`);
   const sjs = read("support.js");

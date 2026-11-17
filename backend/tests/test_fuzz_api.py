@@ -112,7 +112,7 @@ def test_a_sheet_whose_number_columns_are_filled_only_on_a_skipped_row_scans_wit
 
 @pytest.mark.filterwarnings("error::RuntimeWarning")
 def test_the_decimals_of_a_column_with_no_number_are_zero_and_a_filled_column_reports_its_own():
-    # AH-176, beside the test above: that one proves the routes answer 200, this one pins the VALUE the guard returns,
+    # AH-189, beside the test above: that one proves the routes answer 200, this one pins the VALUE the guard returns,
     # so a future change from 0 (every tolerance from a NaN, or a different default) turns red here
     import numpy as np
 

@@ -52,7 +52,7 @@ assert.equal(sent[0].headers.Authorization, "Bearer AQ.the-secret", "the relay a
 assert.equal(sent[0].body.model, "gemini-3.8-flash", "the relay picks the model");
 assert.ok(!JSON.stringify(await r.json()).includes("the-secret"), "the key never comes back");
 
-// AH-176: every answer carries nosniff, so a browser opened on the relay never runs its JSON as something else.
+// AH-189: every answer carries nosniff, so a browser opened on the relay never runs its JSON as something else.
 // 401, 400 and 404 are refused before the day is counted, so these calls do not spend Ana's allowance below
 assert.equal(r.headers.get("X-Content-Type-Options"), "nosniff", "Google's answer, passed through, says nosniff");
 for (const no of [await call(good, ""), await call("{not json"), await call(good, "inv_ana", "/v1/anything")])
@@ -657,7 +657,7 @@ assert.equal(sent.length, before, "and never reaches Google");
     assert.equal((await post({ type: "json_schema", json_schema: { name: "fix", schema: {} } }, auth)).status, 200, "a JSON schema is taken");
   }
 }
-// AH-176: a cheap refusal is metered too. BURST was only asked at the counter, past the 404, 401, 413 and 400 checks,
+// AH-189: a cheap refusal is metered too. BURST was only asked at the counter, past the 404, 401, 413 and 400 checks,
 // so a flood of garbage from one host was completely unmetered - no minute limit, no counter entry, no Google call, and
 // one Workers invocation each. The free plan allows 100,000 a day FOR THE WHOLE ACCOUNT, refused ones included, and
 // past that Cloudflare answers 1027 and Ask AI is dead for invite and free users alike until the next day. Refusals

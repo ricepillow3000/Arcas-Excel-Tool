@@ -13,7 +13,7 @@ cheap server can own 65,536 networks in a /48) and 400 in all (`relay/worker.js`
 or an invite gets at most 15 calls a minute, checked before the counter and before Google, by Cloudflare's free
 Workers Rate Limiting (`BURST`, `relay/wrangler.toml` `[[ratelimits]]`, `relay/worker.js`).
 
-**Corrected 2026-11-17 (AH-176).** That limit bounded the COUNTED path only. It sat past the 404, 401, 413 and 400 checks, so a
+**Corrected 2026-11-17 (AH-189).** That limit bounded the COUNTED path only. It sat past the 404, 401, 413 and 400 checks, so a
 flood of garbage - a wrong invite code, a malformed body, a wrong path - was refused cheaply and metered by nothing at
 all. That is not free: the Workers plan allows 100,000 requests a day for the whole account, refused ones included,
 and past that Cloudflare answers 1027 and Ask AI is dead for invite and free users alike until the next day. Every

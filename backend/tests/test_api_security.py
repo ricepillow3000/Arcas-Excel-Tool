@@ -704,7 +704,7 @@ def test_every_package_the_app_imports_is_declared_and_every_declared_one_is_use
     exe = {name(r) for r in project["optional-dependencies"]["exe"]}
     assert exe <= tools, exe - tools
 def test_a_mutant_that_plants_nothing_is_an_error_never_a_survivor():
-    """AH-176: mutations.json holds \n and a Windows working tree holds \r\n, so every multi-line mutant planted
+    """AH-189: mutations.json holds \n and a Windows working tree holds \r\n, so every multi-line mutant planted
     nothing there and the run printed SURVIVED - a mutation run inventing the one answer it exists to find."""
     import pathlib
     import sys

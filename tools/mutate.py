@@ -100,7 +100,7 @@ def baseline(mutants, copy, env):
 def plant(text, old, new, mutant_id):
     """`text` with the mutant swapped in. A Windows working tree holds CRLF line endings where mutations.json holds
     LF, so a multi-line mutant matched nothing there and the whole run read it as SURVIVED - the one answer a mutation
-    run must never invent (AH-176). A mutant that plants nothing is an error now, on every platform."""
+    run must never invent (AH-189). A mutant that plants nothing is an error now, on every platform."""
     for o, n in ((old, new), (old.replace("\n", "\r\n"), new.replace("\n", "\r\n"))):
         if o in text:
             return text.replace(o, n)
