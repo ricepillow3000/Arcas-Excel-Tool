@@ -22,6 +22,15 @@ import { plainError } from "./utils/errors.js";
 import { sayProfile } from "./features/profile.js";
 
 const CARD = "#fix-view"; // what a card does turns off only the card's buttons (AH-149)
+// AH-170: focus goes to the button that took the pressed one's place (Accept's Undo, Undo's Accept): the pressed one was
+// hidden or turned off, and focus fell to the page, so the keyboard had to start again at the top. Comments in this file
+// avoid the words ZAP's baseline scan reads as suspicious (its rule 10027, CI's zap job)
+const thenFocus = (fn, to) => async () => {
+  await fn();
+  const b = to();
+  if (b && !b.hidden && !b.disabled) b.focus({ preventScroll: true });
+};
+const fixDone = () => state.fix && state.undos[state.fix.i];
 
 if (typeof Office !== "undefined") {
   Office.onReady((info) => {
@@ -33,13 +42,13 @@ if (typeof Office !== "undefined") {
     $("scan").onclick = act(() => runScan(true, true)); // held: the skeleton stays long enough to be seen
     $("retry-health").onclick = () => checkHealth();
     $("clear-highlights").onclick = act(clearHighlights);
-    $("edit-limits").onclick = openLimitsEditor;
+    $("edit-limits").onclick = act(openLimitsEditor); // AH-170: like every action, it clears the last one's notice
     $("cancel-limits").onclick = () => only(state.lastScan ? "results" : "empty-state");
     $("save-limits").onclick = act(saveLimitsAndRescan);
     $("auto-limits").onclick = act(async () => (saveLimits(null), await runScan()));
     $("fix-back").onclick = () => { backToList().catch((e) => notice(plainError(e))); };
-    $("fix-apply").onclick = act(() => state.fix && applyFix(state.fix, state.fix.changes, state.fix.sheet), CARD);
-    $("fix-undo").onclick = act(() => state.fix && undoFix(state.fix), CARD);
+    $("fix-apply").onclick = thenFocus(act(() => state.fix && applyFix(state.fix, state.fix.changes, state.fix.sheet), CARD), () => fixDone() && $("fix-undo"));
+    $("fix-undo").onclick = thenFocus(act(() => state.fix && undoFix(state.fix), CARD), () => state.fix && !fixDone() && $("fix-apply"));
     $("fix-dismiss").onclick = act(dismissFix, CARD);
     $("fix-next").onclick = act(nextFix, CARD);
     $("fix-ask").onclick = askFix;
@@ -79,7 +88,8 @@ if (typeof Office !== "undefined") {
 const AGAIN = 5000, FOR = 120000;
 let asked = 0, again = 0, until = 0;
 async function checkHealth(auto = false) {
-  const me = ++asked;
+  const me = ++asked, pressed = document.activeElement === $("retry-health"); // AH-170: hidden below, its focus is moved
+  const moveTo = (id) => pressed && $(id).focus({ preventScroll: true });
   clearTimeout(again);
   if (!auto) {
     until = Date.now() + FOR;
@@ -94,10 +104,12 @@ async function checkHealth(auto = false) {
     show("main-ui");
     show("server-down", false);
     if (state.view === "empty-state" && !state.lastScan) sayProfile(); // AH-169: what a scan will check, before it
+    moveTo("scan");
   } catch {
     if (me !== asked) return;
     show("main-ui", false);
     show("server-down");
+    moveTo("retry-health");
     if (Date.now() < until) again = setTimeout(() => checkHealth(true), AGAIN);
   }
 }

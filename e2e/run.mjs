@@ -268,6 +268,12 @@ if (mode === "flow") {
     ok(h.hint === "Recommended. Plus unusual mixes of values across columns." && !h.open && h.summary === "How we tested this level"
       && /^We tested it on \d+ practice sheets with \d+ mistakes hidden in them\. It found .* rows that were fine/.test(h.tested),
       "AH-149 review: under the slider, what the level does in one short line; what it did on the bench under \"How we tested this level\", closed - " + JSON.stringify(h)); }
+  // AH-175: on first use the slider is folded under Find problems, its summary saying the level, and a press opens it
+  { const fold = () => page.evaluate(() => ({ open: document.getElementById("strength-box").open, summary: document.querySelector("#strength-box > summary").textContent,
+      slider: document.getElementById("strength").checkVisibility(), hint: document.getElementById("strength-hint").checkVisibility() }));
+    const closed = await fold(); await page.click("#strength-box > summary"); const opened = await fold(); await page.click("#strength-box > summary");
+    ok(!closed.open && closed.summary === "How hard to look: 5 of 10" && !closed.slider && !closed.hint && opened.open && opened.slider && opened.hint,
+      "AH-175: the slider is folded, closed, under \"How hard to look: 5 of 10\", and a press opens it - " + JSON.stringify({ closed, opened })); }
   ok((await page.getAttribute("#strength", "aria-valuetext")) === "5 of 10, Recommended", "AH-149: the slider tells a screen reader its level's word - " + (await page.getAttribute("#strength", "aria-valuetext")));
   ok(since(c0) === "/scan" && calls[c0][1].strength === 5 && calls[c0][1].power_bi === false, "Find problems sends exactly one /scan, at the slider's level - " + since(c0));
   { const m = await matchesEngine(); ok(m.ok, "the list is exactly what the engine answered: each flagged row, its severity in words and its reason - " + m.why); }
@@ -298,7 +304,7 @@ if (mode === "flow") {
     await shot("podium-row");
     ok(before[0] === "matrix(0, 0, 0, 1, 0, 0)" && after[0] === "matrix(1, 0, 0, 1, 0, 0)" && scaleOf(before[1]) === 1 && scaleOf(after[1]) > 1.01 && +after[2] === 1 && after[3] === "2" && after[4] === before[4],
       "a hovered row: the fill sweeps from scaleX(0) to scaleX(1), the row lifts above its neighbours on a shadow, its words unchanged - " + JSON.stringify([before.slice(0, 4), after.slice(0, 4)]));
-    await page.mouse.move(1, 1); await page.focus("#strength-tested summary"); await page.keyboard.press("Tab"); await page.waitForTimeout(600); // from the control before the list: since the AH-149 review, "How we tested this level"
+    await page.mouse.move(1, 1); await page.focus("#strength-box > summary"); await page.keyboard.press("Tab"); await page.waitForTimeout(600); // from the control before the list: since AH-175, the folded slider's summary
     const keyed = await page.evaluate(() => { const b = document.activeElement; return [b.matches("#flagged-list button:focus-visible"), getComputedStyle(b, "::before").transform, getComputedStyle(b).transform]; });
     ok(keyed[0] && keyed[1] === "matrix(1, 0, 0, 1, 0, 0)" && scaleOf(keyed[2]) > 1.01, "keyboard focus gets the same fill and lift - " + keyed);
     await page.evaluate(() => document.activeElement.blur()); }
@@ -323,10 +329,34 @@ if (mode === "flow") {
     ok(top.under >= 0 && top.under <= 100 && !top.hero, `AH-165: opening row ${r}, its card's Back sits right under the pane's header, the scan controls out of the way - ` + JSON.stringify(top));
     await watchVt();
     await back(); await vtDone();
-    ok(await page.isVisible("#scan") && await page.isVisible("#strength"), `AH-165: Back from row ${r} brings Find problems and the slider again`);
+    ok(await page.isVisible("#scan") && await page.isVisible("#strength-box"), `AH-165: Back from row ${r} brings Find problems and the slider (folded since AH-175) again`);
     const home = await page.evaluate(() => ({ vt: __vt.some(Boolean), names: [...document.querySelectorAll(".row-head, #fix-title")].map((e) => getComputedStyle(e).viewTransitionName).filter((n) => n !== "none") }));
     ok(home.vt && !home.names.length && (await page.isVisible("#results")), `AH-149: Back flies the title home to row ${r} - ` + JSON.stringify(home));
   }
+
+  // AH-170: a date in a reason stays on one line: "2026-01-" / "26" broke at its hyphen at 320 px, in the list and the card
+  { const whole = (sel) => page.evaluate((sel) => { const w = document.createTreeWalker(document.querySelector(sel), NodeFilter.SHOW_TEXT), out = [];
+      for (let t; (t = w.nextNode());) for (const d of t.data.match(/\d{4}-\d{2}-\d{2}/g) || []) out.push(t.data === d && getComputedStyle(t.parentElement).whiteSpace === "nowrap" ? "kept" : `split: ${t.data}`);
+      return out; }, sel);
+    const list = await whole("#flagged-list"); await openRow(22); const card = await whole("#fix-reason"); await back();
+    ok(list.length && card.length && [...list, ...card].every((d) => d === "kept"), "AH-170: every date in a reason, in the list and on the card, is kept on one line - " + JSON.stringify({ list, card })); }
+
+  // AH-170: keyboard focus follows each card action. It fell to the page (BODY) when the pressed button was hidden or
+  // turned off: opening a row, Accept, Undo, Next row and Back, and a keyboard user started again from the top
+  { const at = () => page.evaluate(() => { const a = document.activeElement; return a.closest("#flagged-list") ? "row " + /^Row (\d+)/.exec(a.innerText)?.[1] : a.id || a.tagName; });
+    const press = async (sel) => { await page.focus(sel); await page.keyboard.press("Enter"); await idle(); };
+    await press('#flagged-list button:has-text("Row 81 ")');
+    await page.waitForFunction(() => document.getElementById("fix-changes").children.length || document.getElementById("fix-explanation").textContent);
+    const steps = { opened: await at() };
+    await press("#fix-apply"); steps.accepted = await at();
+    await page.keyboard.press("Enter"); await idle(); steps.undone = await at(); // Enter on what has the focus: Undo
+    await page.keyboard.press("Enter"); await idle(); // and on Accept again, so Next row shows
+    await press("#fix-next"); steps.next = [await at(), await text("#fix-title")];
+    await press("#fix-back"); await page.waitForSelector("#results", { state: "visible" }); steps.back = await at();
+    const nextRow = /^Row (\d+)/.exec(steps.next[1])?.[1];
+    ok(steps.opened === "fix-title" && steps.accepted === "fix-undo" && steps.undone === "fix-apply" && steps.next[0] === "fix-title" && nextRow && nextRow !== "81" && steps.back === `row ${nextRow}`,
+      "AH-170: by keyboard, focus goes to the card's title on opening, to Undo after Accept, to Accept after Undo, to the next card's title after Next row, and back to its row after Back - " + JSON.stringify(steps));
+    await openRow(81); await page.click("#fix-undo"); await idle(); await back(); } // row 81 as it was, for what follows
 
   // 2) open a row's card, Accept (Agent 3 checks it again, highlight goes), Undo
   { // AH-94: the card turns in like a page (finite, so nothing waits on it forever) and lies flat by 800 ms
@@ -381,6 +411,8 @@ if (mode === "flow") {
   await page.evaluate(() => __fill("Sales", "D11", "#FF0000"));
   await page.click("#fix-apply"); await idle();
   ok((await cell("C11")).v !== -5 && (await page.isVisible("#fix-undo")) && (await text("#fix-apply")) === "Accepted", "Accept writes the cell");
+  // AH-171: a finish line in the foot bar after each decision (nothing moves, AH-165): the list's rows, counted
+  ok((await text("#notice")) === "1 of 5 rows done.", "AH-171: Accept says how many rows are done - " + (await text("#notice")));
   ok(since(c1) === "/check" && calls[c1][1].row_index === 9, "Accept asks the engine once, /check for that row (never a full /scan) - " + since(c1));
   ok(await page.evaluate(() => Object.values(__settings.anomalyHunterDecisions?.Sales || {}).includes("fixed")), "Accept keeps the decision in the workbook");
   ok((await wrote()) === "Sales!C11", "Accept wrote exactly the one targeted cell, nothing else - " + (await wrote()));
@@ -460,6 +492,12 @@ if (mode === "flow") {
   ok((await cell("C22")).v === 7777 && (await cell("C22")).fill === null && (await cell("B22")).fill === "#00B0F0", "Dismiss keeps the value and removes only our highlight");
   ok((await page.evaluate(() => __log.length)) === beforeDismiss, "Dismiss (and opening the next row) writes no cell at all");
   ok(/^Row \d+/.test(await text("#fix-title")) && !(await text("#fix-title")).startsWith("Row 22"), "and moves to the next row - " + (await text("#fix-title")));
+  ok((await text("#notice")) === "1 of 5 rows done.", "AH-171: Dismiss says how many rows are done - " + (await text("#notice")));
+  // ... an Accept on top counts one more, and its Undo takes it back (row 11 as it was, for step 4)
+  await back(); await openRow(11); await page.click("#fix-apply"); await idle();
+  ok((await text("#notice")) === "2 of 5 rows done.", "AH-171: Accept after a Dismiss - " + (await text("#notice")));
+  await page.click("#fix-undo"); await idle();
+  ok((await cell("C11")).v === -5 && (await text("#notice")) === "1 of 5 rows done.", "AH-171: Undo takes its row back off the count - " + (await text("#notice")));
 
   // 4) Remove highlights puts back exactly what was there (the user's green row 11 too)
   await back();
@@ -505,11 +543,20 @@ if (mode === "flow") {
   // 6) limits: plain words, bad input refused, saving rescans, "Back to automatic" resets
   const openStrict = () => page.locator("details.more:has(#edit-limits)").evaluate((d) => (d.open = true));
   await openStrict();
+  const noticed = await text("#notice"); // Remove highlights' words, just above
   await page.click("#edit-limits");
+  ok(noticed.startsWith("Highlights removed") && (await text("#notice")) === "", `AH-170: opening the limits editor clears the last action's notice - ${JSON.stringify([noticed, await text("#notice")])}`);
   const units = page.locator('#limits-rows .limits-row[data-column="Units"] input');
   await contrast("the limits editor");
   await units.nth(0).fill("200"); await units.nth(1).fill("100"); await page.click("#save-limits");
   ok((await text("#limits-error")).includes('"Flag below" is bigger than "Flag above"') && (await page.isVisible("#limits-editor")), "low above high is refused");
+  // AH-170: letters in a limit box were read as an empty box, and the limit was taken off without a word
+  { await units.nth(0).fill("-10"); await units.nth(1).click(); await units.nth(1).press("Control+a"); await page.keyboard.type("abc");
+    const typed = await units.nth(1).inputValue(), k = calls.length;
+    await page.click("#save-limits"); await page.waitForTimeout(300);
+    ok(typed === "abc" && (await text("#limits-error")) === 'Units: type a number in "Flag above", or leave it empty for no limit.' && (await page.isVisible("#limits-editor"))
+      && calls.length === k && (await page.evaluate(() => __settings.anomalyHunterLimits)) === undefined && (await units.nth(1).evaluate((x) => x === document.activeElement)),
+      `AH-170: letters in a limit box are refused in plain words, the box focused, nothing saved or scanned - ${JSON.stringify({ typed, said: await text("#limits-error"), sent: since(k) })}`); }
   await units.nth(0).fill("-10"); await units.nth(1).fill("10000"); await page.click("#save-limits"); await idle();
   ok(!(await text("#flagged-list")).includes("Units is 7777"), "saved limits are used at once");
   ok(await page.evaluate(() => Object.keys(__settings.anomalyHunterLimits).join() === "Units"), "only the changed column is saved");
@@ -520,7 +567,9 @@ if (mode === "flow") {
   // 6b) the strength slider, driven by a real mouse: press the thumb, drag, let go -> re-check; 0 = basics only,
   // saved in the workbook; 5 brings everything back
   // a mouse can only drag what is on screen: bring the slider into view first, as a person scrolls up to it
-  const track = async () => { await page.locator("#strength").scrollIntoViewIfNeeded(); const b = await page.locator("#strength").boundingBox(); return { x: (v) => b.x + (b.width * v) / 10, y: b.y + b.height / 2 }; };
+  // since AH-175 the slider is folded: opened first, as a person presses "How hard to look"
+  const openLevel = () => page.$eval("#strength-box", (d) => (d.open = true));
+  const track = async () => { await openLevel(); await page.locator("#strength").scrollIntoViewIfNeeded(); const b = await page.locator("#strength").boundingBox(); return { x: (v) => b.x + (b.width * v) / 10, y: b.y + b.height / 2 }; };
   const slide = async (from, to) => { const t = await track(); await page.mouse.move(t.x(from), t.y); await page.mouse.down(); await page.mouse.move(t.x(to), t.y, { steps: 8 }); await page.mouse.up(); };
   const level = () => page.getAttribute("#strength", "aria-valuenow");
   const listed5 = (await page.$$("#flagged-list li")).length;
@@ -530,6 +579,10 @@ if (mode === "flow") {
   ok((await shown()).length === 1, "a slider re-check shows the scan skeleton too (no hold: it never waits for it) - " + (await shown()).map(Math.round));
   await page.waitForTimeout(800); // room for a second, unwanted re-scan to show up
   ok(scans.slice(s0).map((b) => b.strength).join() === "0", "a drag to 0 causes exactly one re-scan, at 0 - " + scans.slice(s0).map((b) => b.strength));
+  { await page.$eval("#strength-box", (d) => (d.open = false)); // AH-175: a level other than 5 shows with the slider folded
+    const said = await page.evaluate(() => [document.querySelector("#strength-box > summary").textContent, document.getElementById("strength-val").checkVisibility()]);
+    await openLevel();
+    ok(said[0] === "How hard to look: 0 of 10" && said[1], "AH-175: the folded slider's summary says the level it is at - " + JSON.stringify(said)); }
   { const m = await matchesEngine(); ok(m.ok, "at 0 the list is exactly what the engine answered at 0 - " + m.why); }
   // the pane says what the new level changed, counted from the engine's last two answers for this very sheet (AH-15)
   { const [b, a] = replies.slice(-2), said = await text("#level-change");
@@ -559,7 +612,7 @@ if (mode === "flow") {
   await page.waitForTimeout(800);
   ok(scans.slice(s1).map((b) => b.strength).join() === "0,8", "the running check, then exactly one re-check, at the level let go at - " + scans.slice(s1).map((b) => b.strength));
   const s2 = scans.length;
-  await page.focus("#strength"); await page.keyboard.press("ArrowLeft"); await page.keyboard.press("ArrowLeft"); await page.keyboard.press("ArrowLeft");
+  await openLevel(); await page.focus("#strength"); await page.keyboard.press("ArrowLeft"); await page.keyboard.press("ArrowLeft"); await page.keyboard.press("ArrowLeft");
   ok((await level()) === "5", "arrow keys move it one step at a time");
   // capped wait: a pane that never checks 5 must fail the named check below, not stop the run on a timeout
   await page.waitForFunction(() => __state.lastStrength === 5 && !document.getElementById("scan").disabled, null, { timeout: 15000 }).catch(() => {});
@@ -575,7 +628,7 @@ if (mode === "flow") {
   // re-check at the level the first one's re-check had already used
   const s3 = scans.length;
   await page.click("#scan");
-  await page.focus("#strength"); await page.keyboard.press("ArrowRight"); await page.keyboard.press("ArrowRight");
+  await openLevel(); await page.focus("#strength"); await page.keyboard.press("ArrowRight"); await page.keyboard.press("ArrowRight");
   await page.waitForFunction(() => __state.lastStrength === 7 && !document.getElementById("scan").disabled, null, { timeout: 15000 }).catch(() => {});
   await page.waitForTimeout(1500); await idle();
   ok(scans.slice(s3).map((b) => b.strength).join() === "5,7", "two slider steps while a check runs: that check, then one at 7, never a second at 7 - " + scans.slice(s3).map((b) => b.strength));
@@ -761,7 +814,7 @@ if (mode === "flow") {
   const rowsShown = () => page.$$eval("#flagged-list li", (lis) => lis.length);
   const dom0 = await counters(), shownBefore = await rowsShown();
   for (let k = 0; k < 20; k++) await find();
-  await page.focus("#strength");
+  await openLevel(); await page.focus("#strength");
   for (let k = 0; k < 10; k++) { // 6, 5, 6, 5...: each a re-check, ending back at 5
     const to = k % 2 ? 5 : 6;
     await page.keyboard.press(to === 6 ? "ArrowRight" : "ArrowLeft");
@@ -1060,8 +1113,9 @@ if (mode === "flow") {
   await page.unroute("**/health", hang);
   ok(hung >= 1 && said && waited >= 9000 && waited < 20000 && !(await page.isVisible("#main-ui")),
     `an engine that never answers /health: after ${waited} ms the pane says Arcas has stopped (${hung} /health held)`);
-  await page.click("#retry-health"); await page.waitForSelector("#main-ui", { state: "visible", timeout: 10000 }).catch(() => {});
+  await page.focus("#retry-health"); await page.keyboard.press("Enter"); await page.waitForSelector("#main-ui", { state: "visible", timeout: 10000 }).catch(() => {});
   ok(await page.isVisible("#main-ui"), "and Try again opens the pane once the engine answers");
+  ok((await page.evaluate(() => document.activeElement.id)) === "scan", "AH-170: and focus goes from Try again, now hidden, to Find problems - " + (await page.evaluate(() => document.activeElement.id || document.activeElement.tagName)));
 }
 
 // AH-164: a note under an AI button is one short line at most; what it sends is a press away under "What is sent?" /
@@ -1081,10 +1135,18 @@ const shortNote = async (box, note, summary, full) => {
 
 if (mode === "ai") { // engine started with a Claude key pointed at stub_claude.py
   await find();
-  ok(await page.isVisible("#ai-box") || !(await page.isVisible("#ai-off")), "AI help is on when a key is set");
+  ok(await page.isVisible("#ai-fold") || !(await page.isVisible("#ai-off")), "AI help is on when a key is set");
   await shortNote("#odd-box", "#odd-box p", "What is sent?", ["It sends only the different words in your text columns to Google (through John's relay if you use an invite code), never your rows or numbers.", "Its answers are leads to check."]);
+  // AH-175: Ask AI is folded under a card's fix, "Want a different fix? Ask AI", and open by itself on a card with no fix
+  { const look = () => page.evaluate(() => ({ title: document.getElementById("fix-title").textContent, fix: document.getElementById("fix-changes").children.length,
+      open: document.getElementById("ai-fold").open, summary: document.querySelector("#ai-fold > summary").textContent, box: document.getElementById("fix-intent").checkVisibility() }));
+    const cards = [];
+    for (const r of [11, 51, 121]) { await openRow(r); cards.push(await look()); await back(); }
+    ok(cards.every((c) => c.summary === "Want a different fix? Ask AI" && c.open === !c.fix && c.box === !c.fix) && cards.some((c) => c.fix) && cards.some((c) => !c.fix),
+      "AH-175: Ask AI folded on a card with a fix, open on one with none - " + JSON.stringify(cards)); }
   await openRow(11);
-  ok(await page.isVisible("#ai-box") && !(await page.isVisible("#ai-off")), "Ask AI shown when a key is set");
+  ok(await page.isVisible("#ai-fold") && !(await page.isVisible("#ai-off")), "Ask AI shown when a key is set");
+  await page.click("#ai-fold > summary");
   await shortNote("#ai-box", "#fix-sends", "What Ask AI sends", ["Ask AI sends the column names, this row and up to 5 rows above and below it", "Up to 5 fixes you accepted before in a column with this name"]);
   // typed with the real keyboard: page.fill sets the value without a single key event, and so hid that the box
   // cancelled every key (2026-10-20). Keys inside a text field never start a scan, and Ctrl+Enter asks AI, which sends
@@ -1162,6 +1224,10 @@ if (mode === "ai") { // engine started with a Claude key pointed at stub_claude.
   ok(!(await page.isVisible("#fix-label")) && (await page.$eval("#fix-changes", (u) => u.children.length)) === 0 && (await text("#fix-explanation")) === "",
     "and no earlier suggestion beside it");
   await contrast("a row's card with the helpline message");
+  { await page.$eval("#ai-fold", (d) => (d.open = false)); // AH-175: the helpline message is never folded away with Ask AI
+    const still = await page.isVisible("#fix-care") && (await text("#fix-care")) === careSaid;
+    await page.$eval("#ai-fold", (d) => (d.open = true));
+    ok(still, "AH-175: with Ask AI folded, the helpline message still shows"); }
   // the next ask clears it, and a real fix brings Accept back
   await page.fill("#fix-intent", ""); await page.click("#fix-intent");
   await page.keyboard.type("use the average Units"); await page.keyboard.press("Enter"); await page.keyboard.type("for East");
@@ -1229,7 +1295,9 @@ if (mode === "ai") { // engine started with a Claude key pointed at stub_claude.
   await page.click("#odd-check"); await idle();
   ok(posts.join() === "/odd-text", "Check words with AI sends only /odd-text - " + posts);
   const odd = await page.$$eval("#odd-list li", (lis) => lis.map((li) => li.textContent));
-  ok(odd.length === 100 && odd.every((t) => /^Row \d+, column [A-Z]+ \(Region\): "Central"\. The AI says: <img src=x onerror=/.test(t)), `each row with the odd word listed (${odd.length}) - ${odd[0]}`);
+  // AH-170: one line for the odd word, never one a cell: its 100 cells gave 100 identical lines
+  ok(odd.length === 1 && /^Column B \(Region\): "Central" in 100 rows \(\d+, \d+, \d+ and 97 more\)\. The AI says: <img src=x onerror=/.test(odd[0]),
+    `AH-170: the odd word in one line, with its column, how many rows and the first 3 (${odd.length} lines) - ${odd[0]}`);
   ok(!(await page.$("#odd-list img")) && !(await page.evaluate(() => window.__pwned)) && !odd.some((t) => t.includes("Atlantis")),
     "the AI's words are text, never markup; a word the AI made up is dropped");
   const sent = fs.readFileSync(DIR + "claude.log", "utf8").trim().split("\n").map(JSON.parse).find((l) => l.prompt.includes("distinct values"));
@@ -1248,6 +1316,13 @@ if (mode === "ai") { // engine started with a Claude key pointed at stub_claude.
       status: document.getElementById("status").getBoundingClientRect().height, notice: document.getElementById("notice").textContent }));
     ok(m.odd === m.body, `Check words' answer, or why it could not check, is at body size - ${m.odd} (body ${m.body})`);
     ok(m.notice === "" && m.status < 1, `with nothing to say and nothing running, the progress and notice line holds no space over the summary - ${m.status} px`); }
+  // AH-170: Check words' lines name cells of the sheet they were asked about: another sheet's check never shows them
+  await page.click("#odd-check"); await idle();
+  const oddBefore = await page.$$eval("#odd-list li", (lis) => lis.length);
+  await page.evaluate(() => __load("Other", [["Item", "Qty"], ...Array.from({ length: 30 }, (_, k) => [["Pen", "Ink"][k % 2], k + 1])]));
+  await find();
+  ok(oddBefore > 0 && (await page.$$eval("#odd-list li", (lis) => lis.length)) === 0 && (await text("#sheet-name")) === "Other",
+    `AH-170: Find problems on another sheet clears the old Check words lines (${oddBefore} before)`);
 }
 
 if (mode === "nokey") { // engine started with no key: John's free AI through the relay, here stub_claude.py's /fix (e2e/engine.py)
@@ -1256,9 +1331,10 @@ if (mode === "nokey") { // engine started with no key: John's free AI through th
   // AH-151: a fresh pane with no key has the free AI on, says so in AI help, and Ask AI works with nothing secret sent
   const FREE = "AI help is on, using a free shared AI with a few requests a day for each internet connection. For more, paste your own free Google key below.";
   const free = JSON.parse(await page.evaluate(() => fetch("/health").then((r) => r.text())));
-  ok(free.ai_available && free.ai_provider === "free" && (await page.isVisible("#ai-box")) && !(await page.isVisible("#ai-off"))
+  ok(free.ai_available && free.ai_provider === "free" && (await page.isVisible("#ai-fold")) && !(await page.isVisible("#ai-off"))
     && (await text("#ai-state")) === FREE && !(await page.isDisabled("#fix-ask")),
     "without a key: the free AI is on, said in AI help, and Ask AI is there - " + JSON.stringify(free) + " " + (await text("#ai-state")));
+  await page.click("#ai-fold > summary"); // AH-175: Ask AI is folded under the card's fix
   await page.click("#fix-ask");
   await page.waitForFunction(() => document.getElementById("fix-label").textContent === "AI's fix", null, { timeout: 30000 });
   const relayed = fs.readFileSync(DIR + "claude.log", "utf8").trim().split("\n").map(JSON.parse).at(-1);
@@ -1288,7 +1364,7 @@ if (mode === "nokey") { // engine started with no key: John's free AI through th
   await page.waitForTimeout(500); // room for a second /key to show up
   ok(keyCalls.length - k0 === 1, `a double click on Save key sends one /key - ${keyCalls.length - k0}`);
   const health = await page.evaluate(() => fetch("/health").then((r) => r.text()));
-  ok((await page.isVisible("#ai-box")) && !(await page.isVisible("#ai-off")) && JSON.parse(health).ai_provider === "relay",
+  ok((await page.isVisible("#ai-fold")) && !(await page.isVisible("#ai-off")) && JSON.parse(health).ai_provider === "relay",
     "invite code saved: AI help is on, through the relay - " + (await text("#ai-state")));
   ok((await page.inputValue("#ai-key")) === "" && !(await page.content()).includes(code) && !health.includes(code)
     && fs.readFileSync(DIR + "cert/invite-code.txt", "utf8") === code, "the code is kept on this PC only: never on screen, never in an answer");
@@ -1297,7 +1373,7 @@ if (mode === "nokey") { // engine started with no key: John's free AI through th
   await page.waitForFunction(() => document.getElementById("ai-state").textContent === "Key removed. AI help uses the free shared AI again.");
   await page.waitForTimeout(500);
   ok(since(c5) === "/key" && calls[c5][1].key === "", "Remove key, double-clicked, sends exactly one /key, with an empty key - " + since(c5));
-  ok((await page.isVisible("#ai-box")) && !(await page.isVisible("#ai-off")) && !fs.existsSync(DIR + "cert/invite-code.txt"),
+  ok((await page.isVisible("#ai-fold")) && !(await page.isVisible("#ai-off")) && !fs.existsSync(DIR + "cert/invite-code.txt"),
     "Remove key: back to the free AI, the code deleted from this PC");
   // saving fails: the PC can't keep the file (the engine's 503, AH-13), or the engine is gone. Said where the key goes,
   // and the key stays in its box to try again (cleared after a save, or when the engine refuses the key itself)
@@ -1309,7 +1385,7 @@ if (mode === "nokey") { // engine started with no key: John's free AI through th
       await page.route("**/key", fail, { times: 1 }); await page.fill("#ai-key", code); await page.click("#save-key");
       await page.waitForFunction((w) => document.getElementById("ai-state").textContent === w, words, { timeout: 10000 }).catch(() => {});
     });
-    ok((await text("#ai-state")) === words && (await page.isVisible("#ai-box")) && (await page.inputValue("#ai-key")) === code,
+    ok((await text("#ai-state")) === words && (await page.isVisible("#ai-fold")) && (await page.inputValue("#ai-key")) === code,
       `Save key when ${how}: said in plain words, AI help stays on the free AI, the key kept in its box to try again - ` + (await text("#ai-state")));
     const look = await looksLikeNotice("#ai-state");
     ok(look.ok, `AH-149 review r2: Save key when ${how}: why it was not saved is a notice at body size, said once - ` + JSON.stringify(look));

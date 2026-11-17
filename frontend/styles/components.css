@@ -2,8 +2,10 @@
    square navy-framed thumb that follows the pointer without lag (no transition on its position or size), and no text
    selection anywhere on it */
 .strength { margin: var(--s1) 0 var(--s3); user-select: none; -webkit-user-select: none; }
-.strength-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--gutter); font: 700 13px/1.4 var(--sans); color: var(--navy); }
-.strength-head b { font: 800 var(--fs-1)/1 var(--sans); color: var(--wine); font-variant-numeric: tabular-nums; }
+/* AH-175: folded under Find problems, its summary saying the level ("How hard to look: 5 of 10"), so a first look is one
+   button: the slider, its hint and how it was tested open from there */
+#strength-box { margin-top: var(--s3); }
+#strength-val { color: var(--wine); font-variant-numeric: tabular-nums; }
 .slider { --pct: 50%; position: relative; height: 44px; margin: var(--s1) 7px 0; cursor: pointer; touch-action: none; outline: none; } /* a finger's height (AH-149); the track and thumb stay as drawn */
 .slider-track { position: absolute; left: 0; right: 0; top: 20px; height: 3px; border-radius: 0; background: var(--rule); overflow: hidden; }
 .slider-fill { width: var(--pct); height: 100%; background: var(--wine); }
@@ -180,6 +182,7 @@ details.more[open] summary { margin-bottom: var(--s3); }
 
 /* the suggestion card: plain paper in a navy hairline frame, the flagged cell's square before its title (a 4px wine stripe
    down its left side was the commonest tell of a generated page, AH-98) */
+.iso-date { white-space: nowrap; } /* AH-170: a date in a reason never breaks at its hyphen */
 .reason-box { margin: 0 0 var(--s3); font-size: 13px; color: var(--muted); white-space: pre-line; text-wrap: pretty; } /* each reason on its own line (AH-149) */
 .fix-result { background: var(--field); border: 1px solid var(--navy); border-radius: 0; padding: var(--s4); margin: var(--s3) 0 var(--s4); }
 .fix-result h2 { margin: 0 0 var(--s2); padding-top: 0; }
@@ -207,7 +210,6 @@ details.more[open] summary { margin-bottom: var(--s3); }
 .fix-changes .old { color: var(--muted); text-decoration: line-through; }
 .fix-changes .new { color: var(--navy); font-weight: 800; text-decoration: underline; text-decoration-color: var(--wine); text-decoration-thickness: 2px; text-underline-offset: 3px; }
 .fix-result .row-buttons { margin-top: var(--s4); }
-#ai-box { padding-top: var(--s3); border-top: 1px solid var(--rule); }
 #ai-box label { display: block; font-size: 13px; font-weight: 700; margin-bottom: var(--s2); color: var(--navy); }
 #fix-intent { padding: var(--s2) 10px; font-size: 13px; resize: vertical; }
 /* AH-149: three plain requests Ask AI already answers, as buttons that fill the box. A combo box's list would need a role

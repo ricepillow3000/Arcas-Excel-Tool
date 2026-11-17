@@ -68,7 +68,7 @@
   }
 
   // The sheet loads as a skeleton of itself (AH-89). It waits, bars where the values will be, until the sheet is 60%
-  // on screen, or covers 60% of a screen it is taller than (a phone), and its entrance, if it is coming in, is a third of
+  // on screen, or covers 60% of a screen it is taller than (a phone), or its row 11 is on the first screen (AH-171), and its entrance, if it is coming in, is a third of
   // the way; then one band of light crosses it in --skeleton-dur and the rows land one by one, --land-step apart. While
   // a glide runs ("See a sample scan", motion.js) it waits for the glide to end: at 30% it played on the way down and
   // had mostly finished by the time the visitor arrived (AH-99, John 2026-11-02). Never over values someone may already have seen
@@ -105,8 +105,21 @@
       const b = ws.getBoundingClientRect(), h = html.clientHeight, shown = Math.min(b.bottom, h) - Math.max(b.top, 0);
       return shown > 0 && (shown >= 0.6 * b.height || shown >= 0.6 * h);
     };
+    // AH-171: where the first flagged row is on the first screen at load, before any scroll, the sheet counts as seen:
+    // read from the layout (offsets), not the entrance's transform, which still holds the sheet low. It waited grey for
+    // a scroll a visitor reading the headline never made (1280 x 800, 1440 x 900); on a phone row 11 is below the fold
+    const first = () => {
+      const row = ws.querySelector("#r11");
+      if (!row || scrollY) return false;
+      let top = 0;
+      for (let e = row; e; e = e.offsetParent) top += e.offsetTop;
+      return top + row.offsetHeight <= html.clientHeight;
+    };
     function check() {
       if (done || armed || (window.AH.gliding && window.AH.gliding()) || !seen()) return;
+      arm();
+    }
+    function arm() {
       armed = true;
       if (io) io.disconnect();
       io = null;
@@ -120,6 +133,7 @@
     ws.setAttribute("data-loading", "");
     io.observe(ws);
     ws.addEventListener("pointerdown", end, true); ws.addEventListener("keydown", end, true);
+    if (first()) arm();
     return end;
   }
 
@@ -321,6 +335,12 @@
       if (dy) scrollBy({ top: dy, behavior: moving() ? "smooth" : "instant" });
     }
 
+    const setCount = (n, to) => {
+      const from = n.getAttribute("data-tick") || n.textContent;
+      if (ticks.has(n)) { ticks.get(n)(); ticks.delete(n); }
+      n.textContent = to;
+      if (moving() && /^\d+$/.test(from) && /^\d+$/.test(to) && from !== to) ticks.set(n, count(n, (p) => String(Math.round(+from + (to - from) * p)), 250));
+    };
     function show(tab) {
       for (const t of tabs) {
         const sel = t === tab;
@@ -336,12 +356,7 @@
       // key under the filters says so too (it read "Probably wrong: 3" over the corrected sheet, AH-98)
       // ... and with motion each count that changes from one number to another ticks there over 250 ms (AH-148), from the
       // figure it shows, so a tab chosen mid-tick goes on from there
-      for (const n of counts) {
-        const to = state === "found" ? n.dataset.n : state === "clean" ? n.dataset.after : "·", from = n.getAttribute("data-tick") || n.textContent;
-        if (ticks.has(n)) { ticks.get(n)(); ticks.delete(n); }
-        n.textContent = to;
-        if (moving() && /^\d+$/.test(from) && /^\d+$/.test(to) && from !== to) ticks.set(n, count(n, (p) => String(Math.round(+from + (to - from) * p)), 250));
-      }
+      for (const n of counts) setCount(n, state === "found" ? n.dataset.n : state === "clean" ? n.dataset.after : "·");
       closeMatrix();
       if (run) run();
       if (state === "busy") scan();
@@ -357,6 +372,10 @@
       bring({ top: r.top, bottom: r.top + Math.min(r.height, html.clientHeight / 2) });
     };
     for (const t of tabs) t.addEventListener("click", () => press(t));
+    // AH-170 F1: a "Row 22" link pressed while the sheet showed After fixes, or while Scanning played, left its row in the
+    // hidden findings, whose offsets read 0: the glide went to the page's top, and with reduced motion nothing moved. The
+    // findings come back at the press, before motion.js (on the document) or the browser reads where the row is
+    for (const a of root.querySelectorAll("a.to-row")) a.addEventListener("click", () => { if (ws.dataset.state !== "found") pick(tabs[0]); }, on);
     // the arrows, Home and End move between tabs, as in any tab list (WAI-ARIA tabs; Home and End since AH-132, and End
     // no longer scrolls the page to its bottom)
     ws.querySelector(".tabs").addEventListener("keydown", (e) => {
@@ -480,6 +499,34 @@
       btn.closest("tr").addEventListener("click", () => openMatrix(btn));
     }
     for (const c of ws.querySelectorAll(".m-close")) c.addEventListener("click", () => { const b = open && open.btn; closeMatrix(); if (b) b.focus(); });
+    // Accept (AH-171, rows 11, 22 and 31: the rows the After fixes tab mends) writes that tab's own row into the
+    // findings, its mended cell and "Fixed: ...", which test_site_sample.py holds to the engine's scan of the fixed
+    // sheet: no value is made up here. The row keeps its id (a "Row 22" link still lands on it) but is flagged no more,
+    // the box closes onto the row's number, and each count is the rows still flagged, counted as a tab's change counts
+    // (set at once without motion); a tab chosen later shows the same. Nothing is stored: a reload is the sample again
+    const NUM = ["no", "one", "two", "three", "four", "five", "six", "seven"];
+    function recount() {
+      const left = [...main.querySelectorAll(".grid tbody tr[data-kind]")];
+      for (const n of counts) {
+        const k = n.closest("button") && n.closest("button").dataset.kind, q = !k && !!n.parentElement.querySelector("i.q");
+        const to = String(left.filter((tr) => (k ? k === "all" || tr.dataset.kind.split(" ").includes(k) : !!tr.querySelector(q ? "td.q" : "td.flag"))).length);
+        n.dataset.n = to;
+        setCount(n, to);
+      }
+      main.querySelector(".grid").setAttribute("aria-label", `Sample sales sheet with ${NUM[left.length]} flagged rows`);
+    }
+    for (const a of ws.querySelectorAll(".m-accept")) a.addEventListener("click", () => {
+      const tr = open && open.btn.closest("tr"), n = tr && tr.querySelector("th").textContent;
+      const clean = n && [...ws.querySelectorAll("#p-clean .grid tbody tr")].find((x) => (x.querySelector("th") || {}).textContent === n);
+      if (!clean) return;
+      closeMatrix();
+      const row = clean.cloneNode(true), th = row.querySelector("th");
+      row.id = tr.id;
+      th.tabIndex = -1;
+      tr.replaceWith(row);
+      th.focus();
+      recount();
+    }, on);
     // Tab out of the box closes it and lets focus go where Tab took it: it stayed open, floating over the rows (AH-132). A
     // press on the box's own text moves focus to nothing (relatedTarget null) and a press on its row's button toggles
     // it: neither is leaving

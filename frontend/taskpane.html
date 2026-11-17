@@ -24,9 +24,6 @@
     <div id="skeleton" aria-hidden="true">
       <div class="sk-btn"></div>
       <div class="sk-line"></div>
-      <div class="sk-track"></div>
-      <div class="sk-scale"></div>
-      <div class="sk-hint"></div>
       <div class="sk-row"></div><div class="sk-row"></div><div class="sk-row"></div>
       <div class="sk-foot"></div>
     </div>
@@ -40,20 +37,22 @@
     <section id="main-ui" hidden>
       <div class="pane-hero">
       <button id="scan" class="primary" data-enter="bottom">Find problems in this sheet</button>
-      <div class="strength" data-enter="bottom">
-        <div class="strength-head"><span id="strength-label" data-enter="left">How hard to look</span><b id="strength-val">5 of 10</b></div>
-        <div id="strength" class="slider" role="slider" tabindex="0" aria-labelledby="strength-label"
-             aria-valuemin="0" aria-valuemax="10" aria-valuenow="5">
-          <div class="slider-track"><div class="slider-fill"></div></div>
-          <div class="slider-thumb"></div>
+      <details id="strength-box" class="more" data-enter="bottom">
+        <summary><span><span id="strength-label">How hard to look</span>: <b id="strength-val">5 of 10</b></span></summary>
+        <div class="strength">
+          <div id="strength" class="slider" role="slider" tabindex="0" aria-labelledby="strength-label"
+               aria-valuemin="0" aria-valuemax="10" aria-valuenow="5">
+            <div class="slider-track"><div class="slider-fill"></div></div>
+            <div class="slider-thumb"></div>
+          </div>
+          <div class="slider-scale"><span>Basics</span><span>Recommended</span><span>Strictest</span></div>
+          <p id="strength-hint" class="hint"></p>
+          <details id="strength-tested">
+            <summary>How we tested this level</summary>
+            <p id="strength-measured" class="hint"></p>
+          </details>
         </div>
-        <div class="slider-scale"><span>Basics</span><span>Recommended</span><span>Strictest</span></div>
-        <p id="strength-hint" class="hint"></p>
-        <details id="strength-tested">
-          <summary>How we tested this level</summary>
-          <p id="strength-measured" class="hint"></p>
-        </details>
-      </div>
+      </details>
       </div>
       <button id="undo-auto" class="secondary" hidden>Undo auto-fixes</button>
 
@@ -102,7 +101,7 @@
           <summary>All fairness checks</summary>
           <ul id="fairness-list" class="hint"></ul>
         </details>
-        <h2 id="list-title">Rows to check</h2>
+        <h2 id="list-title" tabindex="-1">Rows to check</h2>
         <p id="list-hint" class="hint">Worst first. Click a row to see what's wrong and a suggested fix. Check each one before you accept: you know your data best. The cells to check are coloured in your sheet. This changes no values. Remove highlights takes the colour off.</p>
         <ul id="flagged-list" class="flagged-list"></ul>
         <button id="clear-highlights" class="secondary">Remove highlights</button>
@@ -137,7 +136,7 @@
       <section id="fix-view" hidden>
         <button id="fix-back" class="link-btn">&larr; All rows to check</button>
         <div class="fix-result">
-          <h2 id="fix-title"></h2>
+          <h2 id="fix-title" tabindex="-1"></h2>
           <p id="fix-reason" class="reason-box"></p>
           <div class="fix-body">
             <div class="fix-sk" aria-hidden="true"><span class="sk-bar sk-title">&nbsp;</span><span class="sk-bar sk-long">&nbsp;</span><span class="sk-bar sk-mid">&nbsp;</span></div>
@@ -154,21 +153,24 @@
           <p id="fix-status" class="hint" role="status" aria-live="polite"></p>
           <p id="fix-care" role="status" hidden></p>
         </div>
-        <div id="ai-box">
-          <label for="fix-intent">For a different fix, describe it and AI will draft one.</label>
-          <textarea id="fix-intent" rows="3" maxlength="2000" aria-describedby="fix-sends" placeholder="e.g. Use the average Units for the East region"></textarea>
-          <p id="fix-tries-label" class="hint">Or start from one of these. Picking one only fills the box: nothing is sent until you press Ask AI.</p>
-          <div id="fix-tries" class="tries" role="group" aria-labelledby="fix-tries-label">
-            <button type="button" class="try">Explain this row in simple words</button>
-            <button type="button" class="try">What should this value be?</button>
-            <button type="button" class="try">Is this a typo?</button>
+        <details id="ai-fold" class="more">
+          <summary>Want a different fix? Ask AI</summary>
+          <div id="ai-box">
+            <label for="fix-intent">For a different fix, describe it and AI will draft one.</label>
+            <textarea id="fix-intent" rows="3" maxlength="2000" aria-describedby="fix-sends" placeholder="e.g. Use the average Units for the East region"></textarea>
+            <p id="fix-tries-label" class="hint">Or start from one of these. Picking one only fills the box: nothing is sent until you press Ask AI.</p>
+            <div id="fix-tries" class="tries" role="group" aria-labelledby="fix-tries-label">
+              <button type="button" class="try">Explain this row in simple words</button>
+              <button type="button" class="try">What should this value be?</button>
+              <button type="button" class="try">Is this a typo?</button>
+            </div>
+            <button id="fix-ask" class="secondary">Ask AI</button>
+            <details class="sends">
+              <summary>What Ask AI sends</summary>
+              <p id="fix-sends" class="hint">Ask AI sends the column names, this row and up to 5 rows above and below it, the row's formulas, why it was flagged and what you type here, to Google (through John's relay with an invite code or with no key of your own). Long cells are cut to 200 characters. Up to 5 fixes you accepted before in a column with this name (the name, the kind of fix, and the old and new values) are sent only once the AI memory is switched on in a later update.</p>
+            </details>
           </div>
-          <button id="fix-ask" class="secondary">Ask AI</button>
-          <details class="sends">
-            <summary>What Ask AI sends</summary>
-            <p id="fix-sends" class="hint">Ask AI sends the column names, this row and up to 5 rows above and below it, the row's formulas, why it was flagged and what you type here, to Google (through John's relay with an invite code or with no key of your own). Long cells are cut to 200 characters. Up to 5 fixes you accepted before in a column with this name (the name, the kind of fix, and the old and new values) are sent only once the AI memory is switched on in a later update.</p>
-          </details>
-        </div>
+        </details>
         <p id="ai-off" class="hint">AI help with fixes is off. Turn it on for free under <b>AI help</b> at the bottom.</p>
       </section>
 
