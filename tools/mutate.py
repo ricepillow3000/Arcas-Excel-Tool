@@ -97,13 +97,23 @@ def baseline(mutants, copy, env):
         sys.exit("The listed tests are red before any mutant, so no mutant can be judged:\n" + "\n".join(red))
 
 
+def plant(text, old, new, mutant_id):
+    """`text` with the mutant swapped in. A Windows working tree holds CRLF line endings where mutations.json holds
+    LF, so a multi-line mutant matched nothing there and the whole run read it as SURVIVED - the one answer a mutation
+    run must never invent (AH-176). A mutant that plants nothing is an error now, on every platform."""
+    for o, n in ((old, new), (old.replace("\n", "\r\n"), new.replace("\n", "\r\n"))):
+        if o in text:
+            return text.replace(o, n)
+    raise RuntimeError(f"{mutant_id}: its 'old' text is not in the file, so nothing was planted and nothing was judged")
+
+
 def judge(m, copy, env):
     target = copy / m["file"]
     before = target.read_bytes()
     text = before.decode("utf-8")
     t = time.time()
     try:
-        target.write_bytes(text.replace(m["old"], m["new"]).encode("utf-8"))
+        target.write_bytes(plant(text, m["old"], m["new"], m["id"]).encode("utf-8"))
         by = next((test for test in m["tests"] if not run(test, copy, env)), None)
     finally:
         target.write_bytes(before)

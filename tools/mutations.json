@@ -1903,5 +1903,60 @@
   "tests": [
    "node relay/test.mjs"
   ]
+ },
+ {
+  "id": "relay-nosniff-refusal-loosen",
+  "guard": "relay: every refusal says nosniff (AH-176)",
+  "file": "relay/worker.js",
+  "old": "{ status, headers: { \"Content-Type\": \"application/json\", \"X-Content-Type-Options\": \"nosniff\" } });",
+  "new": "{ status, headers: { \"Content-Type\": \"application/json\" } });",
+  "kind": "loosen",
+  "tests": [
+   "node relay/test.mjs"
+  ]
+ },
+ {
+  "id": "relay-nosniff-answer-loosen",
+  "guard": "relay: Google's answer, passed through, says nosniff (AH-176)",
+  "file": "relay/worker.js",
+  "old": "headers: { \"Content-Type\": \"application/json\", \"X-Content-Type-Options\": \"nosniff\", ...(m ?",
+  "new": "headers: { \"Content-Type\": \"application/json\", ...(m ?",
+  "kind": "loosen",
+  "tests": [
+   "node relay/test.mjs"
+  ]
+ },
+ {
+  "id": "decimals-empty-loosen",
+  "guard": "a column with no number does not take the mean of nothing (AH-176)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "    if not x.size:  # AH-176: a column with no number took the mean of nothing, so its tolerance came from a NaN\n        return 6  # the strictest default, and what the NaN comparison already fell through to\n",
+  "new": "",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_fuzz_api.py::test_a_column_with_no_number_in_it_scans_without_an_engine_error"
+  ]
+ },
+ {
+  "id": "relay-burst-preauth-loosen",
+  "guard": "relay: a cheap refusal is metered too, so a garbage flood is not free (AH-176)",
+  "file": "relay/worker.js",
+  "old": "      if (!env.BURST) return resp; // a deploy from before BURST: go on, exactly as the counted path does",
+  "new": "      return resp;",
+  "kind": "loosen",
+  "tests": [
+   "node relay/test.mjs"
+  ]
+ },
+ {
+  "id": "relay-burst-bucket-tighten",
+  "guard": "relay: refusals spend their own bucket, never a real caller's minute (AH-176)",
+  "file": "relay/worker.js",
+  "old": "refusals ??= \"no:\" + await hmac(env.GEMINI_KEY,",
+  "new": "refusals ??= \"\" + await hmac(env.GEMINI_KEY,",
+  "kind": "tighten",
+  "tests": [
+   "node relay/test.mjs"
+  ]
  }
 ]

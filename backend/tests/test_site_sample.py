@@ -455,7 +455,9 @@ def test_the_python_port_of_the_panes_words_matches_the_pane():
     """.replace("SCAN", (ROOT / "frontend/features/scan.js").as_uri()).replace("FIX", (ROOT / "frontend/features/fix.js").as_uri())
     got = json.loads(subprocess.run([node, "--input-type=module", "-e", script], input=json.dumps({
         "columns": COLUMNS, "rows": rows, "out": out["rows"], "limits": out["limits"], "after": out_after["rows"], "fair": out["fairness"]}),
-        capture_output=True, text=True, check=True, timeout=60).stdout)
+        # encoding: node always writes UTF-8, and text=True decoded it with the Windows code page, so the "x"
+        # of "Units x UnitCost" came back as a replacement character and the two ports read as different
+        capture_output=True, text=True, encoding="utf-8", check=True, timeout=60).stdout)
     for n, said, rec in got["each"]:
         r = out["rows"][n - 2]
         mine = recommend_fix(rows[n - 2], n, r)

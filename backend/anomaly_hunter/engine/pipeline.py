@@ -787,6 +787,8 @@ def _cent(x):
 def _decimals(x):
     """How many decimals a column is written with: the fewest that hold 95% of its values (0 = whole numbers)."""
     x = x[np.isfinite(x)]
+    if not x.size:  # AH-176: a column with no number took the mean of nothing, so its tolerance came from a NaN
+        return 6  # the strictest default, and what the NaN comparison already fell through to
     return next((d for d in range(7) if (np.abs(x - np.round(x, d)) < 1e-9).mean() >= 0.95), 6)
 
 

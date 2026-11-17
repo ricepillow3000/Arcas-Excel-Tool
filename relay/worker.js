@@ -22,7 +22,10 @@ const MAX_BODY = 8 * 1024;
 // min(90, left)); Gemini took 3.8 s to 90 s+ for the same request (2026-10-11)
 const GOOGLE_WAIT_MS = 90_000;
 
-const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+// AH-176: nosniff on every answer - the engine reads JSON, but a browser opened on the relay must not run it as
+// anything else. ponytail: no CSP here, the relay renders no HTML
+const json = (status, body) => new Response(JSON.stringify(body),
+  { status, headers: { "Content-Type": "application/json", "X-Content-Type-Options": "nosniff" } });
 
 async function sha256(text) {
   const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
@@ -71,7 +74,21 @@ async function hmac(key, text) {
 
 export default {
   async fetch(req, env) {
-    if (new URL(req.url).pathname !== "/fix" || req.method !== "POST") return json(404, { error: "This address only takes Ask AI requests from Arcas." });
+    // AH-176: a refusal is metered too. BURST used to be asked only at the counter, past the 404, 401, 413 and 400
+    // checks, so a flood of garbage from one host was unmetered: no minute limit, no counter entry, no Google call, and
+    // one Workers invocation each. The free plan allows 100,000 a day FOR THE WHOLE ACCOUNT, refused ones included, and
+    // past that Cloudflare answers 1027 and Ask AI is dead for invite and free users alike until the next day.
+    // Refusals spend from their own "no:" bucket, so a real caller's own minute - its invite's name, or its network's
+    // day hash - is untouched, which a shared bucket would let a flood eat. ponytail: one binding, so one limit for
+    // both buckets; the key is what keeps them apart
+    let refusals;
+    const refuse = async (resp) => {
+      if (!env.BURST) return resp; // a deploy from before BURST: go on, exactly as the counted path does
+      refusals ??= "no:" + await hmac(env.GEMINI_KEY, dayKey() + network(req.headers.get("CF-Connecting-IP") || "none"));
+      return (await env.BURST.limit({ key: refusals })).success ? resp
+        : json(429, { error: "Too many AI requests in one minute. Try again in a minute.", limit: "minute" });
+    };
+    if (new URL(req.url).pathname !== "/fix" || req.method !== "POST") return refuse(json(404, { error: "This address only takes Ask AI requests from Arcas." }));
     // no header at all, never an empty one: a broken invite fails closed (401), it never falls into the public tier
     const pub = !req.headers.has("Authorization");
     let who;
@@ -81,30 +98,30 @@ export default {
       try {
         tokens = JSON.parse(env.TOKENS || "{}");
       } catch { // a mistyped TOKENS upload: our own JSON, not Cloudflare's HTML error page
-        return json(500, { error: "The shared AI has a setup problem on John's side. Let John know, and try again later." });
+        return refuse(json(500, { error: "The shared AI has a setup problem on John's side. Let John know, and try again later." }));
       }
       who = code && tokens[await sha256(code)];
-      if (!who) return json(401, { error: "This invite code isn't valid (or was switched off)." });
+      if (!who) return refuse(json(401, { error: "This invite code isn't valid (or was switched off)." }));
     }
 
     // AH-158: bytes, never characters (8,192 "é" are 16 KB), and a declared size over the cap is refused unread
     const big = () => json(413, { error: "That request is too large for the shared AI. Try a smaller selection." });
-    if (+req.headers.get("Content-Length") > MAX_BODY) return big();
+    if (+req.headers.get("Content-Length") > MAX_BODY) return refuse(big());
     const raw = await upTo(req, MAX_BODY);
-    if (raw === null) return big();
+    if (raw === null) return refuse(big());
     let body;
     try {
       body = JSON.parse(raw);
     } catch {
-      return json(400, { error: "The shared AI couldn't read that request. Update Arcas to the newest version, then try again." });
+      return refuse(json(400, { error: "The shared AI couldn't read that request. Update Arcas to the newest version, then try again." }));
     }
     const prompt = body?.messages?.[0]?.content;
     // AH-160: the answer's format is set here too: a JSON schema the answer must follow, never plain text for anyone who asks
     const schema = body?.response_format?.json_schema?.schema;
     if (typeof prompt !== "string" || !prompt || body.messages.length !== 1 || typeof schema !== "object" || !schema
-      || Array.isArray(schema) || body.response_format.type !== "json_schema") return json(400, { error: "The shared AI couldn't read that request. Update Arcas to the newest version, then try again." });
+      || Array.isArray(schema) || body.response_format.type !== "json_schema") return refuse(json(400, { error: "The shared AI couldn't read that request. Update Arcas to the newest version, then try again." }));
     const ip = req.headers.get("CF-Connecting-IP"); // Cloudflare always sets it: without it there is no network to count
-    if (pub && !ip) return json(400, { error: "The free AI couldn't read that request. Try again later." });
+    if (pub && !ip) return refuse(json(400, { error: "The free AI couldn't read that request. Try again later." }));
 
     // count first: a request that would go over a cap never reaches Google
     // fallbacks = the real quota (if the [vars] are ever lost, never looser); switch the relay off by emptying TOKENS
@@ -160,7 +177,7 @@ export default {
       }
       // Google's answer goes back as is; on its errors only our own words (its body could echo the key's project)
       // a backup's answer says so (AH-145): the engine keeps it under that model and the pane tells the user
-      if (out.ok) return new Response(out.body, { status: 200, headers: { "Content-Type": "application/json", ...(m ? { "X-Model": models[m] } : {}) } });
+      if (out.ok) return new Response(out.body, { status: 200, headers: { "Content-Type": "application/json", "X-Content-Type-Options": "nosniff", ...(m ? { "X-Model": models[m] } : {}) } });
       if (out.status !== 429) return json(502, { error: `Google AI answered with error ${out.status}. Try again in a few minutes.` });
       // a 429 is either "too many this minute" or "today's free quota is gone" - Google's text says which (read, never sent on)
       const daily = /perday/i.test(said);

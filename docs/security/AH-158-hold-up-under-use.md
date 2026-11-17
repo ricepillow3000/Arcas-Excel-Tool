@@ -11,7 +11,15 @@ to Google (`relay/`). The engine runs on each person's own PC at 127.0.0.1. So m
 asked: 10 a day per invite and 20 in all, and for the free tier 15 a day per network, 45 a day per IPv6 /48 (new: one
 cheap server can own 65,536 networks in a /48) and 400 in all (`relay/worker.js`:93, Counter :165-198). New: a network
 or an invite gets at most 15 calls a minute, checked before the counter and before Google, by Cloudflare's free
-Workers Rate Limiting (`BURST`, `relay/wrangler.toml` `[[ratelimits]]`, `relay/worker.js`:106). 15 is a network's
+Workers Rate Limiting (`BURST`, `relay/wrangler.toml` `[[ratelimits]]`, `relay/worker.js`).
+
+**Corrected 2026-11-17 (AH-176).** That limit bounded the COUNTED path only. It sat past the 404, 401, 413 and 400 checks, so a
+flood of garbage - a wrong invite code, a malformed body, a wrong path - was refused cheaply and metered by nothing at
+all. That is not free: the Workers plan allows 100,000 requests a day for the whole account, refused ones included,
+and past that Cloudflare answers 1027 and Ask AI is dead for invite and free users alike until the next day. Every
+cheap refusal now spends from its own per-network bucket first (`refuse`), so a flood is bounded from its first
+request, while a real caller's own minute is untouched. The sentence below about a flood never reaching the counter
+was true and beside the point: the flood never needed to reach the counter. 15 is a network's
 whole day, so a word check (about 6 calls in a row) or a few PCs behind one office router never meet it. New: when
 Google says "busy this minute", the request did no work, so its count is given back (`relay/worker.js`:149). Before,
 400 requests at once from 400 networks could use up the free tier's whole day in a minute, mostly as "busy" answers.

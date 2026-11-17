@@ -97,3 +97,22 @@ def test_a_column_of_near_zero_numbers_with_one_big_value_scans_without_an_engin
         r = c.post(route, json={"columns": ["Id", "Amt", "Qty"], "rows": rows, "strength": 10, **extra})
         assert r.status_code == 200, r.get_json()
         assert "Infinity" not in r.get_data(as_text=True) and "NaN" not in r.get_data(as_text=True)
+
+
+@pytest.mark.filterwarnings("error::RuntimeWarning")
+def test_a_column_with_no_number_in_it_scans_without_an_engine_error():
+    # the fuzz test found it 2026-11-17 (AH-176): a column whose cells are all blank left _decimals taking the mean of
+    # an empty array, so numpy warned twice for every such column ("Mean of empty slice", then the 0/0 that follows)
+    # and the column's rounding tolerance came out of a NaN comparison instead of its real decimals
+    import numpy as np
+
+    from anomaly_hunter.engine import pipeline
+
+    body = {"columns": [0.0] * 15, "rows": [[None] * 11 + [0.0, 0.0, 0.0, 1e100]]}
+    r = APP.test_client().post("/scan", json=body)
+    assert r.status_code == 200, r.get_json()
+    assert "NaN" not in r.get_data(as_text=True) and "Infinity" not in r.get_data(as_text=True)
+    # no numbers: 6, the strictest default and what the NaN comparison fell through to, so no flag changes
+    assert pipeline._decimals(np.array([np.nan, np.inf])) == 6 and pipeline._decimals(np.array([])) == 6
+    # and a column that does have numbers still reports its own decimals
+    assert pipeline._decimals(np.array([1.5, 2.25, 3.0])) == 2 and pipeline._decimals(np.array([1.0, 2.0])) == 0

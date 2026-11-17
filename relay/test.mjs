@@ -52,6 +52,12 @@ assert.equal(sent[0].headers.Authorization, "Bearer AQ.the-secret", "the relay a
 assert.equal(sent[0].body.model, "gemini-3.8-flash", "the relay picks the model");
 assert.ok(!JSON.stringify(await r.json()).includes("the-secret"), "the key never comes back");
 
+// AH-176: every answer carries nosniff, so a browser opened on the relay never runs its JSON as something else.
+// 401, 400 and 404 are refused before the day is counted, so these calls do not spend Ana's allowance below
+assert.equal(r.headers.get("X-Content-Type-Options"), "nosniff", "Google's answer, passed through, says nosniff");
+for (const no of [await call(good, ""), await call("{not json"), await call(good, "inv_ana", "/v1/anything")])
+  assert.equal(no.headers.get("X-Content-Type-Options"), "nosniff", `a ${no.status} refusal says nosniff`);
+
 // caps: Ana 3 a day; everyone together 5 a day - fired in parallel, the counter still never lets one too many through
 const burst = await Promise.all(Array.from({ length: 6 }, () => call(good, "inv_ana")));
 assert.equal(burst.filter((x) => x.status === 200).length, 2, "Ana's 3rd is her last (1 already used)");
@@ -651,6 +657,54 @@ assert.equal(sent.length, before, "and never reaches Google");
     assert.equal((await post({ type: "json_schema", json_schema: { name: "fix", schema: {} } }, auth)).status, 200, "a JSON schema is taken");
   }
 }
+// AH-176: a cheap refusal is metered too. BURST was only asked at the counter, past the 404, 401, 413 and 400 checks,
+// so a flood of garbage from one host was completely unmetered - no minute limit, no counter entry, no Google call, and
+// one Workers invocation each. The free plan allows 100,000 a day FOR THE WHOLE ACCOUNT, refused ones included, and
+// past that Cloudflare answers 1027 and Ask AI is dead for invite and free users alike until the next day. Refusals
+// spend from their own per-network bucket, so a real caller's own minute (its invite's, or its network's) is untouched.
+{
+  const keys = [];
+  const seen = new Map();
+  const LIMIT = 15;
+  const burst = { limit: async ({ key }) => (keys.push(key), seen.set(key, (seen.get(key) || 0) + 1), { success: seen.get(key) <= LIMIT }) };
+  const e = { ...env, COUNTER: namespace(), BURST: burst, DAILY_PER_INVITE: "50", DAILY_TOTAL: "99",
+    PUBLIC_DAILY_PER_NETWORK: "50", PUBLIC_DAILY_TOTAL: "99", PUBLIC_DAILY_PER_48: "99" };
+  const at = (path, headers, body) => worker.fetch(new Request("https://relay.example" + path, { method: "POST", headers, body }), e);
+  googleStatus = 200;
+  const from = sent.length;
+
+  // 1. a wrong invite code, over and over, from one network: the 16th is not another free 401
+  const bad = { "CF-Connecting-IP": "198.51.100.77", Authorization: "Bearer inv_nope" };
+  for (let i = 0; i < LIMIT; i++) assert.equal((await at("/fix", bad, JSON.stringify(good))).status, 401, `bad invite ${i + 1} of ${LIMIT}`);
+  const over = await at("/fix", bad, JSON.stringify(good));
+  assert.equal(over.status, 429, "the 16th bad invite code in one minute is refused, not answered 401 again");
+  assert.equal((await over.json()).limit, "minute", "tagged as a minute's limit");
+
+  // 2. the same for a malformed body with no Authorization header at all (the public tier's shape)
+  const anon = { "CF-Connecting-IP": "198.51.100.78" };
+  for (let i = 0; i < LIMIT; i++) assert.equal((await at("/fix", anon, "{not json")).status, 400, `malformed body ${i + 1} of ${LIMIT}`);
+  assert.equal((await at("/fix", anon, "{not json")).status, 429, "the 16th malformed body in one minute is refused");
+
+  // 3. the cheapest flood of all, a wrong path, is metered too
+  const scan = { "CF-Connecting-IP": "198.51.100.79" };
+  for (let i = 0; i < LIMIT; i++) assert.equal((await at("/wp-login.php", scan, "")).status, 404, `wrong path ${i + 1} of ${LIMIT}`);
+  assert.equal((await at("/wp-login.php", scan, "")).status, 429, "the 16th wrong path in one minute is refused");
+
+  assert.equal(sent.length, from, "Google was never asked by any refusal");
+
+  // 4. the refusals' bucket is its own: a flood of them never spends a real caller's minute on that same network
+  assert.equal((await at("/fix", { "CF-Connecting-IP": "198.51.100.77" }, JSON.stringify(good))).status, 200,
+    "a real request from the flooded network still has its own minute allowance");
+  assert.ok(keys.some((k) => k.startsWith("no:")) && keys.some((k) => !k.startsWith("no:")),
+    "two buckets: refusals under their own key, the counted path under the day's key");
+
+  // 5. an older deploy with no BURST binding: a refusal is still just a refusal, never a 429
+  const old = { ...e };
+  delete old.BURST;
+  const stillBad = await worker.fetch(new Request("https://relay.example/fix", { method: "POST", headers: bad, body: JSON.stringify(good) }), old);
+  assert.equal(stillBad.status, 401, "no BURST binding (a deploy from before it): the refusal is unchanged");
+}
+
 console.log("relay abuse tests passed");
 
 // the backup of the invite list, restored and loaded the way the worker loads it (AH-124)
