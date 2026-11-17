@@ -133,7 +133,7 @@
           <div class="result" id="result" hidden>
             <span id="ready">Ready. Open it on GitHub, check it, and press Submit there.</span>
             <span id="cut" hidden>What happened is too long for one link, so the link holds only its start. Copy the rest from the box above and paste it on GitHub.</span>
-            <a class="btn btn-plain" id="open" href="https://github.com/ricepillow3000/excel-anomaly-hunter/issues/new?template=support_request.yml" target="_blank" rel="noopener" aria-describedby="ready">Open on GitHub</a>
+            <a class="btn btn-plain" id="open" href="https://github.com/ricepillow3000/excel-anomaly-hunter/issues/new?template=support_request.yml" target="_blank" rel="noopener" aria-describedby="ready">Open on GitHub (opens a new tab)</a>
             <p id="thanks" role="status" hidden>Thanks. Your question is open on GitHub in a new tab. Once you press Submit there, John will see it, and any answer shows on that same page.</p>
           </div>
           <p class="error" id="missing" hidden role="alert"></p>
@@ -157,6 +157,21 @@
         <div class="reveal-item"><span class="rule" aria-hidden="true"></span><dt>Who can install it</dt><dd>One Windows account, which must be an administrator on this PC. It never asks to run as administrator.</dd></div>
         <div class="reveal-item"><span class="rule" aria-hidden="true"></span><dt>Internet use</dt><dd>The engine listens on 127.0.0.1 only. A scan runs offline.</dd></div>
         <div class="reveal-item"><span class="rule" aria-hidden="true"></span><dt>What leaves this PC</dt><dd>The pane loads Microsoft's Office script. Part of the sheet goes to Google only when you click Ask AI or Check words with AI, through John's server on Cloudflare unless you saved your own Google key, which Google checks once with no sheet data.</dd></div>
+      </dl>
+    </div>
+  </section>
+
+  <section class="section" id="accessibility" aria-labelledby="a11y-title">
+    <div class="wrap cols" data-reveal-group>
+      <h2 class="sec-title reveal-item" data-depth="0.03" id="a11y-title">Accessibility</h2>
+      <p class="sec-lede calm reveal-item">Arcas aims at WCAG 2.2 level AA, on this website and in the pane. What is written below is what is checked automatically on every change, not a promise that nothing is ever missed. If something here blocks you, that is a fault worth reporting, and the form above reaches John.</p>
+      <dl class="it-ledger calm" data-reveal-group="rows">
+        <div class="reveal-item"><span class="rule" aria-hidden="true"></span><dt>Keyboard</dt><dd>Every control can be reached and used with the keyboard alone. Each page starts with a Skip to content link, focus is always visible, Escape closes the menu and puts focus back on the button that opened it, and a form error moves focus to the first field that needs you.</dd></div>
+        <div class="reveal-item"><span class="rule" aria-hidden="true"></span><dt>Screen readers</dt><dd>Every field has a label, every picture has words describing it, and decorative shapes are hidden from screen readers so they are not read out as noise.</dd></div>
+        <div class="reveal-item"><span class="rule" aria-hidden="true"></span><dt>Contrast and size</dt><dd>Text contrast is measured against its real background on 47 page states, and must reach 4.5 to 1, or 3 to 1 for large text. Nothing you tap is smaller than 24 by 24 pixels, and no text is under 12 pixels. The pages work at 200% text size with no sideways scrolling.</dd></div>
+        <div class="reveal-item"><span class="rule" aria-hidden="true"></span><dt>Motion</dt><dd>If your system is set to reduce motion, the movement on these pages stops. Nothing flashes, and nothing moves on its own.</dd></div>
+        <div class="reveal-item"><span class="rule" aria-hidden="true"></span><dt>Without JavaScript</dt><dd>Every page can be read, and the menu and both forms still work, with JavaScript turned off.</dd></div>
+        <div class="reveal-item"><span class="rule" aria-hidden="true"></span><dt>Known limits</dt><dd>The pane lives inside Excel, so some of how it behaves is Excel's and not ours. Arcas has not been tested with every screen reader. Telling John which one you use, and what happened, is the fastest way to get it fixed.</dd></div>
       </dl>
     </div>
   </section>

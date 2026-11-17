@@ -1,7 +1,12 @@
 """Files or panel rows -> DataFrame. Classify columns number/date/text, coerce in place."""
 import re
+import zipfile
 from pathlib import Path
 
+# AH-185: never called here. openpyxl, which reads every .xlsx below, swaps in defusedxml's parser only when this
+# import works (openpyxl.xml.DEFUSEDXML); it was declared nowhere the exe installs, so Arcas.exe read a hostile
+# workbook's XML with a weaker parser than any machine the tests ran on. Imported so it is declared, pinned and bundled.
+import defusedxml  # noqa: F401
 import pandas as pd
 
 
@@ -272,8 +277,32 @@ def _coerce(df, cols):
     return types, errors
 
 
+# AH-185: a .xlsx is a zip, so 2 KB on disk can be gigabytes of sheet XML once unpacked, and nothing stopped the CLI
+# reading such a file: server.py's MAX_CELLS and MAX_CONTENT_LENGTH guard the pane's HTTP path only. The pane never
+# sends more than 2,000,000 cells (server.MAX_CELLS), and a sheet that size measures ~200 MB of cell XML and shared
+# strings, so 1 GiB leaves about 5x headroom for a wordy export.
+# ponytail: a ceiling of 1 GiB, read from what the file declares - a file that stays under it can still be as big as
+# this PC's memory allows, and nothing counts the rows, columns or sheets inside it.
+MAX_UNPACKED = 1024**3
+
+
+def _unpacked(p):
+    """How many bytes the file becomes once read: what a workbook's zip declares, or a .csv's own size. 0 where it
+    cannot be told (no file, not a zip): the read below fails and says so in our own words."""
+    try:
+        if p.suffix.lower() == ".csv":
+            return p.stat().st_size
+        with zipfile.ZipFile(p) as z:
+            return sum(i.file_size for i in z.infolist())
+    except (OSError, zipfile.BadZipFile):
+        return 0
+
+
 def _read(p):
     p = Path(p)
+    if (unpacked := _unpacked(p)) > MAX_UNPACKED:
+        raise LoadError(f"Could not read {p.name}: it unpacks to about {unpacked / 1024**3:,.1f} GB, far more than a "
+                        f"real sheet ({MAX_UNPACKED // 1024**3} GB at most). Check where the file came from.")
     # keep_default_na=False: keep literal "N/A" text so type-error check sees it
     kw = {"dtype": str, "keep_default_na": False, "na_values": []}
     try:
