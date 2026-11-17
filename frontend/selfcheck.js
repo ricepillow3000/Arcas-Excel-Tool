@@ -3,7 +3,7 @@ import assert from "node:assert";
 import { esc, asNumber } from "./utils/text.js";
 import { cutNote, r1c1ToA1, tableFromGrid, isDateFormat, excelDate, rowFromAddress, colLetter, cellAt, sameRow, readAs, spots } from "./utils/sheet.js";
 import { issuesOf, recommendFix, typoKind, afterFix, unusualColumn } from "./features/fix.js";
-import { plainReason, summaryOf, legendOf, flaggedRows, fairnessNote, fairnessTests, listOrder, levelChange, asLastScan, lastScanSaid, doneOf } from "./features/scan.js";
+import { plainReason, summaryOf, legendOf, flaggedRows, fairnessNote, fairnessTests, listOrder, levelChange, asLastScan, lastScanSaid, doneOf, shareOf } from "./features/scan.js";
 import { MEASURED, COLOR, OLD_COLOR } from "./constants/index.js";
 import { oddLines } from "./features/ai.js";
 import { read as readLimit } from "./pages/limits.js";
@@ -221,6 +221,11 @@ assert.equal(doneOf([3, 1, 0, 4, 2], { 1: "fixed", 4: "dismissed", 9: "fixed" })
 assert.equal(doneOf([3, 1, 0, 4, 2], { 0: "fixed", 1: "fixed", 2: "dismissed", 3: "fixed", 4: "dismissed" }), "All 5 rows done.");
 assert.equal(doneOf([7], { 7: "dismissed" }), "1 of 1 row done.");
 { const decided = { 1: "fixed", 4: "dismissed" }; delete decided[1]; assert.equal(doneOf([3, 1, 0, 4, 2], decided), "1 of 5 rows done.", "after an Undo"); delete decided[4]; assert.equal(doneOf([3, 1, 0, 4, 2], decided), ""); }
+// AH-184: the finish line drawn as well as said: the share of the same rows, as wide as the gold line over the foot bar
+assert.equal(shareOf([3, 1, 0, 4, 2], {}), 0);
+assert.equal(shareOf([3, 1, 0, 4, 2], { 1: "fixed", 4: "dismissed", 9: "fixed" }), 0.4);
+assert.equal(shareOf([7], { 7: "dismissed" }), 1);
+assert.equal(shareOf([], {}), 0, "an empty list draws no line");
 // AH-157: a reopened workbook says its last check at once, from numbers only (never a value or a reason). A crafted
 // workbook can carry anything under the key: only a sheet name and whole numbers survive
 {
@@ -636,8 +641,11 @@ assert.ok(DUR >= 900 && STEP >= 100 && MAX_DELAY + DUR <= 1600, `entrance ${DUR}
 // every new movement has its reduced-motion twin
 const css = readFileSync(new URL("styles/components.css", import.meta.url), "utf8");
 const calmCss = css.slice(css.lastIndexOf("@media (prefers-reduced-motion: reduce)"));
-for (const sel of [".flagged-list button::before", ".flagged-list button:is(:hover, :focus-visible):not(:disabled)", "#scan-skeleton::after", ".fix-sk::after", ".tick::after", "::view-transition-group(*)"])
+for (const sel of [".flagged-list button::before", ".flagged-list button:is(:hover, :focus-visible):not(:disabled)", "#scan-skeleton::after", ".fix-sk::after", ".tick::after", "::view-transition-group(*)", "#status::before"])
   assert.ok(calmCss.includes(sel), `no reduced-motion rule for ${sel}`);
+assert.ok(/function turnDone\([^)]*\) \{\s*if \(still\(\)/.test(motion), "AH-184: a row turning Fixed skips reduced motion");
+// AH-184: Windows High Contrast repaints a background in the page's own colour: the finish line keeps the text colour
+assert.ok(css.slice(css.lastIndexOf("@media (forced-colors: active)")).includes("#status::before { forced-color-adjust: none; background: CanvasText; }"), "the finish line stays drawn under High Contrast");
 assert.ok(/turnIn\(el, y = null\) \{\s*if \(!el \|\| still\(\)/.test(motion) && /fadeIn\(el\) \{\s*if \(!el \|\| still\(\)/.test(motion), "the page turn and the fade skip reduced motion");
 assert.ok(/function morph\([^)]*\) \{\s*if \(!from \|\| still\(\)/.test(motion) && /function stagger\([^)]*\) \{\s*if \(still\(\)\)/.test(motion) && /function countUp\([^)]*\) \{\s*if \(still\(\)\)/.test(motion), "the morph, the rows' arrival and the count skip reduced motion");
 // AH-149: every movement is finite. The scan skeleton's light and the progress sliver ran forever ("infinite") while a
