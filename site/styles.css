@@ -963,6 +963,9 @@ html[data-moving] #field { z-index: 2; }
   .maker img { width: min(33%, 240px); height: auto; aspect-ratio: 4 / 5; }
   .phone-only { display: block; }
   .ask { margin-top: var(--s5); }
+  /* the home form's gaps on a phone (AH-192: its public-post box and every footer's trademark line put the page 51 px past
+     ten screens; John chose tightening over a bigger budget). Its two buttons stay stacked: at 390 px they need 428 of 308 */
+  #contact form { gap: 10px; padding-block: var(--s2); }
   .stage, .steps, #download .sec-lede, .shot, .hero-copy, #checks .sec-title, .check-list, .all-checks { grid-row: auto; }
   /* each step's number beside its words (AH-159: the home page in ten phone screens); the pane over its caption, 300 px
      wide in one set column (AH-171: the phone's home page within its 8,397 px) */
@@ -1018,7 +1021,7 @@ html[data-moving] #field { z-index: 2; }
      Copy button, a detail box's Close (44 wide too, a word on one line), the brand, the contents' entries. A link standing
      alone on a line of text (the notice's Download, the footer's, the checks' "Row 22") grows its box by padding that an
      equal negative margin takes back, so no line around it moves (as AH-115's 24 px did) */
-  .rowbtn, .copy-btn, .brand, .confirm { min-height: 44px; } /* .confirm: the support form's box, pressed on its label */
+  .rowbtn, .copy-btn, .brand, .confirm { min-height: 44px; } /* .confirm: each form's box, pressed on its label */
   .m-close, .m-accept { min-height: 44px; min-width: 44px; }
   .toc a { padding-block: 11.5px; }
   .notice-bar p a { padding-block: 12px; margin-block: -12px; }
