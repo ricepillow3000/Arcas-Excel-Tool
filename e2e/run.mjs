@@ -1440,4 +1440,11 @@ if (process.env.SHOTS) { await page.mouse.move(0, 0); await page.waitForTimeout(
 const real = errors.filter((e) => !(mode === "nokey" && e.includes("status of 400"))); // the junk key gets the engine's 400 on purpose
 ok(real.length === 0, "no page errors " + JSON.stringify(real));
 ok(unhandled.length === 0, "no unhandled promise rejection or uncaught error on the page in this mode - " + JSON.stringify(unhandled));
+// a browser that does not trust the engine's key refuses each new TLS connection once and retries (AH-43). Windows CI's
+// Edge gets no pin, and failed a font with ERR_NO_BUFFER_SPACE (PR #121): the engine's own log counts refusals (AH-183)
+const LOG = process.env.AH_DATA ? path.join(DATA, "server.log") : DIR + "engine.out";
+let log = null; try { log = fs.readFileSync(LOG, "utf8"); } catch {}
+if (log === null) console.log(`ok - the browser trusts the engine's certificate: not checked: no engine log at ${LOG}`);
+else { const n = log.split("\n").filter((l) => l.includes("CERTIFICATE_UNKNOWN")).length;
+  ok(n === 0, `the browser trusts the engine's certificate: no TLS connection refused and retried (AH-43, AH-183) - ${n} refused in ${LOG}`); }
 await browser.close();
