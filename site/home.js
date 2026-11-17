@@ -271,17 +271,20 @@
     // after that the sheet turns to its findings (the engine's own answer), focus following only from the Scanning tab.
     // The list marks the step it is on and the ones done. Another tab, Scanning chosen again, or the page leaving ends
     // the run where it is; with reduced motion the bar jumps and the sheet does not turn
+    // ... and the sheet's map lights row by row as the bar fills (AH-183): each mark from dim, a fixed step apart over the
+    // bar's own time, a flagged one in its colour; once, with the run
     let run = null;
+    const marks = [...ws.querySelectorAll(".sheet-map i")];
     function scan() {
       const ticker = byId("ticker"), bar = ws.querySelector("#p-busy .meter span"), steps = [...ws.querySelectorAll("#p-busy .stages li")];
       const timers = [], later = (f, t) => timers.push(setTimeout(f, t));
-      let fill = null;
+      let fill = null, lights = [];
       const step = (k) => {
         ticker.textContent = STAGES[k];
         const at = k < 2 ? 0 : 1;
         steps.forEach((li, i) => { if (i === at) li.setAttribute("aria-current", "step"); else li.removeAttribute("aria-current"); li.toggleAttribute("data-done", i < at); });
       };
-      const stop = () => { timers.forEach(clearTimeout); if (fill) fill.cancel(); if (run === stop) run = null; };
+      const stop = () => { timers.forEach(clearTimeout); if (fill) fill.cancel(); lights.forEach((a) => a.cancel()); if (run === stop) run = null; };
       const full = () => {
         bar.style.transform = "scaleX(1)";
         if (fill) { fill.cancel(); fill = null; }
@@ -295,6 +298,7 @@
       if (moving() && bar.animate) {
         fill = bar.animate([{ transform: "scaleX(0)" }, { transform: "scaleX(1)" }], { duration: 1100, easing: INOUT, fill: "forwards" });
         fill.finished.then(full, () => {});
+        lights = marks.map((m, i) => m.animate([{ opacity: 0.25 }, { opacity: 1 }], { duration: POP_IN, delay: i * (1100 - POP_IN) / marks.length, easing: EASE, fill: "backwards" }));
       } else later(full, 1100);
     }
 
@@ -438,6 +442,9 @@
       rise([box.querySelector(".m-head")], 0);
       for (let i = 0; i < lines.length; i += 2) rise(lines.slice(i, i + 2), (i / 2) * ROW);
       rise([box.querySelector(".m-said")], (lines.length / 2) * ROW);
+      // a jump's chart of the sheet's Totals (AH-183): its paper mask slides off from the left, once, as the box opens
+      const chart = box.querySelector(".m-chart");
+      if (chart) chart.animate([{ transform: "scaleX(1)" }, { transform: "scaleX(0)" }], { duration: 600, easing: EASE, pseudoElement: "::after" });
     }
     function closeMatrix(swap) {
       if (!open) return;
@@ -515,17 +522,40 @@
       }
       main.querySelector(".grid").setAttribute("aria-label", `Sample sales sheet with ${NUM[left.length]} flagged rows`);
     }
+    // AH-183 (John: "the fun stuff"): with motion the fix lands in its cell. The DOM is the new row at once (the tests
+    // and readers meet it); a picture of the old cell, <span class="roll" aria-hidden="true">, lies over the new one, its
+    // value lifting 0.6em as it fades while the new value rises 0.6em into place, then the cell's gold line draws from the
+    // left. Once a press; the row's mark on the sheet's map fades with it (styles.css)
+    function land(paint, cell) {
+      const scroll = cell.closest(".scroll"), r = cell.getBoundingClientRect(), s = scroll.getBoundingClientRect(), px = (v) => Math.round(v * 10) / 10 + "px";
+      const ghost = document.createElement("span"), was = document.createElement("span");
+      ghost.className = "roll"; ghost.setAttribute("aria-hidden", "true");
+      was.textContent = paint.text;
+      ghost.append(was);
+      Object.assign(ghost.style, paint.look, { left: px(r.left - s.left - scroll.clientLeft + scroll.scrollLeft), top: px(r.top - s.top - scroll.clientTop + scroll.scrollTop), width: px(r.width), height: px(r.height) });
+      scroll.append(ghost);
+      const t = { duration: 360, easing: EASE };
+      ghost.animate([{ opacity: 1 }, { opacity: 0 }], { ...t, fill: "forwards" }).finished.then(() => ghost.remove(), () => ghost.remove());
+      was.animate([{ transform: "none" }, { transform: "translate3d(0, -.6em, 0)" }], t);
+      cell.animate([{ opacity: 0, transform: "translate3d(0, .6em, 0)" }, { opacity: 1, transform: "none" }], t);
+      cell.animate([{ transform: "scaleX(0)" }, { transform: "scaleX(1)" }], { duration: ms("--fill-dur", 350), delay: t.duration, easing: EASE, fill: "backwards", pseudoElement: "::after" });
+    }
     for (const a of ws.querySelectorAll(".m-accept")) a.addEventListener("click", () => {
       const tr = open && open.btn.closest("tr"), n = tr && tr.querySelector("th").textContent;
       const clean = n && [...ws.querySelectorAll("#p-clean .grid tbody tr")].find((x) => (x.querySelector("th") || {}).textContent === n);
       if (!clean) return;
       closeMatrix();
-      const row = clean.cloneNode(true), th = row.querySelector("th");
+      const row = clean.cloneNode(true), th = row.querySelector("th"), at = [...row.children].findIndex((c) => c.matches("td.mended")), old = tr.children[at];
+      // the old cell's paint, read while it is still in the page
+      const c = moving() && old ? getComputedStyle(old) : null;
+      const paint = c && { text: old.textContent, look: Object.fromEntries(["backgroundColor", "color", "font", "fontVariantNumeric", "padding", "textAlign"].map((k) => [k, c[k]])) };
       row.id = tr.id;
       th.tabIndex = -1;
       tr.replaceWith(row);
       th.focus();
       recount();
+      if (marks[n - 2]) marks[n - 2].removeAttribute("data-kind");
+      if (paint) land(paint, row.children[at]);
     }, on);
     // Tab out of the box closes it and lets focus go where Tab took it: it stayed open, floating over the rows (AH-132). A
     // press on the box's own text moves focus to nothing (relatedTarget null) and a press on its row's button toggles

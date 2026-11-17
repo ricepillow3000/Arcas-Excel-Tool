@@ -390,6 +390,46 @@ def test_the_sample_offers_accept_only_where_the_after_fixes_sheet_mends_the_row
         assert dl["Proposed fix"].split(",")[0] == (td.text() if col == "Region" else f"{col} {td.text()}"), f"row {n}: {dl['Proposed fix']} vs {col} {td.text()}"
 
 
+def test_the_sheets_map_marks_each_of_its_60_rows_as_the_engine_flags_it():
+    """AH-183: beside "60 rows · 5 columns", one mark a row for the whole sheet (the table shows 13): wine where the
+    engine says probably wrong, outlined where worth a check, plain where it flags nothing, each mark's kinds its row's
+    (a filter lights the same rows there). Decoration for the eye (aria-hidden), written in the page, never built from data."""
+    ws, _ = page()
+    out = scan(sample())["rows"]
+    (strip,) = ws.one("div", cls="ws-top").all("div", cls="sheet-map")
+    assert strip.attrs.get("aria-hidden") == "true"
+    marks = strip.all("i")
+    assert len(marks) == len(out) == 60
+    for k, (i, r) in enumerate(zip(marks, out)):
+        sev = r["severity"]
+        assert i.classes() == ({"w"} if sev in ("High", "Medium") else {"q"} if sev == "Low" else set()), f"row {k + 2}: {i.classes()} for {sev}"
+        assert set((i.attrs.get("data-kind") or "").split()) == (kinds(r["reason"]) if sev else set()), f"row {k + 2}: data-kind"
+
+
+def test_a_jumps_detail_box_draws_the_sheets_60_totals_with_its_row_marked():
+    """AH-183: a box for a jump in Total (rows 5, 21, 41 and 57) draws every Total of the sheet, rows 2 to 61, as one
+    line, its own row a dot on it: the sample's own numbers (a step a row; the lowest Total at the foot, the highest at
+    the top), so the regular peaks show the jump may be real."""
+    ws, root = page()
+    totals = [r[4] for r in sample()]
+    lo, hi = min(totals), max(totals)
+    want = [(round(4 + k * 232 / 59, 1), round(52 - (v - lo) / (hi - lo) * 48, 1)) for k, v in enumerate(totals)]
+    (sym,) = root.all("symbol", id="totals")
+    assert sym.attrs.get("viewbox") == "0 0 240 56"
+    (line,) = sym.all("polyline")
+    assert [tuple(map(float, p.split(","))) for p in line.attrs["points"].split()] == want
+    out = scan(sample())["rows"]
+    jumps = {k + 2 for k, r in enumerate(out) if r["severity"] and "Total jumped sharply near" in r["reason"]}
+    drawn = {int(m.attrs["id"][1:]): m for m in ws.all("div", cls="matrix") if m.all("svg")}
+    assert set(drawn) == jumps == {5, 21, 41, 57}, f"charts in rows {sorted(drawn)}; jumps in Total in {sorted(jumps)}"
+    for n, m in drawn.items():
+        (svg,) = m.all("svg")
+        (use,) = svg.all("use")
+        (dot,) = svg.all("circle")
+        assert svg.attrs.get("aria-hidden") == "true" and svg.attrs.get("viewbox") == "0 0 240 56" and use.attrs.get("href") == "#totals", n
+        assert (float(dot.attrs["cx"]), float(dot.attrs["cy"])) == want[n - 2], f"row {n}: its dot is not its Total"
+
+
 def test_the_checks_table_says_what_the_sample_shows_or_that_it_has_none():
     """The checks were 8 numbered cards with examples; they are a table (AH-98) whose third column, "In the sample above",
     names the sample's own row where it has an instance and says plainly where it has none. Every row link lands on a
