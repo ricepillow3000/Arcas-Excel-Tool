@@ -10,7 +10,7 @@ body:
         **Everything you post here is public.** GitHub keeps edit history, so deleting text later does not remove it.
         - Never paste your AI key, your invite code, real customer data or account numbers.
         - John will never ask for your key, invite code, password or file.
-        - John replies within 2 business days, here on this page.
+        - John usually replies within 2 business days, here on this page.
   - type: input
     id: name
     attributes:

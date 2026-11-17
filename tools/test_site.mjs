@@ -114,6 +114,8 @@ for (const p of ALL) {
   const foot = (/<footer[\s\S]*<\/footer>/.exec(allHtml[p]) || [""])[0], hrefs = attr(foot, "href").map((h) => (h.startsWith(ROOT_PATH) ? h.slice(ROOT_PATH.length) : h));
   for (const want of ["privacy.html", "terms.html", "support.html", REPO]) assert.ok(hrefs.includes(want), `${p}: the footer does not link ${want}`);
   assert.ok(foot.includes("No cookies, no tracking of you."), `${p}: the footer lacks "No cookies, no tracking of you."`);
+  // AH-192: the name Excel is Microsoft's; the footer says whose it is and that Arcas is not theirs
+  assert.ok(foot.includes("Microsoft and Excel are trademarks of Microsoft Corporation. Arcas is not affiliated with Microsoft."), `${p}: the footer lacks the trademark line`);
 }
 // the phone's menu: a Menu button right before the links it opens; styles.css hides those links only once JavaScript
 // has marked the page (boot.js's data-js), so with no script they show
@@ -406,7 +408,7 @@ for (const f of SCRIPTS) {
   assert.ok(card, "the home page has no contact form card");
   for (const [id, tag] of [["c-name", "input"], ["c-topic", "select"], ["c-message", "textarea"]]) assert.ok(card.includes(`<${tag} id="${id}"`), `the contact form has no ${tag}#${id}`);
   assert.deepEqual([...card.matchAll(/<option>([^<]+)<\/option>/g)].map((m) => m[1]), ["A question", "A problem", "An idea"], "the contact form's choices");
-  for (const p of ["index.html", "support.html"]) assert.ok(html[p].includes('<p class="reply">John replies within 2 business days.</p>'), `${p}: no "John replies within 2 business days." beside the form`);
+  for (const p of ["index.html", "support.html"]) assert.ok(html[p].includes('<p class="reply">John usually replies within 2 business days.</p>'), `${p}: no "John usually replies within 2 business days." beside the form`);
   assert.ok(!/no reply-time promise/.test(html["support.html"]), "support.html still says there is no reply-time promise");
   // the form's link opens the repository's contact issue form, whose fields are the ones support.js fills
   const yml = fs.readFileSync(path.join(SITE, "..", ".github", "ISSUE_TEMPLATE", "contact.yml"), "utf8");
@@ -414,10 +416,15 @@ for (const f of SCRIPTS) {
   for (const o of ["A question", "A problem", "An idea"]) assert.ok(yml.includes(`        - ${o}\n`), `contact.yml's topic lacks "${o}"`);
   const sjs = read("support.js");
   assert.ok(sjs.includes(`"${REPO}/issues/new?template="`) && sjs.includes('prefilled("contact.yml", [["title", ') && sjs.includes('["name", v("c-name")], ["topic", v("c-topic")]], ["message", v("c-message")])'), "support.js does not build the contact issue's link from its name, topic and message");
+  // AH-192: a public issue's title is what search engines and GitHub's lists show, so it carries the topic, never the
+  // name; and the visitor ticks a box that says their name and message will be public before anything is built
+  assert.ok(sjs.includes('["title", `[Contact]: ${v("c-topic")}`]') && !/from \$\{v\("c-name"\)\}/.test(sjs), "support.js still puts the name in the contact issue's title");
+  assert.ok(sjs.includes('["c-public", "the box that says your name and message will be public"]'), "support.js does not require the contact form's public box");
+  assert.ok(/<label class="confirm"><input id="c-public" type="checkbox" required><span>I understand my name and message will be public on GitHub\.<\/span><\/label>\s*<div class="form-actions">/.test(card), "the contact form has no required box saying the name and message will be public");
   // the thank-you page: says where the message is, that it is public there, the reply time, and leads back
   const thanks = text((/<main[\s\S]*<\/main>/.exec(html["thanks.html"]) || [""])[0]);
   // AH-135: GitHub names its button Create, not Submit, and may first ask to sign in: the page says what a person meets
-  for (const want of ["GitHub", "public", "John replies within 2 business days", "the green button at the bottom", "sign in", "Nothing reaches John until you do"]) assert.ok(thanks.includes(want), `thanks.html does not say "${want}"`);
+  for (const want of ["GitHub", "public", "John usually replies within 2 business days", "the green button at the bottom", "sign in", "Nothing reaches John until you do"]) assert.ok(thanks.includes(want), `thanks.html does not say "${want}"`);
   assert.ok(/<a class="btn btn-primary" href="index\.html">/.test(html["thanks.html"]), "thanks.html does not lead back home");
   // five questions on the home page, in the support page's markup (no script: <details> opens itself), none of them a
   // copy of a support answer
@@ -481,6 +488,8 @@ for (const f of SCRIPTS) {
     assert.ok(pair && pair[1] === id && pair[2] === EMAIL, `${p}: no Email John instead beside the GitHub button`);
     assert.ok(text(f).includes(HELP), `${p}: the form does not say what GitHub is`);
     assert.ok(/This is public/.test(f), `${p}: the public-data warning is gone`);
+    // AH-192: the link carries what was typed, so GitHub has it from the moment its tab opens, before Submit
+    assert.ok(text(f).includes("GitHub gets what you typed as soon as its tab opens; nothing is posted until you press Submit there."), `${p}: the notice does not say GitHub gets what was typed once its tab opens`);
   }
   const sjs = read("support.js");
   assert.ok(sjs.includes(`EMAIL = "${EMAIL}"`) && sjs.includes("`mailto:${EMAIL}?subject=${q(subject)}&body=") && /MAIL_FITS = 1800\b/.test(sjs), "support.js does not build a mailto link that fits a mail app's limit");
@@ -1027,16 +1036,17 @@ const done = async ({ ctx, problems, outside }, label, allowed = []) => {
     await p.click('#note button[type="submit"]');
     const look = () => p.evaluate(() => { const m = document.getElementById("c-missing"), r = m.getBoundingClientRect();
       return { focus: document.activeElement.id, text: m.hidden ? "" : m.textContent, shown: !m.hidden && r.top >= 0 && r.bottom <= innerHeight,
-        invalid: ["c-name", "c-message"].filter((id) => document.getElementById(id).getAttribute("aria-invalid") === "true").join(),
-        described: ["c-name", "c-message"].filter((id) => document.getElementById(id).getAttribute("aria-describedby") === "c-missing").join() }; });
+        invalid: ["c-name", "c-message", "c-public"].filter((id) => document.getElementById(id).getAttribute("aria-invalid") === "true").join(),
+        described: ["c-name", "c-message", "c-public"].filter((id) => document.getElementById(id).getAttribute("aria-describedby") === "c-missing").join() }; });
     const e = await look();
-    want(JSON.stringify(e) === JSON.stringify({ focus: "c-name", text: "Please add a name, a message.", shown: true, invalid: "c-name,c-message", described: "c-name,c-message" }), `${label}: an empty send ${JSON.stringify(e)}`);
+    want(JSON.stringify(e) === JSON.stringify({ focus: "c-name", text: "Please add a name, a message, the box that says your name and message will be public.", shown: true, invalid: "c-name,c-message,c-public", described: "c-name,c-message,c-public" }), `${label}: an empty send ${JSON.stringify(e)}`);
     if (motion === "reduce") { const bad = await p.evaluate(contrastProblems); want(!bad.length, `${label}: contrast with the message shown ${JSON.stringify(bad)}`); }
     // typed with the keyboard, as a person types (a DOM0 handler once swallowed every key, CLAUDE.md)
     const name = '"><img src=x onerror=alert(1)> Ana';
     await p.keyboard.type(name);
     await p.selectOption("#c-topic", "An idea");
     await p.focus("#c-message"); await p.fill("#c-message", message);
+    await p.check("#c-public");
     want((await look()).invalid === "", `${label}: a filled field stays marked`);
     const popup = t.ctx.waitForEvent("page", { timeout: 3000 }).catch(() => null);
     await p.click('#note button[type="submit"]');
@@ -1057,7 +1067,7 @@ const done = async ({ ctx, problems, outside }, label, allowed = []) => {
     if (link) {
       const u = new URL(link);
       want(u.origin + u.pathname === REPO + "/issues/new" && [...u.searchParams.keys()].join() === "template,title,name,topic,message" && u.searchParams.get("template") === "contact.yml"
-        && u.searchParams.get("title") === `[Contact]: An idea from ${name}` && u.searchParams.get("name") === name && u.searchParams.get("topic") === "An idea"
+        && u.searchParams.get("title") === "[Contact]: An idea" && u.searchParams.get("name") === name && u.searchParams.get("topic") === "An idea"
         && (message.startsWith(u.searchParams.get("message")) && (blocked || [...message].length < 400 ? u.searchParams.get("message") === message : u.searchParams.get("message").length < message.length)),
         `${label}: the GitHub link ${link.slice(0, 300)}`);
     }
@@ -1132,8 +1142,8 @@ const done = async ({ ctx, problems, outside }, label, allowed = []) => {
   const catcher = () => { window.__mail = []; document.addEventListener("click", (e) => { const a = e.target.closest && e.target.closest('a[href^="mailto:"]');
     if (a) { window.__mail.push(e.defaultPrevented ? "stopped" : a.href); e.preventDefault(); } }); };
   for (const [file, width, fill, id, missing, subject, body, cutId] of [
-    ["index.html", 390, async (p, long) => { await p.fill("#c-name", "Ana & Bo"); await p.selectOption("#c-topic", "A problem"); await p.fill("#c-message", long ? "😀🧾".repeat(1500) : "It stops at row 3000.\nWhat now? & = + % # ?"); },
-      "c-email", "Please add a name, a message.", "[Contact]: A problem from Ana & Bo", "Name: Ana & Bo\r\nTopic: A problem\r\n\r\nIt stops at row 3000.\r\nWhat now? & = + % # ?", "c-mail-cut"],
+    ["index.html", 390, async (p, long) => { await p.fill("#c-name", "Ana & Bo"); await p.selectOption("#c-topic", "A problem"); await p.fill("#c-message", long ? "😀🧾".repeat(1500) : "It stops at row 3000.\nWhat now? & = + % # ?"); await p.check("#c-public"); },
+      "c-email", "Please add a name, a message, the box that says your name and message will be public.", "[Contact]: A problem", "Name: Ana & Bo\r\nTopic: A problem\r\n\r\nIt stops at row 3000.\r\nWhat now? & = + % # ?", "c-mail-cut"],
     ["support.html", 1280, async (p, long) => { await p.fill("#summary", "Scan stops"); await p.fill("#version", "v0.1.102"); await p.fill("#details", long ? "😀🧾".repeat(1500) : "Line 1\nline 2 & ?"); await p.check("#clean"); },
       "email", "Please add a short summary, what happened, the box that says it contains no key or private data.", "[Support]: Scan stops", "Topic: Something isn't working\r\nEngine version: v0.1.102\r\n\r\nLine 1\r\nline 2 & ?", "mail-cut"]]) {
     const t = await open(file, { width, motion: "reduce", init: catcher });
