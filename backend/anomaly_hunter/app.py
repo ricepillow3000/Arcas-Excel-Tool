@@ -102,7 +102,7 @@ def remove_legacy(home):
 def keep_invite(me, home):
     """An invite kit from John (relay/new-invite.mjs) holds the code next to the exe: AI help with nothing to paste. It
     was copied as it was, plain text in %LOCALAPPDATA% (AH-104); it is sealed there now, and the kit is left as John
-    made it (a read of it through `sealed` would seal the kit's own copy). AH-178: whatever the file held was sealed
+    made it (a read of it through `sealed` would seal the kit's own copy). AH-185: whatever the file held was sealed
     unread, while a pasted code is checked (`server.save_key`); the same shape check (`server.INVITE_CODE`) runs here,
     and a file that fails it saves nothing."""
     kit = me.with_name("invite-code.txt")

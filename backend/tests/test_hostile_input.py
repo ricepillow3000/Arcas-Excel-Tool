@@ -1,4 +1,4 @@
-"""AH-178: four guards on input that reaches the engine from outside the pane. Each one was missing or weaker in the
+"""AH-185: four guards on input that reaches the engine from outside the pane. Each one was missing or weaker in the
 shipped app than on the machine the tests ran on, so each is pinned here both ways (the wrong refused, the right let
 through at its very limit). Crafted files only, built in the test: no binary fixture is committed.
   1. the XML parser openpyxl uses to read a workbook (hardened only while defusedxml is installed)
@@ -13,7 +13,7 @@ from pathlib import Path
 import openpyxl.xml
 import pandas as pd
 import pytest
-from test_api_security import _fake_dpapi  # Windows' DPAPI as a test can run it anywhere (read only: that file is AH-178-locked)
+from test_api_security import _fake_dpapi  # Windows' DPAPI as a test can run it anywhere (read only: that file is AH-189-locked)
 
 from anomaly_hunter import app, sealed, server
 from anomaly_hunter.ai import client
@@ -33,7 +33,7 @@ def test_the_engine_reads_a_workbooks_xml_with_the_hardened_parser():
 
 
 def test_defusedxml_is_declared_for_every_install_the_exe_is_built_from():
-    # AH-178: defusedxml was in neither `dependencies` nor the `exe` extra, and constraints.txt only pinned it (a
+    # AH-185: defusedxml was in neither `dependencies` nor the `exe` extra, and constraints.txt only pinned it (a
     # constraint caps a version, it does not install one). It reached a dev machine through the dev extra's transitive
     # graph alone, so `pip install -e ".[exe]" -c constraints.txt` in build-exe.yml built an exe without it: dev and CI
     # refused hostile XML entities and the Arcas.exe users run did not.
@@ -107,7 +107,7 @@ def _fix_body(start_row):
 
 
 def test_the_sheets_last_row_is_a_fine_start_row_for_a_fix_and_one_past_it_is_a_clear_400(monkeypatch):
-    # AH-178: /scan bounds start_row at EXCEL_ROWS and /fix did not, so any whole number went through to the AI call.
+    # AH-185: /scan bounds start_row at EXCEL_ROWS and /fix did not, so any whole number went through to the AI call.
     # Fail-closed downstream (_in_table rejects every change), but the field is checked at the boundary like every other
     monkeypatch.setattr(client, "api_key_configured", lambda: True)
     monkeypatch.setattr(client, "suggest_fix", lambda *a, **k: {"explanation": "nothing to change", "changes": []})
@@ -140,7 +140,7 @@ def _kit(tmp_path, text):
                          ids=["empty", "spaces", "words", "too short", "one short of 20", "one past 64", "a code and more",
                               "a character the shape forbids", "a long blob", "two lines"])
 def test_an_invite_kit_whose_code_file_is_not_a_whole_invite_code_saves_nothing(monkeypatch, tmp_path, text):
-    # AH-178: whatever invite-code.txt held was sealed into %LOCALAPPDATA% unread, while a pasted code goes through
+    # AH-185: whatever invite-code.txt held was sealed into %LOCALAPPDATA% unread, while a pasted code goes through
     # server.INVITE_CODE. Worst case was a 401 from the relay, but the check already existed one function away.
     sealed_mod = _fake_dpapi(monkeypatch)
     home = tmp_path / "home"
@@ -166,5 +166,5 @@ def test_an_invite_kit_whose_code_file_holds_a_whole_invite_code_is_still_sealed
     assert sealed_mod.read(home / "invite-code.txt") == code
     # read as BYTES, never read_text(): universal newlines translate the CRLF written above back to a bare newline,
     # so the assertion failed on a file that is byte-for-byte correct. Fourth newline-translation false failure found
-    # on 2026-11-17 (AH-180). The claim here is that the kit's own file is left untouched, so compare the bytes.
+    # on 2026-11-17 (AH-186). The claim here is that the kit's own file is left untouched, so compare the bytes.
     assert me.with_name("invite-code.txt").read_bytes() == (code + "\r\n").encode()

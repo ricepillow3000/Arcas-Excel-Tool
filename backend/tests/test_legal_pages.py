@@ -1,4 +1,4 @@
-"""What the website and the notices must say to stay true and lawful (AH-178, John's legal list, 2026-11-17).
+"""What the website and the notices must say to stay true and lawful (AH-185, John's legal list, 2026-11-17).
 
 The repo's rule for prose is the one test_fix.py:642 set: a page may not make a comfortable absolute claim that
 nothing in code enforces. These checks hold the other half - that the claims John IS required to make are actually
@@ -6,7 +6,7 @@ on the page, and that a page never drifts back to describing a setting as off on
 
 Every file is read in text mode on purpose. Python's universal newlines make these checks give the same answer on a
 CRLF checkout and an LF one; a regex anchored on a bare "\n" does not, which is how the website gate layer came to be
-red on Windows for a correct file (AH-180).
+red on Windows for a correct file (AH-186).
 """
 import re
 import tomllib

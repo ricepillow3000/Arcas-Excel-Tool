@@ -3,7 +3,7 @@ import re
 import zipfile
 from pathlib import Path
 
-# AH-178: never called here. openpyxl, which reads every .xlsx below, swaps in defusedxml's parser only when this
+# AH-185: never called here. openpyxl, which reads every .xlsx below, swaps in defusedxml's parser only when this
 # import works (openpyxl.xml.DEFUSEDXML); it was declared nowhere the exe installs, so Arcas.exe read a hostile
 # workbook's XML with a weaker parser than any machine the tests ran on. Imported so it is declared, pinned and bundled.
 import defusedxml  # noqa: F401
@@ -263,7 +263,7 @@ def _coerce(df, cols):
     return types, errors
 
 
-# AH-178: a .xlsx is a zip, so 2 KB on disk can be gigabytes of sheet XML once unpacked, and nothing stopped the CLI
+# AH-185: a .xlsx is a zip, so 2 KB on disk can be gigabytes of sheet XML once unpacked, and nothing stopped the CLI
 # reading such a file: server.py's MAX_CELLS and MAX_CONTENT_LENGTH guard the pane's HTTP path only. The pane never
 # sends more than 2,000,000 cells (server.MAX_CELLS), and a sheet that size measures ~200 MB of cell XML and shared
 # strings, so 1 GiB leaves about 5x headroom for a wordy export.
