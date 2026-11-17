@@ -219,6 +219,7 @@ for (const f of fs.readdirSync(path.join(SITE, "assets")).filter((f) => /\.(png|
   assert.ok(/declined/i.test(text), "the code signing policy does not say the SignPath Foundation application was declined (AH-168)");
   assert.ok(text.includes("3 November 2026"), "the code signing policy does not date the SignPath Foundation decline (AH-168)");
   assert.ok(/not a judgment on the code/i.test(text), "the code signing policy does not say the decline was not about the code (AH-168)");
+  assert.ok(text.includes("Certum") && text.includes("Azure Artifact Signing"), "the code signing policy does not name the paid certificates that fit, Certum and Azure Artifact Signing (AH-168)");
   // no page, and nothing a release or a future reader meets, may claim the application is still open
   for (const p of PAGES) assert.ok(!/has applied|application is accepted|Once accepted|awaiting SignPath|waiting on SignPath/i.test(html[p]),
     `${p}: still claims a pending SignPath application (AH-168)`);
@@ -408,7 +409,7 @@ for (const f of SCRIPTS) {
   for (const p of ["index.html", "support.html"]) assert.ok(html[p].includes('<p class="reply">John replies within 2 business days.</p>'), `${p}: no "John replies within 2 business days." beside the form`);
   assert.ok(!/no reply-time promise/.test(html["support.html"]), "support.html still says there is no reply-time promise");
   // the form's link opens the repository's contact issue form, whose fields are the ones support.js fills
-  const yml = fs.readFileSync(path.join(SITE, "..", ".github", "ISSUE_TEMPLATE", "contact.yml"), "utf8").split("\r\n").join("\n"); // ponytail: a Windows checkout (core.autocrlf) returns CRLF; the field and option checks below match on a bare newline
+  const yml = fs.readFileSync(path.join(SITE, "..", ".github", "ISSUE_TEMPLATE", "contact.yml"), "utf8");
   for (const id of ["name", "topic", "message"]) assert.ok([...yml.matchAll(/\n\s+id: (\w+)\n/g)].some((m) => m[1] === id), `contact.yml has no field id ${id}`);
   for (const o of ["A question", "A problem", "An idea"]) assert.ok(yml.includes(`        - ${o}\n`), `contact.yml's topic lacks "${o}"`);
   const sjs = read("support.js");
