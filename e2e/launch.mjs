@@ -62,7 +62,7 @@ for (const width of [320, 360, 500]) { // Office's task pane: 320 px at its narr
   });
   ok(Math.abs(lay.word - lay.tick) <= 12, `${width}px: "Recommended" is centred under the slider's 5 tick (word ${lay.word.toFixed(1)}, tick ${lay.tick.toFixed(1)})`);
   ok(lay.status < 1, `${width}px: before the first scan, with nothing to say, the progress and notice line holds no space (${lay.status} px)`);
-  ok(lay.rows.length === 4 && lay.rows.every((h) => h >= 44 && h <= 52), `${width}px: each closed option row is 44 to 52 px tall - ${lay.rows}`);
+  ok(lay.rows.length === 5 && lay.rows.every((h) => h >= 44 && h <= 52), `${width}px: each closed option row is 44 to 52 px tall - ${lay.rows}`);
   ok(errors.length === 0, `${width}px: no page errors, unhandled rejections or uncaught errors ${errors}`);
   await page.close();
 }

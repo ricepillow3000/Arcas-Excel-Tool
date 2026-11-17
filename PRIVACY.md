@@ -13,6 +13,11 @@ A scan runs on your PC and sends nothing to the internet. Your sheet's data leav
 ## Always on this PC
 - The scan runs in the engine at `https://127.0.0.1:5055`: Excel hands it the sheet, and it answers only this PC. Websites
   can't call it (it checks where each request comes from); other programs on this PC can, like any local service.
+- Before a scan, the pane reads your sheet's header and first 500 rows on your PC to say what the scan will check; it sends nothing to the internet and saves nothing.
+- Find problems also reads the first 5,000 rows of every tab (up to 20) on your PC, to say when two tabs hold the same
+  numbers; it sends nothing to the internet and saves nothing.
+- Check as you work reads the sheet you change on your PC, a moment after you change it, to say when a cell you changed
+  looks wrong; it sends nothing to the internet and saves nothing.
 - Files in `%LOCALAPPDATA%\AnomalyHunter`:
 
   | File | What it holds |
@@ -48,7 +53,8 @@ A scan runs on your PC and sends nothing to the internet. Your sheet's data leav
 - The pane saves the auto-fix switch (`anomalyHunterAutoFix`) and the Power BI switch (`anomalyHunterPowerBi`) in
   Excel's storage for the pane (its localStorage) on this PC. Ask AI's memory (`anomalyHunterAiMemory`) is saved there
   too: up to 200 fixes you accepted with **Accept**, in any workbook, each with its column name, the kind of fix, and
-  the old and new values. Undo takes a fix back out.
+  the old and new values. Undo takes a fix back out. The two Check as you work switches (`anomalyHunterLive` and
+  `anomalyHunterSound`) are saved there too.
 - Install also adds a startup entry, a trusted add-in folder for Excel, and a certificate in your Windows account
   that works only for `localhost` and `127.0.0.1` (the key that made it is never saved).
 
@@ -60,7 +66,8 @@ whether the key works; that call carries the key and no sheet data. A key from a
 can be charged by Google for what AI help uses; without billing, the free tier costs nothing.
 - **Ask AI** (fix a row) sends the column names, the row you asked about, up to 5 rows above and 5 below it, the
   formulas in that row, the cell addresses, the reason it was flagged, and anything you type in the request box. On a
-  wide sheet only the columns nearest the flagged cell go. Long cells are cut to 200 characters, except the flagged cell.
+  wide sheet only the columns nearest the flagged cell and any column your request names go. Long cells are cut to 200
+  characters, except the flagged cell.
   Up to 5 fixes you accepted before in a column with the same name as the flagged one, from Ask AI's memory (each
   one's column name, the kind of fix, and the old and new values), are sent with Ask AI only once the AI memory is
   switched on in a later update. Until then they stay on this PC.

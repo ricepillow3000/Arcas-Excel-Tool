@@ -68,6 +68,11 @@
         <p>Click <b>Find problems</b> to check the sheet that is open.</p>
         <p id="last-scan" hidden></p>
         <p class="hint">Your data needs a top row of column names (like Date, Amount), with one record per row below it.</p>
+        <!-- AH-169: what the sheet looks like and what a scan will check, worked out on this PC (features/profile.js) -->
+        <div id="before-scan" hidden>
+          <p id="before-scan-head">Before you scan</p>
+          <div id="before-scan-lines" role="status" aria-live="polite"></div>
+        </div>
       </section>
 
       <!-- the results' shape during a scan (AH-94): the same classes as #results and a #flagged-list row
@@ -91,6 +96,8 @@
         <p id="level-change" class="hint" role="status" hidden></p>
         <ul id="legend" class="legend"></ul>
         <p id="cut-note" class="hint warn" hidden></p>
+        <!-- AH-180: the same numbers on two tabs, a sheet cut off at Excel's last row (features/tabs.js) -->
+        <div id="book-notes"></div>
         <p id="fairness-note" class="hint" hidden></p>
         <details id="fairness-more" class="more" hidden>
           <summary>All fairness checks</summary>
@@ -171,6 +178,13 @@
 
       <div class="settings-band">
       <h2>Options</h2>
+      <!-- AH-181: features/live.js -->
+      <details id="live-box" class="more">
+        <summary>Check as you work</summary>
+        <label class="check"><input type="checkbox" id="live" /> Check the cells I change</label>
+        <label class="check"><input type="checkbox" id="live-sound" /> Play a sound</label>
+        <p id="live-hint" class="hint">A moment after you change a sheet, Arcas checks it again on this PC and tells you here when something you changed looks wrong. It works while this pane is open.</p>
+      </details>
       <details class="more">
         <summary>Auto-fix (optional)</summary>
         <label class="check"><input type="checkbox" id="auto-fix" /> Fix exact mistakes by itself</label>
@@ -212,6 +226,16 @@
         <button id="forget-book" class="secondary">Forget what this workbook saved</button>
         <p id="forget-state" class="hint" role="status" aria-live="polite"></p>
       </details>
+      </div>
+
+      <!-- AH-181: what checking as you work found, over the pane's foot so nothing under it moves -->
+      <div id="live-note" role="status" aria-live="polite" hidden>
+        <img src="assets/crest2-32.png" srcset="assets/crest2-64.png 2x" width="32" height="32" alt="">
+        <div id="live-text"></div>
+        <div class="row-buttons">
+          <button id="live-show" class="secondary">Show me</button>
+          <button id="live-close" class="secondary">Close</button>
+        </div>
       </div>
 
       <footer id="pane-footer">

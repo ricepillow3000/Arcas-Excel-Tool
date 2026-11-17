@@ -1903,5 +1903,435 @@
   "tests": [
    "node relay/test.mjs"
   ]
+ },
+ {
+  "id": "named-column-loosen",
+  "guard": "a column the request names is kept only when named as whole words",
+  "file": "backend/anomaly_hunter/ai/client.py",
+  "old": "if words(c) and f\" {words(c)} \" in req}",
+  "new": "if words(c) and words(c) in req}",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_ai_answers.py::test_a_header_inside_another_word_of_the_request_is_not_named"
+  ]
+ },
+ {
+  "id": "named-column-tighten",
+  "guard": "a column the request names is kept when a wide row is trimmed",
+  "file": "backend/anomaly_hunter/ai/client.py",
+  "old": "if words(c) and f\" {words(c)} \" in req}",
+  "new": "if False}",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_ai_answers.py::test_a_column_the_request_names_is_kept_when_a_wide_row_is_trimmed"
+  ]
+ },
+ {
+  "id": "likely-places-loosen",
+  "guard": "a likely value is written like its column (no more decimals)",
+  "file": "backend/anomaly_hunter/engine/detectors.py",
+  "old": " and (c == -v or _places(c) <= st[\"places\"]):",
+  "new": ":",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_blind_round_1.py::test_an_honest_epidemic_rate_written_like_its_column_is_never_a_likely_typo"
+  ]
+ },
+ {
+  "id": "likely-places-tighten",
+  "guard": "a likely value is written like its column (no more decimals)",
+  "file": "backend/anomaly_hunter/engine/detectors.py",
+  "old": "_places(c) <= st[\"places\"]",
+  "new": "_places(c) < st[\"places\"]",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_blind_round_1.py::test_a_real_x1000_slip_in_the_same_column_is_still_likely"
+  ]
+ },
+ {
+  "id": "long-id-loosen",
+  "guard": "whole numbers typed with 16+ significant digits are an identifier",
+  "file": "backend/anomaly_hunter/engine/load.py",
+  "old": "return int((digits >= 16).sum()) >= 5",
+  "new": "return int((digits >= 17).sum()) >= 5",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_blind_round_1.py::test_a_column_of_identifiers_too_long_for_a_number_is_an_id_and_gets_no_limits"
+  ]
+ },
+ {
+  "id": "long-id-tighten",
+  "guard": "whole numbers typed with 16+ significant digits are an identifier",
+  "file": "backend/anomaly_hunter/engine/load.py",
+  "old": "return int((digits >= 16).sum()) >= 5",
+  "new": "return int((digits >= 15).sum()) >= 5",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_blind_round_1.py::test_a_column_of_big_amounts_still_gets_its_limits"
+  ]
+ },
+ {
+  "id": "say-enotation-loosen",
+  "guard": "a reason quotes a cell without e-notation it was not typed in",
+  "file": "backend/anomaly_hunter/engine/detectors.py",
+  "old": "    return np.format_float_positional(float(v), precision=15, unique=False, fractional=False, trim=\"-\")",
+  "new": "    return f\"{float(v):.15g}\"",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_blind_round_1.py::test_a_number_is_quoted_without_e_notation",
+   "backend/tests/test_blind_round_1.py::test_a_column_of_big_amounts_still_gets_its_limits"
+  ]
+ },
+ {
+  "id": "copy-numbers-loosen",
+  "guard": "A number column pasted twice: 10+ numbers, 5+ distinct, never in order nor mostly formulas, the first 300 number columns (AH-182)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if len(v) < 10 or",
+  "new": "if len(v) < 9 or",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_repeated_columns.py::test_ten_numbers_are_enough_and_nine_are_not"
+  ]
+ },
+ {
+  "id": "copy-numbers-tighten",
+  "guard": "A number column pasted twice: 10+ numbers, 5+ distinct, never in order nor mostly formulas, the first 300 number columns (AH-182)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if len(v) < 10 or",
+  "new": "if len(v) < 11 or",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_repeated_columns.py::test_ten_numbers_are_enough_and_nine_are_not"
+  ]
+ },
+ {
+  "id": "copy-distinct-loosen",
+  "guard": "A number column pasted twice: 10+ numbers, 5+ distinct, never in order nor mostly formulas, the first 300 number columns (AH-182)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "len(np.unique(v)) < 5 or",
+  "new": "len(np.unique(v)) < 4 or",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_repeated_columns.py::test_five_distinct_values_are_enough_and_four_are_not"
+  ]
+ },
+ {
+  "id": "copy-distinct-tighten",
+  "guard": "A number column pasted twice: 10+ numbers, 5+ distinct, never in order nor mostly formulas, the first 300 number columns (AH-182)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "len(np.unique(v)) < 5 or",
+  "new": "len(np.unique(v)) < 6 or",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_repeated_columns.py::test_five_distinct_values_are_enough_and_four_are_not"
+  ]
+ },
+ {
+  "id": "copy-order-loosen",
+  "guard": "A number column pasted twice: 10+ numbers, 5+ distinct, never in order nor mostly formulas, the first 300 number columns (AH-182)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": " or (d >= 0).all() or (d <= 0).all() \\\n",
+  "new": " \\\n",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_repeated_columns.py::test_a_column_in_order_is_a_time_axis_or_an_id_never_a_pasted_measurement"
+  ]
+ },
+ {
+  "id": "copy-order-tighten",
+  "guard": "A number column pasted twice: 10+ numbers, 5+ distinct, never in order nor mostly formulas, the first 300 number columns (AH-182)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": " or (d >= 0).all() or (d <= 0).all() \\\n",
+  "new": " or (d[1:] >= 0).all() or (d[1:] <= 0).all() \\\n",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_repeated_columns.py::test_a_column_in_order_is_a_time_axis_or_an_id_never_a_pasted_measurement"
+  ]
+ },
+ {
+  "id": "copy-formulas-loosen",
+  "guard": "A number column pasted twice: 10+ numbers, 5+ distinct, never in order nor mostly formulas, the first 300 number columns (AH-182)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "or grid and 2 * sum(row[j] is not None for row in grid) > len(v):",
+  "new": "or grid and sum(row[j] is not None for row in grid) > len(v):",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_repeated_columns.py::test_a_column_mostly_built_by_formulas_is_a_copy_by_design"
+  ]
+ },
+ {
+  "id": "copy-formulas-tighten",
+  "guard": "A number column pasted twice: 10+ numbers, 5+ distinct, never in order nor mostly formulas, the first 300 number columns (AH-182)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "or grid and 2 * sum(row[j] is not None for row in grid) > len(v):",
+  "new": "or grid and 2 * sum(row[j] is not None for row in grid) >= len(v):",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_repeated_columns.py::test_a_column_mostly_built_by_formulas_is_a_copy_by_design"
+  ]
+ },
+ {
+  "id": "copy-cap-loosen",
+  "guard": "A number column pasted twice: 10+ numbers, 5+ distinct, never in order nor mostly formulas, the first 300 number columns (AH-182)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "COPY_COLS = 300 ",
+  "new": "COPY_COLS = 301 ",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_repeated_columns.py::test_the_pairs_are_looked_for_among_the_first_300_number_columns_only"
+  ]
+ },
+ {
+  "id": "copy-cap-tighten",
+  "guard": "A number column pasted twice: 10+ numbers, 5+ distinct, never in order nor mostly formulas, the first 300 number columns (AH-182)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "COPY_COLS = 300 ",
+  "new": "COPY_COLS = 299 ",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_repeated_columns.py::test_the_pairs_are_looked_for_among_the_first_300_number_columns_only"
+  ]
+ },
+ {
+  "id": "gene-labels-loosen",
+  "guard": "A gene name turned into a date: 20+ gene labels, 90%+ of the column, half with a digit; serials 36526-73050 (AH-182)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if gene.sum() < 20 or",
+  "new": "if gene.sum() < 19 or",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_gene_dates.py::test_twenty_gene_labels_are_enough_and_nineteen_are_not"
+  ]
+ },
+ {
+  "id": "gene-labels-tighten",
+  "guard": "A gene name turned into a date: 20+ gene labels, 90%+ of the column, half with a digit; serials 36526-73050 (AH-182)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if gene.sum() < 20 or",
+  "new": "if gene.sum() < 21 or",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_gene_dates.py::test_twenty_gene_labels_are_enough_and_nineteen_are_not"
+  ]
+ },
+ {
+  "id": "gene-share-loosen",
+  "guard": "A gene name turned into a date: 20+ gene labels, 90%+ of the column, half with a digit; serials 36526-73050 (AH-182)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "gene.mean() < 0.9 or",
+  "new": "gene.mean() < 0.89 or",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_gene_dates.py::test_a_column_ninety_percent_gene_labels_is_read_and_eighty_nine_percent_is_not"
+  ]
+ },
+ {
+  "id": "gene-share-tighten",
+  "guard": "A gene name turned into a date: 20+ gene labels, 90%+ of the column, half with a digit; serials 36526-73050 (AH-182)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "gene.mean() < 0.9 or",
+  "new": "gene.mean() < 0.91 or",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_gene_dates.py::test_a_column_ninety_percent_gene_labels_is_read_and_eighty_nine_percent_is_not"
+  ]
+ },
+ {
+  "id": "gene-digit-loosen",
+  "guard": "A gene name turned into a date: 20+ gene labels, 90%+ of the column, half with a digit; serials 36526-73050 (AH-182)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": " or 2 * (gene & digit).sum() < gene.sum():",
+  "new": ":",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_gene_dates.py::test_labels_in_capitals_with_too_few_digits_are_no_gene_list"
+  ]
+ },
+ {
+  "id": "gene-digit-tighten",
+  "guard": "A gene name turned into a date: 20+ gene labels, 90%+ of the column, half with a digit; serials 36526-73050 (AH-182)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": " or 2 * (gene & digit).sum() < gene.sum():",
+  "new": " or 2 * (gene & digit).sum() <= gene.sum():",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_gene_dates.py::test_labels_in_capitals_with_too_few_digits_are_no_gene_list"
+  ]
+ },
+ {
+  "id": "gene-serial-low-loosen",
+  "guard": "A gene name turned into a date: 20+ gene labels, 90%+ of the column, half with a digit; serials 36526-73050 (AH-182)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "SERIALS = (36526, 73050)",
+  "new": "SERIALS = (36525, 73050)",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_gene_dates.py::test_a_date_serial_from_2000_to_2099_is_flagged_with_the_date_it_reads_as"
+  ]
+ },
+ {
+  "id": "gene-serial-low-tighten",
+  "guard": "A gene name turned into a date: 20+ gene labels, 90%+ of the column, half with a digit; serials 36526-73050 (AH-182)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "SERIALS = (36526, 73050)",
+  "new": "SERIALS = (36527, 73050)",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_gene_dates.py::test_a_date_serial_from_2000_to_2099_is_flagged_with_the_date_it_reads_as"
+  ]
+ },
+ {
+  "id": "gene-serial-high-loosen",
+  "guard": "A gene name turned into a date: 20+ gene labels, 90%+ of the column, half with a digit; serials 36526-73050 (AH-182)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "SERIALS = (36526, 73050)",
+  "new": "SERIALS = (36526, 73051)",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_gene_dates.py::test_a_date_serial_from_2000_to_2099_is_flagged_with_the_date_it_reads_as"
+  ]
+ },
+ {
+  "id": "gene-serial-high-tighten",
+  "guard": "A gene name turned into a date: 20+ gene labels, 90%+ of the column, half with a digit; serials 36526-73050 (AH-182)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "SERIALS = (36526, 73050)",
+  "new": "SERIALS = (36526, 73049)",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_gene_dates.py::test_a_date_serial_from_2000_to_2099_is_flagged_with_the_date_it_reads_as"
+  ]
+ },
+ {
+  "id": "tabs-numbers-loosen",
+  "guard": "a copied tab is compared on its measures: 10+ numbers",
+  "file": "frontend/features/tabs.js",
+  "old": "export const MIN_NUMBERS = 10,",
+  "new": "export const MIN_NUMBERS = 9,",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "tabs-numbers-tighten",
+  "guard": "a copied tab is compared on its measures: 10+ numbers",
+  "file": "frontend/features/tabs.js",
+  "old": "export const MIN_NUMBERS = 10,",
+  "new": "export const MIN_NUMBERS = 11,",
+  "kind": "tighten",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "tabs-distinct-loosen",
+  "guard": "a measure has 5+ different values",
+  "file": "frontend/features/tabs.js",
+  "old": "MIN_DISTINCT = 5;",
+  "new": "MIN_DISTINCT = 4;",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "tabs-distinct-tighten",
+  "guard": "a measure has 5+ different values",
+  "file": "frontend/features/tabs.js",
+  "old": "MIN_DISTINCT = 5;",
+  "new": "MIN_DISTINCT = 6;",
+  "kind": "tighten",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "tabs-monotone-loosen",
+  "guard": "a measure never rises or falls all the way (a time axis, an ID)",
+  "file": "frontend/features/tabs.js",
+  "old": "const monotone = rising(nums) || rising(nums.map((v) => -v));",
+  "new": "const monotone = false;",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "tabs-monotone-tighten",
+  "guard": "a measure never rises or falls all the way (a time axis, an ID)",
+  "file": "frontend/features/tabs.js",
+  "old": "a.every((v, k) => !k || v >= a[k - 1])",
+  "new": "a.every((v, k) => k < 2 || v >= a[k - 1])",
+  "kind": "tighten",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "tabs-formulas-loosen",
+  "guard": "a measure is at most half formulas (a tab built from another is a copy by design)",
+  "file": "frontend/features/tabs.js",
+  "old": "2 * made <= nums.length",
+  "new": "made <= nums.length",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "tabs-formulas-tighten",
+  "guard": "a measure is at most half formulas (a tab built from another is a copy by design)",
+  "file": "frontend/features/tabs.js",
+  "old": "2 * made <= nums.length",
+  "new": "2 * made < nums.length",
+  "kind": "tighten",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "live-ours-loosen",
+  "guard": "check as you work never checks the pane's own write",
+  "file": "frontend/features/live.js",
+  "old": " || e.triggerSource === \"ThisLocalAddin\";",
+  "new": ";",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "live-ours-tighten",
+  "guard": "check as you work never checks the pane's own write",
+  "file": "frontend/features/live.js",
+  "old": "e.triggerSource === \"ThisLocalAddin\";",
+  "new": "!!e.triggerSource;",
+  "kind": "tighten",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "live-rows-loosen",
+  "guard": "check as you work only on a sheet of at most 20,000 rows",
+  "file": "frontend/features/live.js",
+  "old": "(rows) => rows <= LIVE_ROWS;",
+  "new": "(rows) => rows <= LIVE_ROWS + 1;",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "live-rows-tighten",
+  "guard": "check as you work only on a sheet of at most 20,000 rows",
+  "file": "frontend/features/live.js",
+  "old": "(rows) => rows <= LIVE_ROWS;",
+  "new": "(rows) => rows < LIVE_ROWS;",
+  "kind": "tighten",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
  }
 ]

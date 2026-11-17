@@ -13,6 +13,8 @@ import { strength } from "../pages/strength.js";
 import { autoFix, autoOn, autoUndo } from "./autofix.js";
 import { codes, decisionsFor, rowHash } from "./decisions.js";
 import { undosFor } from "./undo-store.js";
+import { hideProfile } from "./profile.js";
+import { bookNotes } from "./tabs.js";
 
 // Keep each scan for Power BI (a plain-text copy of the sheet on this PC): off unless turned on, like auto-fix
 export const powerBiOn = () => { try { return localStorage.getItem(POWER_BI_KEY) === "1"; } catch { return false; } };
@@ -29,6 +31,7 @@ const scanning = (on) => $("main-ui").toggleAttribute("data-scanning", on);
 
 export async function runScan(auto, held = false) { // auto === false: the re-check right after auto-fix (never auto-fixes twice)
   const t0 = Date.now();
+  hideProfile(); // the scan says what it found: what it would check goes (AH-169)
   state.fix = null;
   // AH-170: Check words' lines named cells of the sheet checked before; a new check says them again only when asked
   $("odd-list").replaceChildren();
@@ -51,18 +54,11 @@ async function scan(auto, held, t0) {
   }
   busy(`Step 2 of 3: checking ${n(s.rows.length)} rows…`);
   counting(); // the seconds it has taken: the only true measure while the engine checks (AH-149)
-  const level = strength(), limits = await getLimits(); // getLimits re-reads the workbook's settings first
   // the scan before this one, to say what a new level changed (not after auto-fix's own re-check: the level is the same)
   const before = auto !== false && state.lastRows ? { level: state.lastStrength, rows: state.lastRows, hashes: state.hashes, sheet: state.lastScan?.sheet } : null;
-  // the rows fixed or dismissed before, in any session: found again by their codes, wherever a sort moved them
-  const hashes = s.rows.map(rowHash), keys = codes(hashes), kept = decisionsFor(s.sheet), decided = {};
-  keys.forEach((k, i) => kept[k] && (decided[i] = kept[k]));
-  // start_row and sheet: where the table sits, so the Power BI copy's "Excel Row" is the row number shown here;
-  // decisions: its Status (Open, Fixed, Dismissed)
-  const body = await post("/scan", { columns: s.columns, rows: s.rows, limits, order_by: null, strength: level,
-    power_bi: powerBiOn(), start_row: s.startRow, sheet: String(s.sheet).slice(0, 31),
-    decisions: Object.keys(decided).length ? s.rows.map((_, i) => decided[i] || null) : null,
-    formulas: s.calc.some((r) => r.some(Boolean)) ? s.calc : null }, 300); // AH-152: each cell's formula, only if any
+  const { level, hashes, keys, decided, request } = await scanRequest(s, powerBiOn());
+  const body = await post("/scan", request, 300);
+  const notes = await bookNotes(s); // AH-180: read before the results land, so nothing moves when they do
   if (held) await new Promise((go) => setTimeout(go, Math.max(0, HOLD - (Date.now() - t0))));
   scanning(false); // the results take the skeleton's place
   state.lastStrength = level; // Agent 3 judges fixes at the level this scan used
@@ -73,6 +69,7 @@ async function scan(auto, held, t0) {
   Object.assign(state, { hashes, codes: keys, decided });
   $("sheet-name").textContent = s.sheet;
   renderResults(body.rows, s, body.fairness);
+  $("book-notes").replaceChildren(...notes.map((line) => Object.assign(document.createElement("p"), { className: "notice", textContent: line })));
   if (auto !== false) {
     const said = levelChange(before, { level, rows: body.rows, hashes, sheet: s.sheet });
     $("level-change").textContent = said;
@@ -106,6 +103,23 @@ async function scan(auto, held, t0) {
     }
   }
   show("undo-auto", !!autoUndo());
+}
+
+// The /scan request for a sheet as read, the same for Find problems and for checking as you work (AH-181): the slider's
+// level, the limits the user saved, the rows fixed or dismissed before, each cell's formula. power_bi: only Find problems
+// keeps a copy for Power BI
+export async function scanRequest(s, powerBi) {
+  const level = strength(), limits = await getLimits(); // getLimits re-reads the workbook's settings first
+  // the rows fixed or dismissed before, in any session: found again by their codes, wherever a sort moved them
+  const hashes = s.rows.map(rowHash), keys = codes(hashes), kept = decisionsFor(s.sheet), decided = {};
+  keys.forEach((k, i) => kept[k] && (decided[i] = kept[k]));
+  // start_row and sheet: where the table sits, so the Power BI copy's "Excel Row" is the row number shown here;
+  // decisions: its Status (Open, Fixed, Dismissed)
+  const request = { columns: s.columns, rows: s.rows, limits, order_by: null, strength: level,
+    power_bi: powerBi, start_row: s.startRow, sheet: String(s.sheet).slice(0, 31),
+    decisions: Object.keys(decided).length ? s.rows.map((_, i) => decided[i] || null) : null,
+    formulas: s.calc.some((r) => r.some(Boolean)) ? s.calc : null }; // AH-152: each cell's formula, only if any
+  return { level, hashes, keys, decided, request };
 }
 
 // Pure: the rows worth a look - surest first, then biggest - each with its data-row index ("Noted" = fine)

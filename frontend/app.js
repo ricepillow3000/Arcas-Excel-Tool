@@ -19,6 +19,8 @@ import { n } from "./utils/text.js";
 import { initSettings } from "./pages/settings.js";
 import { initMotion } from "./components/motion.js";
 import { plainError } from "./utils/errors.js";
+import { sayProfile } from "./features/profile.js";
+import { initLive } from "./features/live.js";
 
 const CARD = "#fix-view"; // what a card does turns off only the card's buttons (AH-149)
 // AH-170: focus goes to the button that took the pressed one's place (Accept's Undo, Undo's Accept): the pressed one was
@@ -75,6 +77,7 @@ if (typeof Office !== "undefined") {
     });
     show("undo-auto", !!autoUndo());
     activeSheet().then((name) => { $("sheet-name").textContent = name; }).catch(() => {}); // Excel refuses while a cell is being typed in: the name stays blank until the first scan (AH-58)
+    initLive(); // AH-181: check as you work
     only("empty-state");
     sayLastScan(); // AH-157: the workbook's last check, there the moment the pane shows
     checkHealth();
@@ -102,6 +105,7 @@ async function checkHealth(auto = false) {
     $("engine-version").textContent = `Engine ${h.version || "from before 2026-10-15: update it"}`;
     show("main-ui");
     show("server-down", false);
+    if (state.view === "empty-state" && !state.lastScan) sayProfile(); // AH-169: what a scan will check, before it
     moveTo("scan");
   } catch {
     if (me !== asked) return;

@@ -74,8 +74,25 @@ input[type="checkbox"] { width: 16px; height: 16px; margin: 0; accent-color: var
 .notice, .fix-changes .notice { margin: var(--s2) 0 var(--s3); padding: var(--s2) var(--s3); border: 1px solid var(--rule); background: var(--field); font-size: var(--fs-0); color: var(--ink); text-wrap: pretty; }
 .notice::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: var(--s2); vertical-align: -1px; background: var(--wine); }
 
+/* AH-181: what checking as you work found, laid over the pane's foot (above a card's foot bar, z-index 5), so nothing
+   under it moves when it comes or goes. The crest is its mark; a hairline over it, never a side stripe */
+#live-note { position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: var(--s2) var(--s3);
+  max-height: 60vh; overflow-y: auto; padding: var(--s3) var(--margin); border-top: 1px solid var(--navy); background: var(--field);
+  box-shadow: 0 -4px 12px var(--shade-soft); font-size: var(--fs-0); color: var(--ink); }
+#live-note img { display: block; }
+#live-text p { margin: 0; text-wrap: pretty; font-variant-numeric: tabular-nums; }
+#live-text p + p { margin-top: var(--s2); }
+#live-note .row-buttons { grid-column: 1 / -1; margin: 0; }
+
 #empty-state { margin-top: var(--s2); }
 #empty-state p:first-child { margin: 0 0 var(--s2); font: 800 var(--fs-1)/1.2 var(--sans); color: var(--navy); text-wrap: balance; }
+/* AH-169: what a scan will check, in the notice's hairline box with a navy square (it informs, nothing is wrong). Last in
+the empty state, and held at its usual height while it reads, so nothing moves when its lines land */
+#before-scan { margin: var(--s3) 0 0; padding: var(--s2) var(--s3); min-height: calc(5 * 1.5 * var(--fs-0) + 2 * var(--s2) + 2px);
+  border: 1px solid var(--rule); background: var(--field); font-size: var(--fs-0); color: var(--ink); text-wrap: pretty; }
+#empty-state #before-scan-lines p { margin: var(--s1) 0 0; font: inherit; font-variant-numeric: tabular-nums; color: inherit; }
+#empty-state #before-scan-head { margin: 0; font: 700 var(--fs-0)/1.5 var(--sans); font-variant-numeric: tabular-nums; color: var(--navy); }
+#before-scan-head::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: var(--s2); vertical-align: -1px; background: var(--navy); }
 
 /* results: the summary as a bold headline, the legend in two columns, then the rows as a ruled ledger */
 .summary { margin: var(--s2) 0 var(--s3); font: 800 var(--fs-2)/1.2 var(--sans); font-variant-numeric: tabular-nums; color: var(--navy); text-wrap: balance; }

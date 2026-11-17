@@ -12,6 +12,8 @@ export const ACCEPT_UNDO_KEY = "anomalyHunterAcceptUndo"; // what Accept changed
 export const HIGHLIGHT_KEY = "anomalyHunterHighlights"; // the fill each highlighted cell had before, saved inside the workbook
 export const LAST_SCAN_KEY = "anomalyHunterLastScan"; // the last check's numbers (never a value), saved inside the workbook
 export const MEMORY_KEY = "anomalyHunterAiMemory"; // fixes the user accepted, for Ask AI: this PC (localStorage), across workbooks
+export const LIVE_KEY = "anomalyHunterLive"; // Check as you work (AH-181): this PC (localStorage), on unless turned off
+export const SOUND_KEY = "anomalyHunterSound"; // its chime: this PC (localStorage), on unless turned off
 
 // What each slider level does, in its own words (2, 4, 6, 8 and 10 once showed the level below's, so 6 opened
 // "Recommended.", AH-20), then what that very level did on the industry bench's 27 sheets (backend/bench: 51 planted

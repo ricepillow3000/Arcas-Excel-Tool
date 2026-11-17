@@ -66,12 +66,39 @@ def test_a_value_in_a_row_the_ai_was_never_shown_is_left_out(monkeypatch):
 
 
 def test_a_column_left_out_to_fit_is_not_written_blind(monkeypatch):
-    # a wide row is trimmed to the columns nearest the flagged cell: a cell in a column the AI never saw is the same
+    # a wide row is trimmed to the columns nearest the flagged cell (and any the request names): a cell in a column the
+    # AI never saw is the same
     cols = ["Email"] + [f"Note {k}" for k in range(30)] + ["Amount"]
     rows = [[f"p{r}@x.com"] + ["n" * 190] * 30 + [100 + r] for r in range(20)]
     answer(monkeypatch, ("A7", "p5@x.com"), ("AF7", "105"))
-    out = client.suggest_fix(cols, rows, 5, 0, 0, "Amount 105 is past its usual limit", "fix the email")
+    out = client.suggest_fix(cols, rows, 5, 0, 0, "Amount 105 is past its usual limit", "fix this row")
     assert [c["cell"] for c in out["changes"]] == ["AF7"] and "A7" in out["explanation"], out
+
+
+def wide(monkeypatch, first, intent):
+    """32 columns of long notes, Amount flagged at the far end: the row is trimmed to fit (AH-42)."""
+    cols = [first] + [f"Note {k}" for k in range(30)] + ["Amount"]
+    rows = [[f"p{r}@x.com"] + ["n" * 190] * 30 + [100 + r] for r in range(20)]
+    sent = []
+    monkeypatch.setattr(client, "_ask", lambda prompt: sent.append(prompt) or client.Fix(
+        explanation="Fixed.", changes=[client.CellChange(cell="A7", new="p5@x.com")]))
+    out = client.suggest_fix(cols, rows, 5, 0, 0, "Amount 105 is past its usual limit", intent)
+    return out, sent[0]
+
+
+def test_a_column_the_request_names_is_kept_when_a_wide_row_is_trimmed(monkeypatch):
+    # AH-42: "fix the Email typo" on a wide row sent only Amount's neighbours, so the AI never saw Email and its
+    # answer was left out as written blind
+    out, prompt = wide(monkeypatch, "Email", "fix the Email typo")
+    assert "A=Email" in prompt and "A7='p5@x.com'" in prompt, prompt
+    assert out["changes"] == [{"cell": "A7", "new": "p5@x.com"}] and "Left out" not in out["explanation"], out
+
+
+def test_a_header_inside_another_word_of_the_request_is_not_named(monkeypatch):
+    # "page" holds "age": a header counts only as a whole word, so Age is still cut and its cell not written blind
+    out, prompt = wide(monkeypatch, "Age", "fix the page")
+    assert "A=Age" not in prompt and "p5@x.com" not in prompt, prompt
+    assert out["changes"] == [] and "A7" in out["explanation"], out
 
 
 def test_the_header_row_it_was_shown_may_still_be_changed_when_asked(monkeypatch):

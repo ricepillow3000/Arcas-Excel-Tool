@@ -47,11 +47,12 @@ def text(s):
 
 
 def quotes(card):
-    """[(rows, label, words)] from each <li data-rows="13 34 88">Rows 13, 34 and 88, probably wrong: <q>...</q></li>"""
+    """[(rows, label, words)] from each <li data-rows="13 34 88">Rows 13, 34 and 88, probably wrong: <q>...</q></li>; a
+    row with two reasons quotes each on its own line (<br>), as the pane shows them (AH-178)"""
     out = []
     for m in re.finditer(r'<li data-rows="([\d ]+)">([^<]*)<q>(.*?)</q></li>', card, re.S):
         rows = [int(n) for n in m[1].split()]
-        out.append((rows, text(m[2]), text(m[3])))
+        out.append((rows, text(m[2]), "\n".join(map(text, re.split(r"<br\s*/?>", m[3])))))
     assert out, "a card quotes nothing"
     return out
 
