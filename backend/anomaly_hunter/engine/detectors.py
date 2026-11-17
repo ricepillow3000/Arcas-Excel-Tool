@@ -26,8 +26,8 @@ class Why(str):
 
 def say(v):
     """A number as the cell holds it, to Excel's 15 digits: 1234567.89, never :g's 1.23457e+06 (a reason quotes the
-    cell, AH-40)."""
-    return f"{float(v):.15g}"
+    cell, AH-40), and never in e-notation it was not typed in: 20892375800000000, never 2.08923758e+16 (AH-174)."""
+    return np.format_float_positional(float(v), precision=15, unique=False, fractional=False, trim="-")
 
 
 BIG = 1e12  # spreads from the median: far past any limit, and finite (x / a subnormal spread overflows to infinity)
@@ -103,7 +103,15 @@ def column_stats(x):
     x = x[~np.isnan(x)]
     mags = np.sort(np.abs(x[x != 0]))
     return {"n": len(x), "nonneg": int((x >= 0).sum()), "mags": mags, "logmed": np.median(np.log10(mags)) if len(mags) else 0.0,
-            "whole": bool((x == np.round(x)).mean() >= 0.95), "pos": np.sort(x[x > 0]), "negs": np.sort(-x[x < 0])}
+            "whole": bool((x == np.round(x)).mean() >= 0.95), "pos": np.sort(x[x > 0]), "negs": np.sort(-x[x < 0]),
+            "places": _places(x)}
+
+
+def _places(x):
+    """How many decimals x is written with: the fewest that hold 95% of its values (0 = whole numbers), as
+    pipeline._decimals."""
+    x = np.atleast_1d(np.asarray(x, dtype=float))
+    return next((d for d in range(7) if (np.abs(x - np.round(x, d)) < 1e-9 * np.maximum(1, np.abs(x))).mean() >= 0.95), 7)
 
 
 PROVE = 20  # values a column needs before a slip in it is "likely" (the 20 rows every other rule asks): fewer is a guess the user confirms (AH-54)
@@ -140,7 +148,9 @@ def likely_value(v, st, lo, hi):
     alone = v < 0 and len(negs) > 0 and (len(negs) == 1 or m >= 2 * (negs[-2] if negs[-1] == m else negs[-1]))
     flip = v < 0 and st["nonneg"] >= 0.99 * (st["n"] - 1) and not years and alone and (usual(0.05) if len(negs) == 1 else usual(0.1))
     for c in ([v / 10 ** k] if 1 <= abs(k) <= 3 and far else []) + ([-v] if flip else []):
-        if lo <= c <= hi and (c == round(c) or not st["whole"]):  # 999 in a 1-5 count column is not "likely 0.999"
+        # ...and the value a slip of zeros hid was typed like the column's own: an honest epidemic year's rubella rate of
+        # 1008.51 per million was "likely 1.00851", 5 decimals in a column written to 2 (blind round 1, AH-174)
+        if lo <= c <= hi and (c == round(c) or not st["whole"]) and (c == -v or _places(c) <= st["places"]):  # 999 in a 1-5 count column is not "likely 0.999"
             return float(c) if c == -v else float(f"{c:.10g}")  # a flipped sign is exact: rounding made it "missing zeros"
     return None
 
@@ -220,7 +230,9 @@ def limits_detector(df, column_types, limits, typos_only=False, listing=False, q
         common = {v for v in vals[cnt >= max(5, 0.001 * len(x))] if not _sentinel(v)}
         sv, med = np.sort(x[~np.isnan(x)]), float(np.nanmedian(x)) if len(vals) else 0.0
         crowd = max(5, 0.0005 * len(sv))
-        rare_minus = (sv >= 0).sum() >= 0.99 * (len(sv) - 1)  # likely_value's own test for a minus-sign slip
+        # likely_value's own test for a minus-sign slip; under a header whose quantity can go below zero (a temperature),
+        # with 5+ negatives, a negative is one of its values, judged by its crowd like any other (AH-177, limits._limits)
+        rare_minus = (sv >= 0).sum() >= 0.99 * (len(sv) - 1) and not (_signed(col, column_types) and (sv < 0).sum() >= 5)
         top = None if typos_only else _alone_top(sv)
         rules = (held or {}).get(col, ())
         ruled = lambda i: next((t for m, t in rules if m[i]), None)  # the rule this row's arithmetic holds to
@@ -365,28 +377,28 @@ def _centred_median(a, half=3):
     return m
 
 
-def far_off(d):
+def far_off(d, least=pd.Timedelta(days=30)):
     """(far, lo, hi) for a column of dates: the dates more than the column's whole span away from it (a 2018 sheet with
     2084 in it). The span leaves at least one date past each end: in 48 months the 99% point reached 2084 itself
     (AH-31 review). Birthdates spread over decades widen the span themselves."""
     q = max(0.01, 1.5 / len(d))
     lo, hi = d.quantile([q, 1 - q])
-    span = max(hi - lo, pd.Timedelta(days=30))
+    span = max(hi - lo, least)
     return (d < lo - span) | (d > hi + span), lo, hi
 
 
-def sequence_detector(df, column_types, order_by=None, k=K):
-    """Rows sorted by order column. Vote on spikes vs rolling-median trend and on 1st/2nd/3rd differences."""
-    n = len(df)
+def series_gate(df, column_types, order_by=None):
+    """Is the sheet one series in time? -> (the order column or None, its values, the rows in its order, the gaps between
+    its steps, why not or None). The sequence check's own gate, so /profile says before a scan what it will do (AH-169)."""
     by = order_by or next((c for c, t in column_types.items() if t == "date"), None)
     if by is None:
-        return _result(n, "no order column")
-    if n < 30:
-        return _result(n, "fewer than 30 rows")
+        return None, None, None, None, "no order column"
+    if len(df) < 30:
+        return by, None, None, None, "fewer than 30 rows"
     # many rows per date = transactions (100k taxi trips: 94% of its votes were false alarms), not one series
     if df[by].nunique() < 0.5 * df[by].notna().sum():
-        return _result(n, f"not a time series (many rows share each {by})")
-    r, order = _result(n), df[by]
+        return by, None, None, None, f"not a time series (many rows share each {by})"
+    order = df[by]
     idx = order.sort_values(kind="mergesort").index.to_numpy()
     if order.dtype.kind == "M" and order.notna().sum() >= 30:
         # a month typed 2084 is not part of the series (far_dates names it): sorted last, its ordinary value read as
@@ -398,7 +410,17 @@ def sequence_detector(df, column_types, order_by=None, k=K):
     gap = order.sort_values().diff().dropna()
     gap = gap.dt.total_seconds() if gap.dtype.kind == "m" else gap.astype(float)
     if (abs(gap - gap.median()) <= 0.1 * gap.median()).mean() < 0.7:
-        return _result(n, f"not a time series ({by} is not evenly spaced)")
+        return by, order, idx, gap, f"not a time series ({by} is not evenly spaced)"
+    return by, order, idx, gap, None
+
+
+def sequence_detector(df, column_types, order_by=None, k=K):
+    """Rows sorted by order column. Vote on spikes vs rolling-median trend and on 1st/2nd/3rd differences."""
+    n = len(df)
+    by, order, idx, gap, why = series_gate(df, column_types, order_by)
+    if why:
+        return _result(n, why)
+    r = _result(n)
 
     def hit(pos, mag, col, what):
         i = idx[pos]

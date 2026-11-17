@@ -150,12 +150,9 @@ button:disabled { cursor: default; }
 #skeleton { padding: var(--s5) var(--margin) var(--s2); }
 #app-body:has(#main-ui:not([hidden])) #skeleton,
 #app-body:has(#server-down:not([hidden])) #skeleton { display: none; }
-.sk-btn, .sk-track, .sk-row, .sk-line, .sk-scale, .sk-hint, .sk-foot { background: var(--tint-1); } /* no shimmer */
-.sk-line { height: 11px; width: 52%; margin-bottom: var(--s3); }
-.sk-btn { height: 48px; margin: 0 0 var(--s5); }
-.sk-track { height: 3px; }
-.sk-scale { height: 8px; margin: 10px 0 0; opacity: .55; }
-.sk-hint { height: 32px; margin-top: var(--s5); }
+.sk-btn, .sk-row, .sk-line, .sk-foot { background: var(--tint-1); } /* no shimmer */
+.sk-line { height: 11px; width: 52%; margin: 16px 0 var(--s5); } /* the folded slider's summary (AH-175) */
+.sk-btn { height: 48px; margin: 0 0 var(--s3); }
 .sk-row { height: 44px; margin-top: var(--s2); }
 .sk-foot { height: 112px; margin: var(--s6) calc(-1 * var(--margin)) 0; background: var(--navy); }
 
@@ -196,5 +193,5 @@ button:disabled { cursor: default; }
    the text colour */
 @media (forced-colors: active) {
   .primary { border: 2px solid ButtonText; }
-  .notice::before, #notice::before, #server-down p:first-child::before, #fix-care::before, h2::before { forced-color-adjust: none; background: CanvasText; }
+  .notice::before, #notice::before, #server-down p:first-child::before, #fix-care::before, #before-scan-head::before, h2::before { forced-color-adjust: none; background: CanvasText; }
 }

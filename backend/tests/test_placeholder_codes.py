@@ -114,3 +114,28 @@ def test_a_block_of_placeholders_beside_a_few_stray_ones_is_still_each_a_slip():
     out = scan(cols, rows, fair=False)[1]
     got = said(out, '"Unknown"')
     assert [i for i, *_ in got] == sorted(hit) and all(s == "Medium" for _, s, _ in got), got[:2]
+
+
+def contest(every):
+    # AH-173 (blind round 1): a contest's results sorted newest first wrote contestant "?" for 164 entrants of its oldest
+    # years, interleaved with real names, nearly all in the last fifth: each was a Medium "Placeholder" row
+    rng = np.random.default_rng(4)
+    rows = [[2024 - i // 200, f"Entrant {i}", int(rng.integers(0, 43))] for i in range(4000)]
+    for i in range(3200 + 3, 4000, every):
+        rows[i][1] = "?"
+    return ["year", "contestant", "total"], rows
+
+
+def test_a_placeholder_written_among_real_names_in_one_part_of_a_sorted_sheet_is_one_note():
+    cols, rows = contest(9)  # 89 "?" in the last 800 rows, one in 9: under 1 in 8 of the rows they span
+    out = scan(cols, rows, fair=False)[1]
+    got = said(out, '"?"')
+    assert len(got) == 1 and got[0][0] == 3203 and got[0][1] == "Low", got[:3]
+    assert got[0][2].endswith('contestant is "?" (no value) in 89 of 4000 rows'), got[0]
+
+
+def test_a_placeholder_filling_one_in_eight_rows_of_one_part_of_the_sheet_is_a_block_each_a_slip():
+    cols, rows = contest(8)  # 100 "?", one in 8 of the rows they span: a block, like a paste gone wrong
+    out = scan(cols, rows, fair=False)[1]
+    got = said(out, '"?"')
+    assert len(got) == 100 and all(s == "Medium" for _, s, _ in got), got[:2]

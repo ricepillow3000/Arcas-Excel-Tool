@@ -49,7 +49,7 @@
       <div class="hero-copy" data-enter="left">
         <p>Arcas reads every cell of your Excel sheet, finds the typos, broken formulas and numbers that don't add up, and suggests a fix.</p>
         <div class="hero-cta"><a class="btn btn-primary" href="#download">Download for Windows</a><a class="btn btn-ghost" href="#preview" data-glide="frame">See a sample scan</a><a class="btn btn-plain" href="#contact" data-glide="top">Contact John</a></div>
-        <p class="phone-only">Arcas runs on a Windows computer. Open this page on that computer to download it.</p>
+        <p class="phone-only">Arcas runs on a Windows computer. Open this page on that computer to download it, or <a href="mailto:?subject=Arcas%20for%20Excel&amp;body=https%3A%2F%2Fricepillow3000.github.io%2Fexcel-anomaly-hunter%2F%23download">email yourself the link</a>.</p>
         <span class="note">Free for Windows with desktop Excel.</span>
       </div>
 
@@ -108,7 +108,7 @@
 
               <!-- the error matrix behind each flagged row: shown under the row it belongs to -->
               <div class="matrix" id="m11" role="dialog" aria-label="Row 11 detail" hidden>
-                <div class="m-head"><b>Row 11 · Probably wrong</b><button type="button" class="m-close" aria-label="Close">Close</button></div>
+                <div class="m-head"><b>Row 11 · Probably wrong</b><button type="button" class="btn btn-primary m-accept">Accept</button><button type="button" class="m-close" aria-label="Close">Close</button></div>
                 <dl>
                   <dt>Checks</dt><dd>Totals that don't add up, typing slips</dd>
                   <dt>Rule</dt><dd><span class="nb">Total = Units × UnitCost</span></dd>
@@ -120,7 +120,7 @@
 Units is -5, below its usual limit of 0"</p>
               </div>
               <div class="matrix" id="m22" role="dialog" aria-label="Row 22 detail" hidden>
-                <div class="m-head"><b>Row 22 · Probably wrong</b><button type="button" class="m-close" aria-label="Close">Close</button></div>
+                <div class="m-head"><b>Row 22 · Probably wrong</b><button type="button" class="btn btn-primary m-accept">Accept</button><button type="button" class="m-close" aria-label="Close">Close</button></div>
                 <dl>
                   <dt>Checks</dt><dd>Totals that don't add up, typing slips, odd jumps over time</dd>
                   <dt>Rule</dt><dd><span class="nb">Total = Units × UnitCost</span></dd>
@@ -134,7 +134,7 @@ Units breaks its usual pattern near 2026-01-26
 Units jumped sharply near 2026-01-26"</p>
               </div>
               <div class="matrix" id="m31" role="dialog" aria-label="Row 31 detail" hidden>
-                <div class="m-head"><b>Row 31 · Probably wrong</b><button type="button" class="m-close" aria-label="Close">Close</button></div>
+                <div class="m-head"><b>Row 31 · Probably wrong</b><button type="button" class="btn btn-primary m-accept">Accept</button><button type="button" class="m-close" aria-label="Close">Close</button></div>
                 <dl>
                   <dt>Check</dt><dd>Same word, typed two ways</dd>
                   <dt>Found</dt><dd>Region "east " (lower case, a trailing space)</dd>
@@ -235,7 +235,7 @@ Units jumped sharply near 2026-01-26"</p>
             </div>
           </div>
         </div>
-        <figcaption class="ws-foot" id="ws-cap">A sample sheet with the engine's own findings, at level 5 of 10, the recommended one. Click a flagged row for its detail: each fix comes from the row's own numbers or the column's usual spelling.</figcaption>
+        <figcaption class="ws-foot" id="ws-cap">A sample sheet with the engine's own findings, at level 5 of 10, the recommended one. Click a flagged row for its detail, and Accept its fix: each fix comes from the row's own numbers or the column's usual spelling.</figcaption>
       </figure>
       <p class="next-up"><a class="btn btn-ghost" href="#checks" data-glide="top">See what it checks</a></p>
     </div>
@@ -256,7 +256,7 @@ Units jumped sharply near 2026-01-26"</p>
       </ul>
       <!-- AH-156: the real pane, captured by the e2e after a scan of its own 300-row sales sheet, not the sample above -->
       <figure class="shot reveal-item">
-        <img src="assets/pane-after-scan.webp" width="360" height="900" alt="The Arcas pane after a scan: 5 of 300 rows look wrong, and the rows to check start with Row 22, Row 11 and Row 51, each with its reason" loading="lazy" decoding="async">
+        <img src="assets/pane-after-scan.webp" width="360" height="900" alt="The Arcas pane after a scan: 5 of 300 rows look wrong, and the rows to check start with Row 22 and Row 11, each with its reason" loading="lazy" decoding="async">
         <figcaption>The Arcas pane after a scan of a 300-row sales sheet: it lists the rows to check, worst first.</figcaption>
       </figure>
       <p class="all-checks reveal-item"><a href="checks.html">See every check</a></p>
@@ -292,13 +292,13 @@ Units jumped sharply near 2026-01-26"</p>
   <section class="section" id="proof" aria-labelledby="proof-title">
     <div class="wrap cols" data-reveal-group>
       <h2 class="sec-title reveal-item" data-depth="0.03" id="proof-title">What the tests measured</h2>
-      <p class="sec-lede calm reveal-item">Mistakes were planted in test sheets, and Arcas was asked to find them.</p>
       <dl class="proof calm" data-reveal-group="rows">
-        <div class="reveal-item"><span class="rule" aria-hidden="true"></span><dt>51 of 51</dt><dd>planted mistakes found in 27 test sheets, in the <a href="https://github.com/ricepillow3000/excel-anomaly-hunter/blob/main/docs/proof/2026-11-05-stress-test.md">stress test of 5 November 2026</a>.</dd></div>
-        <div class="reveal-item"><span class="rule" aria-hidden="true"></span><dt>199 of 201</dt><dd>found in 42 more test sheets it had never seen, in the same <a href="https://github.com/ricepillow3000/excel-anomaly-hunter/blob/main/docs/proof/2026-11-05-stress-test.md">stress test</a>.</dd></div>
-        <div class="reveal-item"><span class="rule" aria-hidden="true"></span><dt>0</dt><dd>correct rows called probably wrong in those test sheets. The <a href="https://github.com/ricepillow3000/excel-anomaly-hunter/blob/main/docs/proof/2026-11-05-stress-test.md">record</a> counts 2,724 and 6,954 clean rows in the two sets of sheets.</dd></div>
+        <div class="reveal-item"><span class="rule" aria-hidden="true"></span><dt>51 of 51</dt><dd>planted mistakes found in 27 test sheets</dd></div>
+        <div class="reveal-item"><span class="rule" aria-hidden="true"></span><dt>199 of 201</dt><dd>found in 42 more test sheets it had never seen</dd></div>
+        <div class="reveal-item"><span class="rule" aria-hidden="true"></span><dt>0</dt><dd>correct rows called probably wrong in those test sheets, out of 2,724 and 6,954 clean rows</dd></div>
       </dl>
       <p class="proof-note calm reveal-item">Real sheets are messier than test sheets. When Arcas misses something, <a href="#contact">tell John</a>, and the next version learns from it.</p>
+      <p class="proof-from calm reveal-item">From the <a href="https://github.com/ricepillow3000/excel-anomaly-hunter/blob/main/docs/proof/2026-11-05-stress-test.md">stress test of 5 November 2026</a>.</p>
       <p class="to-cases calm reveal-item"><a href="cases.html">See what it found in three public tables</a></p>
     </div>
   </section>
@@ -320,7 +320,7 @@ Units jumped sharply near 2026-01-26"</p>
           <li class="reveal-item"><span class="rule" aria-hidden="true"></span><div>Open your Downloads folder and double-click <b>Arcas.exe</b>.</div></li>
           <li class="reveal-item"><span class="rule" aria-hidden="true"></span><div>A blue "Windows protected your PC" box appears. Click <b>More info</b>, then <b>Run anyway</b>, or <b>Run</b> on some PCs.</div></li>
           <li class="reveal-item"><span class="rule" aria-hidden="true"></span><div>Windows asks to install a certificate named Anomaly Hunter local CA, Arcas's old name. It only lets Excel talk to Arcas on this computer. Click <b>Yes</b>.</div></li>
-          <li class="reveal-item"><span class="rule" aria-hidden="true"></span><div>Excel opens a "Start here" workbook. Follow its steps once, try its Practice tab, then press <b>Find problems</b>.</div></li>
+          <li class="reveal-item"><span class="rule" aria-hidden="true"></span><div>Excel opens a "Start here" workbook. The first time, it shows 5 clicks that add Arcas to Excel. Then try its Practice tab and press <b>Find problems</b>.</div></li>
         </ol>
         <!-- what IT reads before it says yes (AH-159): the release's facts, its checksum (home.js fills it from GitHub) and
              the check by hand, in one closed box so they take no room until asked for -->
@@ -412,7 +412,7 @@ Units jumped sharply near 2026-01-26"</p>
       </section>
     </div>
   </section>
-  <div class="dock" id="dock" hidden><a class="btn btn-primary" href="#download">Download for Windows</a></div>
+  <div class="dock" id="dock" hidden><a class="btn btn-primary" href="mailto:?subject=Arcas%20for%20Excel&amp;body=https%3A%2F%2Fricepillow3000.github.io%2Fexcel-anomaly-hunter%2F%23download">Email yourself the link</a></div>
 </main>
 
 <footer class="foot">

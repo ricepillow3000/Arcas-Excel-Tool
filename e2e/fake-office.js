@@ -3,6 +3,9 @@
   const L = (c) => { let s = ""; c++; while (c) { const r = (c - 1) % 26; s = String.fromCharCode(65 + r) + s; c = Math.floor((c - 1) / 26); } return s; };
   const parse = (a) => { const m = /^(?:.*!)?\$?([A-Z]+)\$?(\d+)$/.exec(a); let c = 0; for (const ch of m[1]) c = c * 26 + ch.charCodeAt(0) - 64; return [Number(m[2]) - 1, c - 1]; };
   const sheets = {}; let active = "Sheet1"; const log = [];
+  // AH-181: the workbook's onChanged handlers, told once per write as Excel does, a moment later. A write the test makes
+  // as the user (__edit, __paste) comes with triggerSource "Unknown", any other is the pane's own: "ThisLocalAddin"
+  const bookChanged = []; let byUser = false;
   // "=B2*C3" in cell (r, c) -> "=RC[-2]*R[1]C[-1]", as Excel's formulasR1C1 gives it (AH-152); "$B$2" -> "R2C2"
   const r1c1 = (f, r, c) => f.replace(/(?<![A-Za-z_\d])(\$?)([A-Z]{1,3})(\$?)(\d+)(?![\d(A-Za-z_])/g, (m, ca, col, ra, row) => {
     const [rr, cc] = parse(col + row), rel = (d) => (d ? `[${d}]` : "");
@@ -15,21 +18,24 @@
     return `${cd}${L(cn)}${rd}${rn + 1}`;
   });
   function makeSheet(name) {
-    const cells = {}; const ws = { name, cells, changed: [], selected: [] };
+    const cells = {}; const ws = { name, id: name, cells, changed: [], selected: [] };
     const cell = (r, c) => (cells[r + "," + c] ||= { v: "", f: null, nf: "General", fill: null });
     const range = (r0, c0, nr, nc) => {
       window.__ranges = (window.__ranges || 0) + 1; // Excel objects made: highlights must only touch flagged rows
       const grid = (fn) => Array.from({ length: nr }, (_, i) => Array.from({ length: nc }, (_, j) => fn(cell(r0 + i, c0 + j), r0 + i, c0 + j)));
-      const set = (vals, asFormula) => vals.forEach((row, i) => row.forEach((v, j) => {
+      const set = (vals, asFormula) => { tell(); vals.forEach((row, i) => row.forEach((v, j) => {
         const k = cell(r0 + i, c0 + j);
         if (asFormula && typeof v === "string" && v.startsWith("=")) { k.f = v; k.v = v; }
         else { k.f = null; k.v = typeof v === "string" && v.trim() !== "" && !isNaN(Number(v)) ? Number(v) : v; }
         log.push(["write", name, L(c0 + j) + (r0 + i + 1), v]);
         ws.changed.forEach((h) => h({}));
-      }));
+      })); };
+      const tell = () => { const e = { worksheetId: name, address: nr * nc === 1 ? L(c0) + (r0 + 1) : `${L(c0) + (r0 + 1)}:${L(c0 + nc - 1) + (r0 + nr)}`,
+        source: "Local", changeType: "RangeEdited", triggerSource: byUser ? "Unknown" : "ThisLocalAddin" };
+        setTimeout(() => bookChanged.forEach((h) => h(e)), 0); };
       return {
         isNullObject: false, rowIndex: r0, columnIndex: c0, rowCount: nr, columnCount: nc,
-        load() { return this; }, select() { ws.selected.forEach((h) => h({ address: L(c0) + (r0 + 1) + ":" + L(c0 + nc - 1) + (r0 + nr) })); },
+        load() { return this; }, select() { window.__selection = `${name}!${L(c0)}${r0 + 1}`; ws.selected.forEach((h) => h({ address: L(c0) + (r0 + 1) + ":" + L(c0 + nc - 1) + (r0 + nr) })); },
         get values() { return grid((k) => k.v); }, set values(v) { set(v, false); },
         get formulas() { return grid((k) => k.f ?? k.v); }, set formulas(v) { set(v, true); },
         get formulasR1C1() { return grid((k, r, c) => (k.f ? r1c1(k.f, r, c) : k.v)); },
@@ -57,6 +63,8 @@
     getActiveWorksheet: () => sheets[active], getItem: (n) => { if (!sheets[n]) throw Object.assign(new Error("ItemNotFound"), { code: "ItemNotFound" }); return sheets[n]; }, // as Office.js names it
     getItemOrNullObject: (n) => sheets[n] || { isNullObject: true, load() { return this; } },
     add: (n) => (sheets[n] = makeSheet(n)),
+    load() { return this; }, get items() { return Object.values(sheets); }, // in the order the tabs were made
+    onChanged: { add: (h) => { bookChanged.push(h); return handle(bookChanged, h); } },
   } };
   sheets.Sheet1 = makeSheet("Sheet1");
   const settings = {};
@@ -81,7 +89,8 @@
   const saveAsync = (cb) => { saved = JSON.parse(JSON.stringify(settings)); if (cb) cb({ status: "succeeded" }); };
   window.Office = {
     HostType: { Excel: "Excel" }, onReady: (cb) => setTimeout(() => cb({ host: "Excel" }), 0),
-    context: { document: { settings: { get: (k) => settings[k] ?? null, set: (k, v) => (settings[k] = v), remove: (k) => delete settings[k], saveAsync, refreshAsync: (cb) => cb() } } },
+    // window.__oldExcel = true (before the pane loads): an Excel without ExcelApi 1.9
+    context: { requirements: { isSetSupported: (set, v) => !(window.__oldExcel && set === "ExcelApi" && v === "1.9") }, document: { settings: { get: (k) => settings[k] ?? null, set: (k, v) => (settings[k] = v), remove: (k) => delete settings[k], saveAsync, refreshAsync: (cb) => cb() } } },
   };
   // window.__cellEdit = n (set before the pane loads, or any time): the next n Excel.run calls reject as real Excel does
   // while the user is typing in a cell. window.__typeError = n: the next n throw a script error, as a bug of ours would.
@@ -97,7 +106,8 @@
     const ws = (sheets[name] = makeSheet(name)); active = name;
     rows.forEach((row, r) => row.forEach((v, c) => { const k = ws.cell(r, c); k.v = v; if (r && dateCols.includes(c)) k.nf = "m/d/yyyy"; }));
   };
-  window.__edit = (name, a, v) => { const [r, c] = parse(a); sheets[name].getRangeByIndexes(r, c, 1, 1).values = [[v]]; }; // fires onChanged
+  window.__edit = (name, a, v) => window.__paste(name, a, [[v]]); // fires onChanged, as the user's edit
+  window.__paste = (name, a, grid) => { const [r, c] = parse(a); byUser = true; try { sheets[name].getRangeByIndexes(r, c, grid.length, grid[0].length).values = grid; } finally { byUser = false; } };
   window.__changed = (n) => sheets[n].changed.length;
   window.__drop = (n) => { delete sheets[n]; };
   window.__fill = (name, a, color) => { const [r, c] = parse(a); sheets[name].cell(r, c).fill = color; };

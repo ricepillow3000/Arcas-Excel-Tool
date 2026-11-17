@@ -100,19 +100,23 @@ def test_a_column_of_near_zero_numbers_with_one_big_value_scans_without_an_engin
 
 
 @pytest.mark.filterwarnings("error::RuntimeWarning")
-def test_a_column_with_no_number_in_it_scans_without_an_engine_error():
-    # the fuzz test found it 2026-11-17 (AH-176): a column whose cells are all blank left _decimals taking the mean of
-    # an empty array, so numpy warned twice for every such column ("Mean of empty slice", then the 0/0 that follows)
-    # and the column's rounding tolerance came out of a NaN comparison instead of its real decimals
+def test_a_sheet_whose_number_columns_are_filled_only_on_a_skipped_row_scans_without_an_engine_error():
+    # the fuzz test found it 2026-11-16 (on main too): a blank row and a row "0, 0, 0, 1e100" left every number column
+    # empty on the rows the totals check reads, and the decimals of an empty column were a mean of nothing -> HTTP 500
+    rows = [[None] * 5, [None, 0, 0, 0, 1e100]]
+    c = APP.test_client()
+    for route, extra in (("/scan", {}), ("/check", {"row_index": 1, "changes": [{"col": 4, "value": 1}]})):
+        r = c.post(route, json={"columns": ["", "", "", "", ""], "rows": rows, "strength": 10, **extra})
+        assert r.status_code == 200, r.get_json()
+
+
+@pytest.mark.filterwarnings("error::RuntimeWarning")
+def test_the_decimals_of_a_column_with_no_number_are_zero_and_a_filled_column_reports_its_own():
+    # AH-176, beside the test above: that one proves the routes answer 200, this one pins the VALUE the guard returns,
+    # so a future change from 0 (every tolerance from a NaN, or a different default) turns red here
     import numpy as np
 
     from anomaly_hunter.engine import pipeline
 
-    body = {"columns": [0.0] * 15, "rows": [[None] * 11 + [0.0, 0.0, 0.0, 1e100]]}
-    r = APP.test_client().post("/scan", json=body)
-    assert r.status_code == 200, r.get_json()
-    assert "NaN" not in r.get_data(as_text=True) and "Infinity" not in r.get_data(as_text=True)
-    # no numbers: 6, the strictest default and what the NaN comparison fell through to, so no flag changes
-    assert pipeline._decimals(np.array([np.nan, np.inf])) == 6 and pipeline._decimals(np.array([])) == 6
-    # and a column that does have numbers still reports its own decimals
+    assert pipeline._decimals(np.array([])) == 0 and pipeline._decimals(np.array([np.nan, np.inf])) == 0
     assert pipeline._decimals(np.array([1.5, 2.25, 3.0])) == 2 and pipeline._decimals(np.array([1.0, 2.0])) == 0

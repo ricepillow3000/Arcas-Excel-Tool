@@ -3,11 +3,11 @@ import { state } from "../hooks/use-state.js";
 import { $, show } from "../utils/dom.js";
 import { cellAt, colLetter, r1c1ToA1, readAs, sameRow, typedAsFormula } from "../utils/sheet.js";
 import { setApplied } from "../components/fix-preview.js";
-import { busy } from "../components/progress.js";
+import { busy, notice } from "../components/progress.js";
 import { post } from "../services/api.js";
 import { readCells, readRows, writeCells } from "../services/excel.js";
 import { fillRow } from "./highlight.js";
-import { plainReason } from "./scan.js";
+import { doneOf, plainReason } from "./scan.js";
 import { codeAt, rowHash, saveDecisions } from "./decisions.js";
 import { isOurs, plainError } from "../utils/errors.js";
 import { forgetUndo, saveUndo } from "./undo-store.js";
@@ -152,7 +152,10 @@ export function recommendFix(columns, rows, i, limits, reason, startRow, startCo
 
 // a far-off date got "Nothing here is clearly broken" (12 of 12 on 40 real sheets, 2026-10-16)
 const HINTS = [
-  [/ is far outside the column's dates /, "a mistyped year (2084 for 2024) is the usual cause"],
+  [/ is far outside the column's (?:dates|years) /, "a mistyped year (2084 for 2024) is the usual cause"],
+  // AH-178: one column at most another on every other row; which of the two cells is wrong is unknown, so no value is written
+  [/ is above .+, where .+ is at most .+ on \d+ of \d+ rows$/, "two values typed in each other's place (a Low and its High, " +
+    "a 10th and a 90th percentile) or one mistyped value is the usual cause; check both cells against the source"],
   [/ looks like a code, not a real value/, 'a code like 99999 often stands for "missing": put the real value or leave the cell empty'],
   [/ is above 100% - /, "it may be a whole percent typed where a fraction belongs (85 for 0.85)"],
   [/ looks like an? .+ value$/, "it may have been typed into the wrong column"],
@@ -206,6 +209,11 @@ const HINTS = [
   // AH-46: a sort puts blank cells last - the block at the end is where the sort put them, not where they went missing
   [/ is blank in \d+ of \d+ rows, all at the end of the table, which is sorted by /, "sorting puts blank cells last, so these rows " +
     "have no value here; if the column must always be filled, fill them in from the source"],
+  // AH-182: one number column pasted twice, and a gene name Excel turned into a date: said, nothing written
+  [/ is the same [\d,]+ numbers as .+, row for row: was one column pasted twice\?$/, "two columns that match row for row are " +
+    "usually one series pasted where another belongs; check both against the source, and if the source repeats them, leave both"],
+  [/ a date among gene names: /, "find the gene's name in the source (2-Sep was SEPT2, 1-Mar was MARCH1; both are now renamed " +
+    "SEPTIN2 and MARCHF1) and type it back, then format the column as Text so Excel keeps it as typed"],
 ];
 
 // Pure: the column an "only unusual" reason points at (an odd mix across columns, or a break in a series), else null
@@ -301,6 +309,7 @@ export async function applyFix(f, changes, sheet) { // the fix, its changes and 
     state.decided[f.i] = "fixed";
     saveDecisions(sheet, [[state.codes[f.i], null], [code, "fixed"]]); // an Accept after a Dismiss replaces it
     if (state.fix === f) setApplied(true);
+    notice(doneOf(state.order, state.decided)); // AH-171: the finish line, in the foot bar (nothing on the card moves)
   } catch (e) {
     if (state.fix === f) $("fix-apply").disabled = false;
     return failed(f, e, "Accept failed");
@@ -361,6 +370,7 @@ export async function undoFix(f) {
     state.codes[f.i] = before;
     state.hashes[f.i] = before.slice(0, before.lastIndexOf("."));
     await fillRow(f.i, !u.was); // flagged again - unless it had been dismissed, then it stays unhighlighted
+    notice(doneOf(state.order, state.decided));
     if (state.fix === f) {
       setApplied(false);
       $("fix-status").textContent = "Undone. The cells are back to what they were.";

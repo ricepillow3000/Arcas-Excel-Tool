@@ -94,3 +94,27 @@ def test_a_number_column_with_a_stray_padded_value_stays_a_number():
     assert types["Qty"] == "number" and types["Month"] == "number"
     got = scan(cols, rows)["rows"]
     assert "Month 13 is outside what" in got[9]["reason"]
+
+
+def grants(zero):
+    # AH-173 (blind round 1): org_zip held 998 ZIP+4 codes ("021341234", at most 2 leading zeros: Puerto Rico's "00601...")
+    # and 44 five-digit ZIPs, each flagged "did it lose its leading zeros?": 4 lost zeros where none writes more than 2
+    cols = ["Grant", "org_zip", "Amount"]
+    rows = [[f"G{i:04d}", f"{['02134', '00601', '78701', '98101'][i % 4]}{1000 + i:04d}", 1000 + 37 * i] for i in range(120)]
+    rows[30][1], rows[60][1], rows[90][1] = "98101", "02134", "1234567"
+    rows[7][1] = zero
+    return cols, rows
+
+
+def test_a_five_digit_zip_among_zip_plus_4_codes_is_no_lost_zero():
+    got = scan(*grants("006011007"))["rows"]
+    # ...but a code 2 digits short, as many as the column's codes write zeros, is still flagged
+    assert [i for i, r in enumerate(got) if "leading zero" in r["reason"]] == [90], [r["reason"] for r in got if "leading zero" in r["reason"]]
+
+
+@pytest.mark.parametrize("zero, flagged", [("000011007", [30, 60, 90]), ("000611007", [90])])
+def test_a_shorter_code_is_a_lost_zero_only_when_the_column_writes_that_many_leading_zeros(zero, flagged):
+    # one code written with 4 leading zeros makes a 5-digit one a code that may have lost them; at most 3 do not, and a
+    # 7-digit one, 2 short, is still flagged
+    got = scan(*grants(zero))["rows"]
+    assert [i for i, r in enumerate(got) if "leading zero" in r["reason"]] == flagged

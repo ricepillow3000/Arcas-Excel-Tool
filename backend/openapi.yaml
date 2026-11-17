@@ -33,6 +33,23 @@ paths:
                       nullable: true
                       items: {type: array, items: {type: string, pattern: "^=", maxLength: 8192, nullable: true}}
       responses: {"200": {$ref: "#/components/responses/Json"}, "400": {$ref: "#/components/responses/Error"}}
+  /profile:  # AH-169: what the sheet looks like and what a scan will check, before it; the pane sends its first 500 rows
+    post:
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: "#/components/schemas/Sheet"}}}
+      responses:
+        "200":
+          description: Plain sentences for the pane, and the same as fields
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [lines, about]
+                properties:
+                  lines: {type: array, maxItems: 6, items: {type: string}}
+                  about: {type: object}
+        "400": {$ref: "#/components/responses/Error"}
   /fix:
     post:
       requestBody:

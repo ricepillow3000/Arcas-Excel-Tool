@@ -120,7 +120,10 @@ for (const p of ALL) {
 for (const p of PAGES) assert.ok(html[p].includes('<button class="menu-btn" type="button" aria-expanded="false" aria-controls="main-nav">Menu</button><nav class="links" id="main-nav" aria-label="Main">'), `${p}: no Menu button before the links`);
 // the home page: the hero's main button goes to the download, and the phone's download bar waits hidden for home.js
 assert.ok(/<div class="hero-cta"><a class="btn btn-primary" href="#download">Download for Windows<\/a>/.test(html["index.html"]), "the hero has no main download button");
-assert.ok(/<div class="dock" id="dock" hidden><a class="btn btn-primary" href="#download">Download for Windows<\/a><\/div>/.test(html["index.html"]), "the home page has no hidden download bar");
+// ... which, on a phone (the only screen it shows on), can't download a Windows app: since AH-171 it emails the visitor the
+// page's own download, a mailto with no address (their own email app, to themselves), the canonical address + #download
+const SELF_MAIL = `mailto:?subject=Arcas%20for%20Excel&amp;body=${encodeURIComponent(SITE_URL + "#download")}`;
+assert.ok(html["index.html"].includes(`<div class="dock" id="dock" hidden><a class="btn btn-primary" href="${SELF_MAIL}">Email yourself the link</a></div>`), "the home page has no hidden bar that emails the visitor the link");
 for (const p of PAGES.filter((p) => p !== "index.html")) assert.ok(!html[p].includes('id="dock"'), `${p}: a download bar off the home page`);
 // what to do when the checksum differs
 assert.ok(html["index.html"].includes("If they differ, delete the file and download it again."), "the checksum step does not say what to do when the hashes differ");
@@ -436,10 +439,13 @@ for (const f of SCRIPTS) {
   const items = [...proof.matchAll(/<div class="reveal-item">(?:<span class="rule" aria-hidden="true"><\/span>)?<dt>([\s\S]*?)<\/dt>\s*<dd>([\s\S]*?)<\/dd>\s*<\/div>/g)].map((m) => [text(m[1]), text(m[2]), m[2]]);
   assert.deepEqual(items.map(([n]) => n), [`${iFound} of ${iPlanted}`, `${bFound} of ${bPlanted}`, `${Math.max(+iFalse, +bFalse)}`], "the proof strip's figures");
   // in plain words since AH-148 ("bench" and "tuned on" were the engine room's words): the figures still the record's
-  assert.ok(items[0][1].includes(`found in ${iSheets} test sheets`) && items[1][1].includes(`found in ${bSheets} more test sheets it had never seen`), "the proof strip's benches");
-  assert.ok(items[2][1].includes(`${iClean} and ${bClean} clean rows`), "the proof strip's clean rows");
+  // AH-171: shorter, each figure's words alone, with no lede over them (585 px for three figures read as a wall)
+  assert.deepEqual(items.map(([, said]) => said), [`planted mistakes found in ${iSheets} test sheets`, `found in ${bSheets} more test sheets it had never seen`,
+    `correct rows called probably wrong in those test sheets, out of ${iClean} and ${bClean} clean rows`], "the proof strip's words");
+  assert.ok(!/sec-lede/.test(proof), "the proof strip still has a lede over its figures");
+  // ... and the strip links the record once, under it (each figure linked it, three links to one file)
   const PROOF = REPO + "/blob/main/docs/proof/2026-11-05-stress-test.md";
-  for (const [i, href] of [[0, PROOF], [1, PROOF], [2, PROOF]]) assert.ok(items[i][2].includes(`href="${href}"`), `proof item ${i + 1} does not link ${href}`);
+  assert.ok(proof.split(`href="${PROOF}"`).length === 2 && new RegExp(`</dl>[\\s\\S]*<p class="proof-from[^"]*">From the <a href="${PROOF.replace(/[.]/g, "\\.")}">stress test of 5 November 2026</a>\\.</p>`).test(proof), "the proof strip does not link the record once, under it");
   // only the measured figures here (AH-156); the licence went to the download it covers (AH-159, John: "the MIT License is
   // under the wrong spot"), and a quiet link leads on to the case studies' own page
   assert.ok(!/MIT License|LICENSE/.test(proof) && proof.includes('<a href="cases.html">See what it found in three public tables</a>'), "the proof strip still carries the licence, or no link to the case studies");
@@ -487,6 +493,10 @@ for (const f of SCRIPTS) {
   assert.ok(/Downloads/.test(steps[0]) && /Windows protected your PC/.test(steps[1]) && /More info/.test(steps[1]) && /Run anyway/.test(steps[1]), `the first steps: ${steps.slice(0, 2)}`);
   assert.ok(steps[2].includes("Windows asks to install a certificate named Anomaly Hunter local CA, Arcas's old name. It only lets Excel talk to Arcas on this computer. Click Yes."), `the certificate step: ${steps[2]}`);
   assert.ok(/Start here/.test(steps[3]) && /Find problems/.test(steps[3]) && /Practice/.test(steps[3]), `the last step: ${steps[3]}`);
+  // AH-171: the last step names the clicks the "Start here" workbook asks for the first time, as many as it shows
+  // (backend/anomaly_hunter/practice.py STEPS: "First time only: add it to Excel (5 clicks)"), so they surprise no one
+  const clicks = (/add it to Excel \((\d+) clicks\)/.exec(fs.readFileSync(path.join(SITE, "..", "backend", "anomaly_hunter", "practice.py"), "utf8")) || [])[1];
+  assert.ok(clicks && steps[3] === `Excel opens a "Start here" workbook. The first time, it shows ${clicks} clicks that add Arcas to Excel. Then try its Practice tab and press Find problems.`, `the last step does not name the workbook's ${clicks} clicks: ${steps[3]}`);
   assert.ok(!/past Windows' checks/.test(dl), "the steps' heading still says past Windows' checks");
   const check = (/<details class="[^"]*">\s*<summary>File details for IT<\/summary>[\s\S]*?<\/details>/.exec(dl) || [""])[0];
   assert.ok(check && dl.indexOf(check) > dl.indexOf("</ol>") && check.includes("Get-FileHash .\\Arcas.exe -Algorithm SHA256") && check.includes("If they differ, delete the file and download it again.") && /SHA-256/.test(check) && /Unblock/.test(check), "the checksum and Unblock are not in a closed box under the steps");
@@ -497,7 +507,9 @@ for (const f of SCRIPTS) {
   assert.ok(text(faq).includes("To check, open Excel and click File > Account. If it says Microsoft 365 under Product information, you have the right Excel. Click About Excel: the first line ends with 64-bit or 32-bit."), "the FAQ does not say how to check which Excel you have");
   assert.ok(text(faq).includes("No, not when it checks your sheet. Arcas does all its checking on your own computer and sends nothing. Part of your sheet leaves your computer only when you click Ask AI or Check words with AI. Then it goes to Google, through John's own server first unless you saved your own Google key. The privacy page lists exactly what goes."), "the FAQ's data answer");
   // a phone can't install it: said under the hero's download, on narrow screens only
-  assert.ok(/<div class="hero-cta">[\s\S]*?<\/div>\s*<p class="phone-only">Arcas runs on a Windows computer\. Open this page on that computer to download it\.<\/p>/.test(home), "no phone line under the hero's download");
+  // ... with the same email to oneself (AH-171): a shared link mostly opens on a phone, where it was a dead end
+  const phoneLine = /<div class="hero-cta">[\s\S]*?<\/div>\s*<p class="phone-only">Arcas runs on a Windows computer\. Open this page on that computer to download it, or <a href="([^"]+)">email yourself the link<\/a>\.<\/p>/.exec(home);
+  assert.ok(phoneLine && phoneLine[1] === SELF_MAIL, "no phone line under the hero's download, with the email to oneself");
   assert.ok(/\.phone-only\s*\{\s*display:\s*none;?\s*\}/.test(css) && /@media \(max-width: 760px\)[\s\S]*\.phone-only\s*\{\s*display:\s*block;?\s*\}/.test(css), "the phone line is not shown on narrow screens only");
   // the uninstall in numbered steps, its command as it was
   const un = (/<details[^>]*id="uninstall"[\s\S]*?<\/details>/.exec(sup) || [""])[0];
@@ -635,6 +647,11 @@ function woff2(file) {
   const shot = (/<figure class="shot[^"]*">([\s\S]*?)<\/figure>/.exec(home) || ["", ""])[1], img = (/<img\b[^>]*>/.exec(shot) || [""])[0];
   for (const want of ['src="assets/pane-after-scan.webp"', 'width="360"', 'height="900"', 'loading="lazy"', 'decoding="async"']) assert.ok(img.includes(want), `the pane's screenshot lacks ${want}: ${img}`);
   assert.ok(/alt="The Arcas pane after a scan: [^"]{20,}"/.test(img), `the pane's screenshot has no alt that says what it shows: ${img}`);
+  // AH-171: drawn 1:1 (it was 180 px wide, its words 4 to 6 px tall), a 360 x 364 window of it from "5 of 300 rows look
+  // wrong." to row 11's reason; the alt says what that window shows
+  assert.ok(img.includes('alt="The Arcas pane after a scan: 5 of 300 rows look wrong, and the rows to check start with Row 22 and Row 11, each with its reason"'), `the pane's screenshot's alt is not its window's: ${img}`);
+  const shotCss = (/(?:^|\})\s*\.shot img\s*\{([^}]*)\}/.exec(css) || ["", ""])[1];
+  assert.ok(/aspect-ratio:\s*360 \/ 364/.test(shotCss) && /object-fit:\s*cover/.test(shotCss) && /object-position:\s*50% \d+%/.test(shotCss) && /width:\s*360px/.test(shotCss), `styles.css: the pane's screenshot is not a 360 x 364 window drawn 1:1: ${shotCss}`);
   assert.ok(/^The Arcas pane after a scan of a 300-row sales sheet\b/.test(words((/<figcaption>([\s\S]*?)<\/figcaption>/.exec(shot) || ["", ""])[1])), "the pane's screenshot has no caption that says what sheet it is");
   // beside the short list of checks since AH-159, after the sample
   const checks = (/<section\b[^>]*\sid="checks"[\s\S]*?<\/section>/.exec(home) || [""])[0];
@@ -686,6 +703,11 @@ function woff2(file) {
   const checks = section("checks");
   assert.deepEqual([...checks.matchAll(/<h3>([^<]+)<\/h3>/g)].map((m) => m[1]), ["Spelling", "Formulas", "Numbers", "Dates", "Blanks and duplicates", "Fairness"], "the short list of checks");
   assert.ok(checks.includes('<a href="checks.html">See every check</a>') && !/checks-table/.test(home) && /<table class="checks-table"/.test(html["checks.html"]), "the full table is not on checks.html, linked from the checks");
+  // AH-171: one vocabulary. Every check the home page names heads a row of checks.html's "every check" or starts one
+  // (Formulas had no row there), and the page has one heading over the table, its h1
+  const heads = [...html["checks.html"].matchAll(/<tr class="reveal-item"><th scope="row"><span class="rule" aria-hidden="true"><\/span>([^<]+)<\/th>/g)].map((m) => m[1].replace(/&#39;|&apos;/g, "'"));
+  for (const name of [...checks.matchAll(/<h3>([^<]+)<\/h3>/g)].map((m) => m[1])) assert.ok(heads.some((h) => h === name || h.startsWith(name + " ")), `checks.html has no row for the home page's "${name}": ${heads}`);
+  assert.ok(/<h1 [^>]*id="checks-title"[^>]*>Every check Arcas runs<\/h1>/.test(html["checks.html"]) && !/<h2\b/.test((/<main[\s\S]*<\/main>/.exec(html["checks.html"]) || [""])[0]), "checks.html: the h1 is not the table's one heading");
   // every page's "Checks" goes to checks.html (the 404 page root-absolute)
   for (const p of PAGES) assert.ok(/<nav class="links"[^>]*>[\s\S]*?<a href="checks\.html"( aria-current="page")?>Checks<\/a>/.test(html[p]), `${p}: the bar's Checks is not checks.html`);
   assert.ok(read(MISSING).includes(`<a href="${ROOT_PATH}checks.html">Checks</a>`), "404.html: the bar's Checks is not checks.html");
@@ -706,7 +728,7 @@ function woff2(file) {
     assert.ok(!m, `${p} still promises a result: "${m && m[0]}"`);
   }
   const proof = (/<section\b[^>]*\sid="proof"[\s\S]*?<\/section>/.exec(home) || [""])[0];
-  assert.ok(/<dt>0<\/dt>\s*<dd>correct rows called probably wrong in those test sheets\./.test(proof), "the proof strip's 0 does not say it was in those test sheets");
+  assert.ok(/<dt>0<\/dt>\s*<dd>correct rows called probably wrong in those test sheets, out of /.test(proof), "the proof strip's 0 does not say it was in those test sheets");
   const note = (/<\/dl>\s*<p class="proof-note[^"]*">([\s\S]*?)<\/p>/.exec(proof) || ["", ""])[1];
   assert.equal(note.replace(/<[^>]+>/g, "").trim(), "Real sheets are messier than test sheets. When Arcas misses something, tell John, and the next version learns from it.", "no line right under the proof strip that says Arcas can miss");
   assert.ok(note.includes('<a href="#contact">tell John</a>') && ids(home).includes("contact"), "the line under the proof strip does not link the contact form");
@@ -881,7 +903,9 @@ const done = async ({ ctx, problems, outside }, label, allowed = []) => {
       if (motion === "reduce") {
         const bad = await p.evaluate(contrastProblems);
         want(!bad.length, `AH-126 download bar: contrast ${JSON.stringify(bad)}`);
-        want(await p.evaluate(() => !!document.querySelector('#dock a[href="#download"]')), "AH-126 download bar: its link does not go to the download");
+        // AH-171: on a phone it emails the visitor the download's address
+        want(await p.evaluate((to) => { const a = document.querySelector("#dock a"), u = a && new URL(a.href); return !!u && u.protocol === "mailto:" && u.pathname === "" && u.searchParams.get("subject") === "Arcas for Excel" && u.searchParams.get("body") === to; }, SITE_URL + "#download"),
+          "AH-126 download bar: its link does not email the visitor the download's address");
       }
       await p.evaluate(() => document.getElementById("download").scrollIntoView({ block: "center" }));
       await p.waitForTimeout(600);
@@ -1380,6 +1404,10 @@ const onTop = (page) => page.evaluate(async () => {
   // Tab out of the box closes it, and focus goes on where Tab took it: the box stayed open, floating over the rows,
   // with focus already past it (AH-132)
   await p.keyboard.press("Enter"); assert.equal((await state()).open, "m11");
+  // (AH-171: the box's Accept sits before its Close, reached with Shift+Tab, inside the box, which stays open)
+  await p.keyboard.down("Shift"); await p.keyboard.press("Tab"); await p.keyboard.up("Shift");
+  assert.deepEqual([(await state()).open, await p.evaluate(() => document.activeElement.className)], ["m11", "btn btn-primary m-accept"], "Shift+Tab from Close to Accept");
+  await p.keyboard.press("Tab");
   await p.keyboard.press("Tab");
   assert.deepEqual(await p.evaluate(() => [[...document.querySelectorAll(".matrix")].filter((m) => !m.hidden).length, !!document.activeElement.closest(".matrix"), document.activeElement !== document.body]), [0, false, true], "Tab out of a detail box");
   await p.click('tr[data-kind="label"] td.why'); assert.equal((await state()).open, "m31");
@@ -1445,9 +1473,103 @@ for (const width of [1280, 390]) {
   await done(t, `detail boxes at ${width}px`, [API]);
 }
 console.log("sample: every row's detail box opens inside the findings and off the button under them, at 1280 and 390 px");
+// AH-171: Accept in the sample. A press writes the After fixes tab's own row into the findings (its mended cell and
+// "Fixed: ..."), the row keeps its id but is no longer flagged (no kind, no row button), the box closes with focus on the
+// row's number, and every count is the rows still flagged: after the three, each is its data-after. Counted with
+// motion, set at once without; the counts hold when the tabs turn; nothing is stored
+for (const [width, motion] of [[1280, "no-preference"], [390, "reduce"]]) {
+  const t = await open("index.html", { width, motion });
+  const p = t.page, label = `AH-171 Accept at ${width}px (${motion})`;
+  if (motion !== "reduce") await p.waitForTimeout(ENTERED);
+  const counts = () => p.$$eval("#preview .typology .n, #preview .key .kcount", (ns) => ns.map((n) => n.textContent).join(" "));
+  for (const [n, after] of [[11, "6 1 1 1 5 2 4"], [22, "5 0 0 1 4 1 4"], [31, "4 0 0 0 4 0 4"]]) {
+    await p.click(`.rowbtn[aria-controls="m${n}"]`);
+    await p.waitForFunction((n) => !document.getElementById(`m${n}`).hidden, n);
+    await p.click(`#m${n} .m-accept`);
+    const r = await p.evaluate((n) => {
+      const tr = document.getElementById(`r${n}`), clean = [...document.querySelectorAll("#p-clean tbody tr")].find((x) => (x.querySelector("th") || {}).textContent === String(n));
+      const cells = (row) => [...row.querySelectorAll("td")].map((td) => `${td.className}|${td.innerHTML}`).join("~");
+      return { inFound: !!tr.closest("#p-found"), same: cells(tr) === cells(clean), kind: tr.getAttribute("data-kind"), btn: !!tr.querySelector(".rowbtn"), th: tr.querySelector("th").textContent,
+        box: document.getElementById(`m${n}`).hidden, focus: document.activeElement === tr.querySelector("th"), ticking: document.querySelectorAll("#preview [data-tick]").length,
+        stored: [localStorage.length, sessionStorage.length] };
+    }, n);
+    if (!(r.inFound && r.same && r.kind === null && !r.btn && r.th === String(n) && r.box && r.focus && r.stored.join() === "0,0") || (motion === "reduce" && r.ticking) || (motion !== "reduce" && !r.ticking))
+      assert.fail(`${label}, row ${n}: ${JSON.stringify(r)}`);
+    await p.waitForFunction(() => !document.querySelector("#preview [data-tick]"), null, { timeout: 2000 });
+    assert.equal(await counts(), after, `${label}: the counts after row ${n}'s Accept`);
+  }
+  const want = await p.$$eval("#preview .typology .n, #preview .key .kcount", (ns) => ns.map((n) => n.dataset.after).join(" "));
+  assert.equal(await counts(), want, `${label}: after the three, the counts are not the After fixes counts`);
+  assert.equal(await p.$$eval("#preview .key span", (s) => s.map((x) => x.textContent).join(" | ")), "Probably wrong: 0 | Worth a check: 4", `${label}: the key`);
+  await p.click("#t-clean"); await p.click("#t-found");
+  await p.waitForFunction(() => !document.querySelector("#preview [data-tick]"), null, { timeout: 2000 });
+  assert.equal(await counts(), want, `${label}: the counts after the tabs turn`);
+  assert.equal(await p.$$eval("#p-found tbody tr[data-kind]", (rs) => rs.map((r) => r.id).join()), "r5,r21,r41,r57", `${label}: the rows still flagged`);
+  await done(t, label, [API]);
+}
+console.log("AH-171: Accept in the sample writes the After fixes row, closes the box onto the row, and counts down to the After fixes counts");
+// AH-170 F1 (the website Tester, 2026-11-16): a "Row 22" link pressed while the sample showed After fixes, or while
+// Scanning played, glided to the page's very top: the row sat in the hidden findings, whose offsets read 0, and nothing
+// turned the sheet back first. Under reduced motion nothing moved at all. Now the sheet turns to its findings at the
+// press, and the page lands with row 22's flagged cell in view (its gold mark shown, with motion)
+for (const [from, motion] of [["t-clean", "no-preference"], ["t-busy", "no-preference"], ["t-clean", "reduce"], ["t-busy", "reduce"]]) {
+  const t = await open("index.html", { width: 1280, height: 800, motion });
+  const p = t.page, label = `AH-170 F1 Row 22 pressed on ${from} (${motion})`;
+  if (motion !== "reduce") await p.waitForTimeout(ENTERED);
+  await p.click(`#${from}`);
+  if (from === "t-clean" && motion !== "reduce") await p.waitForTimeout(900); // the page turn is over
+  await p.evaluate(() => { const a = document.querySelector('#checks a.to-row[href="#r22"]'); scrollTo(0, a.getBoundingClientRect().top + scrollY - 300);
+    window.__landed = null; document.addEventListener("ah:glide-end", () => setTimeout(() => { const m = document.querySelector(".row-mark"); window.__landed = m ? +getComputedStyle(m).opacity : null; }, 150)); });
+  const busy = await p.evaluate(() => document.getElementById("preview").dataset.state);
+  await p.click('#checks a.to-row[href="#r22"]');
+  await p.waitForFunction(() => location.hash === "#r22", null, { timeout: 5000 }).catch(() => {});
+  await p.waitForTimeout(900);
+  const r = await p.evaluate(() => { const td = document.querySelector("#r22 td.flag"), b = td.getBoundingClientRect();
+    return { was: "", state: document.getElementById("preview").dataset.state, tab: document.getElementById("t-found").getAttribute("aria-selected"), y: Math.round(scrollY),
+      cell: [b.top, b.bottom, b.left, b.right].map(Math.round), screen: [innerWidth, innerHeight], landed: window.__landed }; });
+  r.was = busy;
+  const [tp, bt, l, rt] = r.cell;
+  if (!(r.was === from.slice(2) && r.state === "found" && r.tab === "true" && r.y > 0 && tp >= 0 && bt <= r.screen[1] && l >= 0 && rt <= r.screen[0]) || (motion !== "reduce" && !(r.landed > 0.5)))
+    assert.fail(`${label}: ${JSON.stringify(r)}`);
+  await done(t, label, [API]);
+}
+console.log("AH-170 F1: a Row N link pressed on After fixes or mid-Scanning turns the sheet to its findings and lands on the row, with motion and without");
+// AH-170 F2: Back, then Forward, came back to a page's top: transition.js kept a page's place only at a link's click,
+// so the place a reader scrolled to before Back was never written into its history entry
+for (const motion of ["no-preference", "reduce"]) {
+  const t = await open("index.html", { width: 1280, height: 800, motion });
+  const p = t.page, label = `AH-170 F2 Back and Forward (${motion})`;
+  if (motion !== "reduce") await p.waitForTimeout(ENTERED);
+  await p.click('.foot a[href="privacy.html"]');
+  await p.waitForFunction(() => location.pathname.endsWith("/privacy.html") && document.getElementById("page").dataset.page === "privacy", null, { timeout: 5000 });
+  await p.waitForTimeout(1200);
+  await p.evaluate(() => scrollTo(0, 800)); await p.waitForTimeout(500);
+  await p.goBack(); await p.waitForFunction(() => document.getElementById("page").dataset.page === "home", null, { timeout: 5000 }); await p.waitForTimeout(1200);
+  await p.goForward(); await p.waitForFunction(() => document.getElementById("page").dataset.page === "privacy", null, { timeout: 5000 }); await p.waitForTimeout(1200);
+  const y = await p.evaluate(() => Math.round(scrollY));
+  assert.ok(Math.abs(y - 800) <= 50, `${label}: privacy.html came back at y ${y}, not where it was left (800)`);
+  await done(t, label, [API]);
+}
+console.log("AH-170 F2: Back and Forward return to where the reader left each page");
+// AH-171: the pane's picture reads at its own size: drawn 340 px wide or more at 1280 (it was 182), 300 or more on a
+// 390 px phone (120), its box kept before the lazy image loads (CLS 0 from the scroll that brings it in)
+for (const [width, height, min] of [[1280, 800, 340], [390, 844, 300]]) {
+  const t = await open("index.html", { width, height, motion: "reduce", init: () => { window.__cls = 0;
+    new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) window.__cls += e.value; }).observe({ type: "layout-shift", buffered: true }); } });
+  const p = t.page;
+  // from the scroll that brings the lazy image in (main already shifts the sample's head 26 px at load on a phone)
+  await p.evaluate(() => { window.__cls = 0; document.querySelector("#checks .shot").scrollIntoView({ block: "center" }); });
+  await p.waitForFunction(() => { const i = document.querySelector("#checks .shot img"); return i.complete && i.naturalWidth > 0; }, null, { timeout: 5000 });
+  await p.waitForTimeout(300);
+  const r = await p.evaluate(() => { const i = document.querySelector("#checks .shot img"), b = i.getBoundingClientRect();
+    return { w: i.clientWidth, h: i.clientHeight, natural: [i.naturalWidth, i.naturalHeight], right: Math.round(b.right), screen: innerWidth, cls: window.__cls }; });
+  assert.ok(r.w >= min && r.w <= 360 && Math.abs(r.h - r.w * 364 / 360) <= 1 && r.right <= r.screen && r.natural.join() === "360,900" && r.cls === 0, `AH-171 the pane's picture at ${width} px: ${JSON.stringify(r)}`);
+  await done(t, `AH-171 the pane's picture at ${width} px`, [API]);
+}
+console.log("AH-171: the pane's picture drawn 1:1 at 1280 and on a phone, its box kept (CLS 0)");
 // ---- the sample sheet's motion (AH-89, AH-91, AH-92; John 2026-11-02) ----
 // the skeleton: the real sheet waits with no colour on its values and a bar exactly where each value will land; it plays
-// once the sheet is 30% on screen (never before: the sheet starts below the fold at 1440 x 900), one band of light crosses
+// once the sheet is 30% on screen (never before where row 11 starts below the fold: 1440 x 600 since AH-171), one band of light crosses
 // it, then the rows land; the layout never moves (CLS 0), and a press on the sheet ends it at once
 const bars = (p) => p.evaluate(() => {
   const sel = ["#p-found tbody tr:nth-child(5) td:nth-child(4)", "#p-found tbody tr:nth-child(5) td.why", "#p-found tbody tr:nth-child(2) th", "#preview .typology .n", "#preview .key span"];
@@ -1457,8 +1579,35 @@ const bars = (p) => p.evaluate(() => {
 });
 const loadingOf = (p) => p.evaluate(() => document.getElementById("preview").getAttribute("data-loading"));
 const frameAt = (p) => p.evaluate(() => { let top = 0; for (let e = document.getElementById("preview"); e; e = e.offsetParent) top += e.offsetTop; return top - 65 - 21; });
+// AH-171: where the first flagged row (row 11) is on the first screen at load, the sheet plays there with no scroll, a
+// third into its entrance: it waited grey for a scroll that a visitor reading the headline never made (1280 x 800 and
+// 1440 x 900). On a phone, where row 11 is below the fold, it still waits
+for (const [width, height] of [[1280, 800], [1440, 900], [390, 844]]) {
+  const t = await open("index.html", { width, height, init: () => {
+    const m = window.__sk = { cls: 0, play: 0, gone: 0, sweeps: 0 };
+    new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) m.cls += e.value; }).observe({ type: "layout-shift", buffered: true });
+    addEventListener("DOMContentLoaded", () => new MutationObserver(() => { const v = document.getElementById("preview").getAttribute("data-loading");
+      if (v === "play" && !m.play) { m.play = performance.now(); m.sweeps = document.getAnimations().filter((a) => a.animationName === "sweep").length; }
+      if (v === null && m.play && !m.gone) m.gone = performance.now(); }).observe(document.getElementById("preview"), { attributes: true, attributeFilter: ["data-loading"] }));
+  } });
+  const p = t.page;
+  if (width < 760) {
+    await p.waitForTimeout(ENTERED + 1000);
+    assert.equal(await loadingOf(p), "", `AH-171 at ${width} x ${height}: the sheet, row 11 below the fold, did not wait for a scroll`);
+  } else {
+    await p.waitForTimeout(ENTERED + 500);
+    const early = await p.evaluate(() => ({ ...window.__sk, y: scrollY }));
+    assert.ok(early.play > 0 && early.y === 0, `AH-171 at ${width} x ${height}: the sheet did not play on the first screen by ${ENTERED + 500} ms: ${JSON.stringify(early)}`);
+    await p.waitForFunction(() => window.__sk.gone > 0, null, { timeout: 4000 });
+    const sk = await p.evaluate(() => window.__sk);
+    assert.ok(sk.sweeps === 1 && sk.gone - sk.play >= 1300 && sk.gone - sk.play <= 2400 && sk.cls === 0, `AH-171 at ${width} x ${height}: the skeleton played ${Math.round(sk.gone - sk.play)} ms with ${sk.sweeps} sweeps, CLS ${sk.cls}`);
+  }
+  await done(t, `AH-171 skeleton on the first screen at ${width} x ${height}`, [API]);
+}
+console.log("AH-171: the sample plays on the first screen at 1280 x 800 and 1440 x 900 (one sweep, CLS 0), and waits on a phone");
+// below, 1440 x 600: row 11 starts below the fold there, as it did at 1440 x 900 before AH-171
 {
-  const t = await open("index.html", { width: 1440, init: () => {
+  const t = await open("index.html", { width: 1440, height: 600, init: () => {
     const m = window.__sk = { cls: 0, play: 0, gone: 0, sweeps: 0 };
     new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) m.cls += e.value; }).observe({ type: "layout-shift", buffered: true });
     addEventListener("DOMContentLoaded", () => new MutationObserver(() => { const v = document.getElementById("preview").getAttribute("data-loading");
@@ -1485,7 +1634,7 @@ const frameAt = (p) => p.evaluate(() => { let top = 0; for (let e = document.get
   await done(t, "skeleton", [API]);
 }
 { // a press on the sheet while it loads ends it at once; with reduced motion there is none (see the reduced-motion block)
-  const t = await open("index.html", { width: 1440 });
+  const t = await open("index.html", { width: 1440, height: 600 });
   const p = t.page;
   await p.waitForTimeout(ENTERED);
   await p.evaluate((y) => scrollTo(0, y), await frameAt(p));
@@ -1498,7 +1647,7 @@ const frameAt = (p) => p.evaluate(() => { let top = 0; for (let e = document.get
 // AH-99: the skeleton waits for "See a sample scan"'s glide to land (played on the way down, it had mostly finished by
 // the time the visitor arrived), and scrolled by hand it waits until the sheet is 60% in view: 30% is not enough
 {
-  const t = await open("index.html", { width: 1440, init: () => {
+  const t = await open("index.html", { width: 1440, height: 600, init: () => {
     const m = window.__arrive = { at: 0, loading: undefined, play: 0, gone: 0 };
     document.addEventListener("ah:glide-end", (e) => { if (e.detail.arrived && !m.at) { m.at = performance.now(); m.loading = document.getElementById("preview").getAttribute("data-loading"); } });
     addEventListener("DOMContentLoaded", () => new MutationObserver(() => { const v = document.getElementById("preview").getAttribute("data-loading");
@@ -1517,7 +1666,7 @@ const frameAt = (p) => p.evaluate(() => { let top = 0; for (let e = document.get
   await done(t, "skeleton waits for the glide", [API]);
 }
 {
-  const t = await open("index.html", { width: 1440 });
+  const t = await open("index.html", { width: 1440, height: 600 });
   const p = t.page;
   await p.waitForTimeout(ENTERED);
   // the sheet's top where `share` of it shows above the bottom of the screen
@@ -1850,8 +1999,8 @@ const revealed = (p, sel) => p.$$eval(sel, (es) => es.map((e) => { const c = get
     dur: Math.round(parseFloat(c.transitionDuration) * 1000), revealed: e.hasAttribute("data-revealed"), settled: e.hasAttribute("data-settled") }; }));
 let reveal = null;
 {
-  // the checks table's 8 rows (AH-98; they were 8 cards), on checks.html since AH-159, where the table starts below a
-  // 1440 x 900 screen (at 939 px) and its eight rows fit one
+  // the checks table's 9 rows (AH-98; they were 8 cards, AH-171 added Formulas), on checks.html since AH-159, where the table starts below a
+  // 1440 x 900 screen (at 856 px since AH-171 took the h2 out) and its nine rows fit one
   const t = await open("checks.html", { width: 1440, init: () => { window.__unobserved = []; const un = IntersectionObserver.prototype.unobserve;
     IntersectionObserver.prototype.unobserve = function (el) { window.__unobserved.push(el); return un.call(this, el); }; } });
   const p = t.page, GRID = ".checks-table tbody > .reveal-item";
@@ -1861,18 +2010,18 @@ let reveal = null;
   // (a) before any scrolling: the checks below the fold wait one --reveal-rise down, see-through, on their own layer
   const before = await revealed(p, GRID);
   assert.equal(await p.evaluate(() => document.documentElement.hasAttribute("data-js")), true, "boot.js did not mark the page");
-  assert.ok(before.length === 8 && before.every((x) => x.op === "0" && x.x === 0 && x.y === tok.rise && /transform/.test(x.will) && /opacity/.test(x.will) && !x.revealed),
+  assert.ok(before.length === 9 && before.every((x) => x.op === "0" && x.x === 0 && x.y === tok.rise && /transform/.test(x.will) && /opacity/.test(x.will) && !x.revealed),
     `the checks before they are seen: ${JSON.stringify(before[0])}`);
   // scrolled into view in one step once the hero's entrance is over, traced: the window runs from the scroll to the last
   // item's transitionend
   await p.waitForFunction(() => document.getAnimations().every((a) => a.timeline !== document.timeline), null, { timeout: 3000 });
-  await p.evaluate(() => { let n = 0; addEventListener("transitionend", (e) => { if (e.propertyName === "opacity" && e.target.matches(".checks-table tbody > .reveal-item") && ++n === 8) console.timeStamp("reveal-end"); }, true); });
+  await p.evaluate(() => { let n = 0; addEventListener("transitionend", (e) => { if (e.propertyName === "opacity" && e.target.matches(".checks-table tbody > .reveal-item") && ++n === 9) console.timeStamp("reveal-end"); }, true); });
   await browser.startTracing(p, { categories: ["devtools.timeline"] });
   await p.evaluate(() => { const g = document.querySelector(".checks-table"); let top = 0; for (let e = g; e; e = e.offsetParent) top += e.offsetTop;
-    console.timeStamp("reveal-start"); scrollTo(0, top - 120); });
+    console.timeStamp("reveal-start"); scrollTo(0, top - 30); }); // AH-171: 9 rows, 866 px: from 30 px down they fit the screen
   await p.waitForTimeout(100);
   const rising = await revealed(p, GRID);
-  await p.waitForFunction(() => document.querySelectorAll(".checks-table tbody > [data-settled]").length === 8, null, { timeout: 4000 });
+  await p.waitForFunction(() => document.querySelectorAll(".checks-table tbody > [data-settled]").length === 9, null, { timeout: 4000 });
   await p.waitForTimeout(300);
   const events = JSON.parse((await browser.stopTracing()).toString()).traceEvents;
   const mark = (m) => events.find((e) => e.name === "TimeStamp" && e.args && e.args.data && e.args.data.message === m);
@@ -1891,7 +2040,7 @@ let reveal = null;
   // (c) settled: the layer is let go
   assert.ok(after.every((x) => x.settled && x.will === "auto"), `will-change after the reveal: ${after.map((x) => x.will)}`);
   // (d) revealed once: unobserved, and a trip away and back does not hide it again
-  assert.equal(await p.evaluate(() => [...document.querySelectorAll(".checks-table tbody > .reveal-item")].filter((e) => window.__unobserved.includes(e)).length), 8, "the observer still watches a revealed check");
+  assert.equal(await p.evaluate(() => [...document.querySelectorAll(".checks-table tbody > .reveal-item")].filter((e) => window.__unobserved.includes(e)).length), 9, "the observer still watches a revealed check");
   await p.evaluate(() => scrollTo(0, 0)); await p.waitForTimeout(300);
   await p.evaluate(() => scrollTo(0, document.getElementById("every-check").offsetTop)); await p.waitForTimeout(50);
   assert.ok((await revealed(p, GRID)).every((x) => x.op === "1" && x.tf === "none"), "a check hid again after a trip away and back");
@@ -1945,7 +2094,7 @@ let reveal = null;
 }
 // the field fades under the text outside the hero and the navy band (AH-98): each prose, list and table block there lies
 // on a still layer of its own section's colour that reaches past it on every side; nothing in the hero or the band does
-for (const [file, must] of [["index.html", ["#proof .sec-lede", "#proof dl.proof", "#maker .maker", "#download .sec-lede", "#download dl.anchor", "#download .steps"]],
+for (const [file, must] of [["index.html", ["#proof .proof-note", "#proof .proof-from", "#proof dl.proof", "#maker .maker", "#download .sec-lede", "#download dl.anchor", "#download .steps"]],
   ["privacy.html", [".page-head p", ".toc", ".prose"]], ["support.html", [".page-head p", "#it .sec-lede", "#it .it-ledger"]], ["cases.html", [".page-head p", ".cases"]], ["code-signing.html", [".page-head p", ".it-ledger"]], ["checks.html", [".page-head p"]]]) {
   const t = await open(file, { width: 1440, motion: "reduce" });
   const r = await t.page.evaluate((must) => {
@@ -2155,11 +2304,14 @@ for (const width of [1280, 390]) {
     if (file === LOST) t.problems.splice(0, t.problems.length, ...t.problems.filter((x) => x !== `404 ${BASE + LOST}`));
     const phone = width <= 760 ? ["menu"] : [];
     // AH-133: the home page's contact form with its message shown, and every question open
-    const states = file === "index.html" ? ["all", "recon", "keying", "label", "time", "busy", "clean", "contact", "faq", ...phone, ...(width <= 760 ? ["dock"] : [])] : file === "support.html" ? ["empty", "sent", "thanks", ...phone] : file === LOST ? ["page"] : ["page", ...phone];
+    const states = file === "index.html" ? ["all", "recon", "keying", "label", "time", "busy", "clean", "box", "accepted", "contact", "faq", ...phone, ...(width <= 760 ? ["dock"] : [])] : file === "support.html" ? ["empty", "sent", "thanks", ...phone] : file === LOST ? ["page"] : ["page", ...phone];
     for (const state of states) {
       if (state === "contact") await t.page.click('#note button[type="submit"]');
       if (state === "faq") await t.page.$$eval("#faq details", (ds) => ds.forEach((d) => { d.open = true; }));
-      if (file === "index.html" && !["menu", "dock", "contact", "faq"].includes(state)) await t.page.click(["busy", "clean"].includes(state) ? `#t-${state}` : `.typology [data-kind="${state}"]`);
+      // AH-171: a row's box with its Accept, and the row once accepted (its gold mended line and "Fixed: ...")
+      if (state === "box") { await t.page.click("#t-found"); await t.page.click('.typology [data-kind="all"]'); await t.page.click('.rowbtn[aria-controls="m11"]'); }
+      if (state === "accepted") await t.page.click("#m11 .m-accept");
+      if (file === "index.html" && !["menu", "dock", "contact", "faq", "box", "accepted"].includes(state)) await t.page.click(["busy", "clean"].includes(state) ? `#t-${state}` : `.typology [data-kind="${state}"]`);
       if (state === "sent") { await t.page.fill("#summary", "x"); await t.page.fill("#details", "y"); await t.page.check("#clean"); }
       if (file === "support.html" && state !== "menu") await t.page.click('button[type="submit"]');
       if (state === "thanks") { await t.page.evaluate(() => document.getElementById("open").addEventListener("click", (e) => e.preventDefault())); await t.page.click("#open"); }
