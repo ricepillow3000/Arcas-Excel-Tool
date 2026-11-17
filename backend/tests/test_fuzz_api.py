@@ -108,3 +108,15 @@ def test_a_sheet_whose_number_columns_are_filled_only_on_a_skipped_row_scans_wit
     for route, extra in (("/scan", {}), ("/check", {"row_index": 1, "changes": [{"col": 4, "value": 1}]})):
         r = c.post(route, json={"columns": ["", "", "", "", ""], "rows": rows, "strength": 10, **extra})
         assert r.status_code == 200, r.get_json()
+
+
+@pytest.mark.filterwarnings("error::RuntimeWarning")
+def test_the_decimals_of_a_column_with_no_number_are_zero_and_a_filled_column_reports_its_own():
+    # AH-189, beside the test above: that one proves the routes answer 200, this one pins the VALUE the guard returns,
+    # so a future change from 0 (every tolerance from a NaN, or a different default) turns red here
+    import numpy as np
+
+    from anomaly_hunter.engine import pipeline
+
+    assert pipeline._decimals(np.array([])) == 0 and pipeline._decimals(np.array([np.nan, np.inf])) == 0
+    assert pipeline._decimals(np.array([1.5, 2.25, 3.0])) == 2 and pipeline._decimals(np.array([1.0, 2.0])) == 0

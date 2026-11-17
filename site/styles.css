@@ -253,6 +253,19 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .ws-top { display: flex; flex-wrap: wrap; gap: var(--s1) var(--s3); align-items: center; padding: 0 var(--s3); min-height: 52px; background: var(--ink); color: var(--paper); }
 .ws-top b { font: 800 var(--fs-0)/1.3 var(--sans); letter-spacing: normal; }
 .ws-top > span { font-size: var(--fs--1); color: var(--on-dark-2); font-variant-numeric: tabular-nums; }
+/* AH-183 (John, 2026-11-17: "add the fun stuff, keep the colours and look"): the whole sheet at a glance, one mark a row on
+   a strip of the sheet's own paper, beside its title (the title's line has the room: the bar keeps its height). A flagged
+   row's colour is its ::before, wine filled or outlined as the key says, and shows while the row is flagged
+   (data-kind): a filter that leaves the row out, After fixes for a row it mends, the skeleton and an Accept fade it */
+.sheet-map { flex: 1 1 0; min-width: 60px; max-width: 300px; height: 14px; padding: 2px; display: grid; grid-template-columns: repeat(60, minmax(0, 1fr)); gap: 1px; background: var(--paper-2); }
+.sheet-map i { position: relative; background: var(--rule); }
+.sheet-map i::before { content: ""; position: absolute; inset: 0; opacity: 0; }
+.sheet-map i.w::before { background: var(--wine); }
+.sheet-map i.q::before { background: var(--paper-2); box-shadow: inset 0 0 0 1px var(--wine); }
+.sheet-map i[data-kind]::before { opacity: 1; }
+.ws[data-state="clean"] .sheet-map i.w::before, html[data-js] #preview[data-loading] .sheet-map i::before,
+.ws[data-filter="recon"] .sheet-map i:not([data-kind~="recon"])::before, .ws[data-filter="keying"] .sheet-map i:not([data-kind~="keying"])::before,
+.ws[data-filter="label"] .sheet-map i:not([data-kind~="label"])::before, .ws[data-filter="time"] .sheet-map i:not([data-kind~="time"])::before { opacity: 0; }
 .tabs { position: relative; display: flex; flex-wrap: wrap; margin-left: auto; align-self: stretch; } /* text at 200% wraps them, never past the screen (AH-112) */
 .tabs button { position: relative; font: 600 var(--fs--1)/1 var(--sans); color: var(--on-dark-2); background: none; border: 0; border-bottom: 3px solid transparent; border-radius: 0; padding: 3px 16px 0; cursor: pointer; }
 .tabs button:hover { color: var(--paper); }
@@ -337,7 +350,7 @@ table.grid { width: 100%; border-collapse: collapse; font: 500 var(--fs--1)/1.3 
    still look flagged (AH-138 review: under "Totals that don't add up" all 7 rows still looked flagged). Its values stay */
 :is(.ws[data-filter="recon"] .grid tbody tr:not([data-kind~="recon"]), .ws[data-filter="keying"] .grid tbody tr:not([data-kind~="keying"]),
   .ws[data-filter="label"] .grid tbody tr:not([data-kind~="label"]), .ws[data-filter="time"] .grid tbody tr:not([data-kind~="time"])) :is(td.flag, td.q, td.mended) {
-  background: transparent; color: var(--ink); font-weight: 500; box-shadow: none; outline: none; border-bottom-color: var(--rule); }
+  background: transparent; color: var(--ink); font-weight: 500; box-shadow: none; outline: none; border-bottom-color: var(--rule); --mended-line: 0; }
 :is(.ws[data-filter="recon"] .grid tbody tr:not([data-kind~="recon"]), .ws[data-filter="keying"] .grid tbody tr:not([data-kind~="keying"]),
   .ws[data-filter="label"] .grid tbody tr:not([data-kind~="label"]), .ws[data-filter="time"] .grid tbody tr:not([data-kind~="time"])) td.why i { visibility: hidden; }
 /* the detail box under its row */
@@ -389,7 +402,18 @@ table.grid { width: 100%; border-collapse: collapse; font: 500 var(--fs--1)/1.3 
    wine fill is gone, the change still shows), the rows worth a check still outlined */
 .verdict { display: flex; align-items: flex-start; gap: 10px; margin: 0; padding: 12px var(--s3); border-bottom: 1px solid var(--ink); font: 800 var(--fs--1)/1.4 var(--sans); font-variant-numeric: tabular-nums; color: var(--ink); background: var(--paper); }
 .verdict::before { content: ""; flex: none; width: 10px; height: 10px; margin-top: calc(.7em - 5px); box-shadow: inset 0 0 0 2px var(--wine); }
-.grid td.mended { font-weight: 800; box-shadow: inset 0 -3px 0 var(--gold); }
+.grid td.mended { font-weight: 800; }
+/* its line is a bar (AH-183: it was an inset shadow), so an Accept in the findings draws it from the left (home.js) */
+.grid td.mended::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--gold); transform-origin: 0 50%; opacity: var(--mended-line, 1); pointer-events: none; }
+/* an Accept's old value over its cell as it lifts away (home.js, AH-183): the old cell's paint, clipped to the cell */
+.roll { position: absolute; z-index: 1; overflow: clip; white-space: nowrap; pointer-events: none; }
+.roll > span { display: block; }
+/* the sheet's Totals in a jump's box (AH-183): the line navy, its row's dot wine, a paper mask over it that home.js slides
+   off once as the box opens (at rest it is gone: scaleX(0), so nothing is hidden without the script) */
+.m-chart { position: relative; color: var(--ink); }
+.m-chart svg { display: block; width: 100%; max-width: 240px; height: auto; overflow: visible; }
+.m-chart circle { fill: var(--wine); stroke: var(--paper); stroke-width: 1.5; }
+.m-chart::after { content: ""; position: absolute; inset: 0; background: var(--paper); transform: scaleX(0); transform-origin: 100% 50%; pointer-events: none; }
 td.why i.ok { display: inline-block; width: 10px; height: 10px; margin-right: 8px; vertical-align: -1px; background: var(--gold); }
 .after-note { margin: 0; padding: 0 var(--s3) 12px 44px; font-size: var(--fs--1); color: var(--ink-2); }
 /* the verdict and its note, one block over the sheet; on a wide screen it lies in the filters' column under the key
@@ -737,6 +761,7 @@ table.card { grid-column: 1 / -1; margin-top: var(--s7); width: 100%; border-col
   .tabs button::after { transition: transform var(--fill-dur) var(--ease-out), opacity var(--fill-dur) var(--ease-out); }
   .grid td:is(.flag, .q) { transition: transform var(--podium-dur) var(--ease-out); }
   .grid td:is(.flag, .q)::before { transition: opacity var(--podium-dur) var(--ease-out); }
+  .sheet-map i::before { transition: opacity var(--fill-dur) var(--ease-out); }
 
   /* the skeleton (AH-89, home.js). John, 2026-11-02: "a skeleton loader... perfectly aligns with the geometric shapes in
      design placements of our website... very noticeable". It is the real sheet: while #preview[data-loading] every value
@@ -849,6 +874,10 @@ html[data-moving] #field { z-index: 2; }
   .grid td.q { outline: 2px dashed CanvasText; outline-offset: -4px; }
   .key i.q, td.why i.q { border: 2px dashed CanvasText; }
   .grid td.mended { border-bottom: 3px solid CanvasText; }
+  .sheet-map { forced-color-adjust: none; background: Canvas; border: 1px solid CanvasText; }
+  .sheet-map i { background: Canvas; }
+  .sheet-map i.w::before { background: Highlight; }
+  .sheet-map i.q::before { background: Canvas; box-shadow: inset 0 0 0 1px CanvasText; }
   td.why i.ok { border: 2px solid CanvasText; }
   .links .btn-trim { border: 1px solid ButtonText; }
   .typology button[aria-pressed="true"] { outline: 2px solid Highlight; outline-offset: -4px; }
@@ -923,6 +952,9 @@ html[data-moving] #field { z-index: 2; }
   .typology .label, .typology .overlap, .typology .key { grid-column: 1 / -1; }
   .typology button:nth-of-type(even) { border-left: 1px solid var(--rule); }
   .busy { min-height: 320px; padding: var(--s3); }
+  /* a phone's map has under 2 px a row: no gaps, and a row worth a check as a half-height mark (an outline needs 3 px) */
+  .sheet-map { gap: 0; }
+  .sheet-map i.q::before { background: var(--wine); box-shadow: none; inset: 25% 0; }
   .it-ledger, .steps ol { grid-template-columns: minmax(0, 1fr); gap: var(--s4); margin-top: var(--s5); }
   .proof { grid-template-columns: minmax(0, 1fr); gap: var(--s4); margin-top: var(--s5); }
   .maker { grid-template-columns: minmax(0, 1fr); margin-top: var(--s5); }

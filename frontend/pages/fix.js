@@ -5,7 +5,7 @@ import { rowFromAddress } from "../utils/sheet.js";
 import { act } from "../hooks/use-action.js";
 import { busy, notice } from "../components/progress.js";
 import { showAccepted, showFix } from "../components/fix-preview.js";
-import { doneOf, plainReason } from "../features/scan.js";
+import { doneOf, plainReason, shareOf } from "../features/scan.js";
 import { recommendFix, suggestTypo } from "../features/fix.js";
 import { fillRow } from "../features/highlight.js";
 import { listRows } from "./results.js";
@@ -116,7 +116,7 @@ export async function dismissFix() {
   const [saved, moved] = await Promise.allSettled([kept, nextFix()]);
   if (saved.status === "rejected") return putBack(f, was, code, saved.reason);
   if (moved.status === "rejected") throw moved.reason;
-  if (state.fix) notice(doneOf(state.order, state.decided)); // AH-171; with no row left, nextFix has said it
+  if (state.fix) notice(doneOf(state.order, state.decided), shareOf(state.order, state.decided)); // AH-171; with no row left, nextFix has said it
 }
 
 async function putBack(f, was, code, e) {
@@ -145,5 +145,5 @@ export async function nextFix() {
   state.fix = null;
   listRows();
   $("list-title").focus({ preventScroll: true });
-  notice(`${doneOf(order, state.decided)} Click Find problems to check the whole sheet again.`.trim());
+  notice(`${doneOf(order, state.decided)} Click Find problems to check the whole sheet again.`.trim(), shareOf(order, state.decided));
 }

@@ -1,6 +1,12 @@
 import { $, show } from "../utils/dom.js";
 
-export const notice = (msg) => ($("notice").textContent = msg || "");
+// AH-184: with doneOf's words comes the share of the list done, drawn as a gold line over the foot bar (styles
+// #status::before). Any other words take it away; it keeps its width meanwhile, so the next decision grows it from there
+export function notice(msg, done = null) {
+  $("notice").textContent = msg || "";
+  $("status").toggleAttribute("data-done", !!msg && done !== null);
+  if (done !== null) $("status").style.setProperty("--done", done);
+}
 
 // Progress line under the button. pct = 0..1 for real progress, null while the engine works (no fake numbers).
 export function busy(text, pct = null) {

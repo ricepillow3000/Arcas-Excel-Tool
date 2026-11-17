@@ -207,6 +207,9 @@ export function doneOf(order, decided) {
   return of === 1 ? "1 of 1 row done." : `All ${n(of)} rows done.`;
 }
 
+// Pure (AH-184): the same finish line drawn, as the share of those rows done (0 to 1)
+export const shareOf = (order, decided) => (order.length ? order.filter((i) => decided[i]).length / order.length : 0);
+
 export function summaryOf(rows) {
   const sure = rows.filter((r) => r.severity === "High" || r.severity === "Medium").length;
   const maybe = rows.filter((r) => r.severity === "Low").length;

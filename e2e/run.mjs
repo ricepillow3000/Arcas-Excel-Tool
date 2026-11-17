@@ -120,6 +120,12 @@ await failing(/e2e recorder probe/, async () => {
 ok(unhandled.length === 2 && unhandled.some((u) => u.startsWith("unhandledrejection")) && unhandled.some((u) => u.startsWith("error")), "the page's recorder hears an unhandled rejection and an uncaught error - " + JSON.stringify(unhandled));
 errors.splice(0, Infinity, ...errors.filter((e) => !/e2e recorder probe/.test(e))); unhandled.length = 0;
 const text = (sel) => page.textContent(sel);
+// AH-184: the finish line over the foot bar, once its growth has ended: shown, how wide (1 = the bar's whole width), and
+// out of the flow, so nothing moves when it lands
+const line = () => page.evaluate(async () => { const s = document.getElementById("status");
+  await Promise.all(s.getAnimations({ subtree: true }).map((a) => a.finished.catch(() => {})));
+  const b = getComputedStyle(s, "::before");
+  return { shown: b.opacity === "1", wide: b.transform === "none" ? 1 : +(/^matrix\(([^,]+)/.exec(b.transform)?.[1]), out: b.position === "absolute" && b.height === "2px" }; });
 // AH-149 review r2: a notice as the pane draws one: at body size, in a hairline box with a square before its first word,
 // and said in that one place (never again in the notice line over the results). "Arcas has stopped" was set at 15 px
 // with no box under Check words with AI, and as a bare line in the AI help steps, and both read as a heading
@@ -288,6 +294,7 @@ if (mode === "flow") {
   { const m = await matchesEngine(); ok(m.ok, "the list is exactly what the engine answered: each flagged row, its severity in words and its reason - " + m.why); }
   ok((await text("#summary")).startsWith("5 of 300 rows look wrong."), "summary in plain words - " + (await text("#summary")));
   ok(/^Done in \d+ seconds?\.$/.test(await text("#notice")), "says when it is done - " + (await text("#notice")));
+  { const l = await line(); ok(!l.shown, "AH-184: no finish line before the first decision - " + JSON.stringify(l)); }
   const listed = await page.$$eval("#flagged-list button", (bs) => bs.slice(0, 5).map((b) => b.innerText.split("\n")[0]));
   ok(["11", "22", "51", "81", "121"].every((r) => listed.some((l) => l.startsWith(`Row ${r}`))), "all 5 planted problems listed first - " + listed);
   ok(!(await text("#flagged-list")).includes("weird limit"), "no jargon in the list");
@@ -422,6 +429,7 @@ if (mode === "flow") {
   ok((await cell("C11")).v !== -5 && (await page.isVisible("#fix-undo")) && (await text("#fix-apply")) === "Accepted", "Accept writes the cell");
   // AH-171: a finish line in the foot bar after each decision (nothing moves, AH-165): the list's rows, counted
   ok((await text("#notice")) === "1 of 5 rows done.", "AH-171: Accept says how many rows are done - " + (await text("#notice")));
+  { const l = await line(); ok(l.shown && Math.abs(l.wide - 0.2) < 1e-6 && l.out, "AH-184: and draws it, a gold line a fifth of the foot bar wide, out of the flow - " + JSON.stringify(l)); }
   ok(since(c1) === "/check" && calls[c1][1].row_index === 9, "Accept asks the engine once, /check for that row (never a full /scan) - " + since(c1));
   ok(await page.evaluate(() => Object.values(__settings.anomalyHunterDecisions?.Sales || {}).includes("fixed")), "Accept keeps the decision in the workbook");
   ok((await wrote()) === "Sales!C11", "Accept wrote exactly the one targeted cell, nothing else - " + (await wrote()));
@@ -431,6 +439,17 @@ if (mode === "flow") {
   ok((await cell("D11")).fill === "#FF0000", "and a cell of it the user repainted since keeps the user's colour - " + (await cell("D11")).fill);
   ok(await page.isVisible("#fix-next") && !(await page.isVisible("#fix-dismiss")), "then Undo / Next row");
   await back();
+  // AH-184: back on the list, the row just fixed turns to its done look in front of you, once: its old tag and swatch
+  // fade out over "Fixed" (opacity only, 250 ms), hidden from screen readers; a second Back finds nothing to turn
+  { const turn = () => page.evaluate(() => { const li = [...document.querySelectorAll("#flagged-list li")].find((l) => /^Row 11\b/.test(l.innerText));
+      const was = li.querySelector(".was");
+      return { was: was && [was.getAttribute("aria-hidden"), was.textContent, !!was.querySelector(".swatch")],
+        fades: li.getAnimations({ subtree: true }).filter((a) => !a.transitionProperty && !a.animationName)
+          .map((a) => [Object.keys(a.effect.getKeyframes()[0]).filter((k) => !["offset", "easing", "composite", "computedOffset"].includes(k)).join(), a.effect.getTiming().duration]) }; });
+    const first = await turn(); await page.waitForTimeout(900); const after = await turn();
+    await openRow(11); await back(); const again = await turn();
+    ok(first.was?.[0] === "true" && first.was[1] === "Probably wrong" && first.was[2] && first.fades.length === 2 && first.fades.every(([p, d]) => p === "opacity" && d === 250)
+      && !after.was && !again.was && !again.fades.length, "AH-184: back on the list, the fixed row's old tag and swatch fade into \"Fixed\" once - " + JSON.stringify({ first, after, again })); }
   ok(/1 of \d+ done/.test(await text("#list-title")) && (await text("#flagged-list")).includes("Fixed"), "list keeps its rows and marks the fixed one - " + (await text("#list-title")));
   await openRow(11); // a fixed row opened again still offers Undo
   ok((await text("#fix-title")) === "Row 11: fixed" && (await page.isVisible("#fix-undo")) && (await text("#fix-changes")).startsWith("C11: -5 → "), "reopened fixed row offers Undo");
@@ -502,11 +521,14 @@ if (mode === "flow") {
   ok((await page.evaluate(() => __log.length)) === beforeDismiss, "Dismiss (and opening the next row) writes no cell at all");
   ok(/^Row \d+/.test(await text("#fix-title")) && !(await text("#fix-title")).startsWith("Row 22"), "and moves to the next row - " + (await text("#fix-title")));
   ok((await text("#notice")) === "1 of 5 rows done.", "AH-171: Dismiss says how many rows are done - " + (await text("#notice")));
+  { const l = await line(); ok(l.shown && Math.abs(l.wide - 0.2) < 1e-6, "AH-184: the line after Dismiss is 0.2 of the bar - " + JSON.stringify(l)); }
   // ... an Accept on top counts one more, and its Undo takes it back (row 11 as it was, for step 4)
   await back(); await openRow(11); await page.click("#fix-apply"); await idle();
   ok((await text("#notice")) === "2 of 5 rows done.", "AH-171: Accept after a Dismiss - " + (await text("#notice")));
+  { const l = await line(); ok(l.shown && Math.abs(l.wide - 0.4) < 1e-6, "AH-184: the line after an Accept after a Dismiss is 0.4 of the bar - " + JSON.stringify(l)); }
   await page.click("#fix-undo"); await idle();
   ok((await cell("C11")).v === -5 && (await text("#notice")) === "1 of 5 rows done.", "AH-171: Undo takes its row back off the count - " + (await text("#notice")));
+  { const l = await line(); ok(l.shown && Math.abs(l.wide - 0.2) < 1e-6, "AH-184: the line after Undo is 0.2 of the bar - " + JSON.stringify(l)); }
 
   // 4) Remove highlights puts back exactly what was there (the user's green row 11 too)
   await back();
@@ -1416,10 +1438,25 @@ if (mode === "flow") {
     const calm = await browser.newPage({ ignoreHTTPSErrors: true, viewport: { width: 360, height: 900 }, reducedMotion: "reduce" });
     const heard = [];
     calm.on("pageerror", (e) => heard.push(e.message));
+    // AH-183: on Windows CI (PR #120, run 43966622884) #main-ui stayed hidden for the whole wait and the run said
+    // nothing else. Every /health and every other failed request is kept, so the next timeout says why: a module that
+    // fails to load leaves the pane on its first screen with no page error (AH-43, trust.mjs)
+    const t0 = Date.now(), health = [], failed = [], where = (u) => new URL(u).pathname;
+    calm.on("request", (q) => { if (where(q.url()) === "/health") health.push({ q, at: Date.now() - t0, outcome: "pending" }); });
+    calm.on("response", (s) => { const h = health.find((h) => h.q === s.request()); if (h) h.outcome = `${s.status()} in ${Date.now() - t0 - h.at} ms`; });
+    calm.on("requestfailed", (q) => { const h = health.find((h) => h.q === q), why = q.failure()?.errorText;
+      if (h) h.outcome = `failed: ${why}`; else failed.push(`${where(q.url())}: ${why}`); });
     await calm.route("https://appsforoffice.microsoft.com/**", (r) => r.fulfill({ contentType: "text/javascript", body: fs.readFileSync(DIR + "fake-office.js", "utf8") }));
     await calm.goto("https://127.0.0.1:5055/taskpane.html");
     await calm.evaluate((rows) => __load("Sales", rows, [0]), rows);
-    await calm.waitForSelector("#main-ui", { state: "visible" });
+    await calm.waitForSelector("#main-ui", { state: "visible" }).catch(async (e) => {
+      // #skeleton sits in #app-body, hidden until Office.onReady: app-body hidden beside sideload-msg = app.js never ran
+      const shown = await calm.evaluate(() => ({ office: typeof Office, ...Object.fromEntries(["sideload-msg", "app-body", "skeleton", "server-down", "main-ui"]
+        .map((id) => [id, document.getElementById(id)?.checkVisibility() ?? null])) })).catch(() => null);
+      console.error("calm page after the wait:", JSON.stringify({ shown, heard, health: health.map(({ at, outcome }) => ({ at, outcome })), failed, ms: Date.now() - t0 }));
+      if (process.env.SHOTS) await calm.screenshot({ path: `${process.env.SHOTS}/pane-calm-timeout.png` }).catch(() => {});
+      throw e;
+    });
     const still = () => calm.evaluate(() => document.getAnimations().filter((a) => a.timeline === document.timeline && (a.transitionProperty ? [a.transitionProperty]
       : a.effect.getKeyframes().flatMap(Object.keys)).some((p) => /transform|opacity|translate|scale|rotate/.test(p))).length);
     const seen = [];
@@ -1436,6 +1473,14 @@ if (mode === "flow") {
     seen.push(["back", await still()]);
     ok(heard.length === 0 && JSON.stringify(seen) === '[["opened",0,0],["scanning",0,true,"none"],["hovered",0,"none"],["card",0,0],["back",0]]',
       "reduced motion: the skeleton, the fill and the card come without any movement - " + JSON.stringify({ seen, heard }));
+    // AH-184: a decision under reduced motion: the finish line at its width at once, the row Fixed with nothing fading
+    await calm.click('#flagged-list button:has-text("Row 11 ")'); await calm.waitForFunction(() => !__state.working && document.getElementById("fix-apply").checkVisibility());
+    await calm.click("#fix-apply"); await calm.waitForFunction(() => !__state.working && document.getElementById("fix-undo").checkVisibility());
+    const decided = { moving: await still(), line: await calm.evaluate(() => getComputedStyle(document.getElementById("status"), "::before").transform) };
+    await calm.click("#fix-back"); await calm.waitForSelector("#results", { state: "visible" });
+    Object.assign(decided, { back: await still(), was: await calm.$$eval("#flagged-list .was", (w) => w.length), fixed: await calm.textContent("#flagged-list") });
+    ok(decided.moving === 0 && /^matrix\(0\.2, /.test(decided.line) && decided.back === 0 && decided.was === 0 && decided.fixed.includes("Fixed"),
+      "AH-184: under reduced motion the finish line is drawn at its width and the row turns Fixed with no fade - " + JSON.stringify(decided));
     await calm.close();
   }
 
@@ -1529,4 +1574,11 @@ if (process.env.SHOTS) { await page.mouse.move(0, 0); await page.waitForTimeout(
 const real = errors.filter((e) => !(mode === "nokey" && e.includes("status of 400"))); // the junk key gets the engine's 400 on purpose
 ok(real.length === 0, "no page errors " + JSON.stringify(real));
 ok(unhandled.length === 0, "no unhandled promise rejection or uncaught error on the page in this mode - " + JSON.stringify(unhandled));
+// a browser that does not trust the engine's key refuses each new TLS connection once and retries (AH-43). Windows CI's
+// Edge gets no pin, and failed a font with ERR_NO_BUFFER_SPACE (PR #121): the engine's own log counts refusals (AH-183)
+const LOG = process.env.AH_DATA ? path.join(DATA, "server.log") : DIR + "engine.out";
+let log = null; try { log = fs.readFileSync(LOG, "utf8"); } catch {}
+if (log === null) console.log(`ok - the browser trusts the engine's certificate: not checked: no engine log at ${LOG}`);
+else { const n = log.split("\n").filter((l) => l.includes("CERTIFICATE_UNKNOWN")).length;
+  ok(n === 0, `the browser trusts the engine's certificate: no TLS connection refused and retried (AH-43, AH-183) - ${n} refused in ${LOG}`); }
 await browser.close();

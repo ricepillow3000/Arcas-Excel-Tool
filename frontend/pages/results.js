@@ -7,7 +7,7 @@ import { act } from "../hooks/use-action.js";
 import { rowItem } from "../components/row-item.js";
 import { fairnessNote, fairnessTests, flaggedRows, legendOf, listOrder, summaryOf } from "../features/scan.js";
 import { openFix } from "./fix.js";
-import { countUp, stagger } from "../components/motion.js";
+import { countUp, stagger, turnDone } from "../components/motion.js";
 
 // Results show up: the summary, the color legend and the rows to check.
 export function renderResults(rows, s, fair) {
@@ -32,6 +32,7 @@ export function renderResults(rows, s, fair) {
   $("fairness-list").replaceChildren(...tests.map((t) => Object.assign(document.createElement("li"), { textContent: t.text })));
   show("cut-note", !!s.cut);
   if (s.cut) $("cut-note").textContent = cutNote(s.cut);
+  $("status").style.removeProperty("--done"); // AH-184: a new list's finish line starts from nothing
   listRows(true);
 }
 
@@ -48,8 +49,12 @@ export function listRows(arrive = false) {
   for (const id of ["list-title", "list-hint", "flagged-list", "clear-highlights"]) show(id, order.length > 0);
   $("list-title").textContent = done ? `Rows to check (${n(done)} of ${n(order.length)} done)` : "Rows to check";
   $("list-title").classList.toggle("tick", done > 0 && done === order.length); // every row done: a check mark, once
+  const before = [...$("flagged-list").children]; // the rows as last drawn: a redraw keeps the list's order
   $("flagged-list").replaceChildren(...order.slice(0, CAP).map((i) => rowItem({ ...lastRows[i], i }, startRow, act((b) => openFix(i, true, b)), status(i))));
   if (arrive) stagger($("flagged-list").children); // a new list arrives row by row; a redraw (Back, a fix) does not
+  // AH-184: a row decided since the list was last drawn turns to its done look in front of you. A loop, never an arrow: a
+  // closure over `before` shares this call's context with the rows' click handlers, and each list held the last one (7a)
+  else for (const [k, li] of [...$("flagged-list").children].entries()) if (li.className === "done" && before[k]?.className.startsWith("sev-")) turnDone(li, before[k]);
   if (order.length > CAP) {
     const li = document.createElement("li");
     li.className = "more-rows";

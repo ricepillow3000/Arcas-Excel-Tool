@@ -7,7 +7,7 @@ import { busy, notice } from "../components/progress.js";
 import { post } from "../services/api.js";
 import { readCells, readRows, writeCells } from "../services/excel.js";
 import { fillRow } from "./highlight.js";
-import { doneOf, plainReason } from "./scan.js";
+import { doneOf, plainReason, shareOf } from "./scan.js";
 import { codeAt, rowHash, saveDecisions } from "./decisions.js";
 import { isOurs, plainError } from "../utils/errors.js";
 import { forgetUndo, saveUndo } from "./undo-store.js";
@@ -309,7 +309,7 @@ export async function applyFix(f, changes, sheet) { // the fix, its changes and 
     state.decided[f.i] = "fixed";
     saveDecisions(sheet, [[state.codes[f.i], null], [code, "fixed"]]); // an Accept after a Dismiss replaces it
     if (state.fix === f) setApplied(true);
-    notice(doneOf(state.order, state.decided)); // AH-171: the finish line, in the foot bar (nothing on the card moves)
+    notice(doneOf(state.order, state.decided), shareOf(state.order, state.decided)); // AH-171: the finish line, in the foot bar (nothing on the card moves)
   } catch (e) {
     if (state.fix === f) $("fix-apply").disabled = false;
     return failed(f, e, "Accept failed");
@@ -370,7 +370,7 @@ export async function undoFix(f) {
     state.codes[f.i] = before;
     state.hashes[f.i] = before.slice(0, before.lastIndexOf("."));
     await fillRow(f.i, !u.was); // flagged again - unless it had been dismissed, then it stays unhighlighted
-    notice(doneOf(state.order, state.decided));
+    notice(doneOf(state.order, state.decided), shareOf(state.order, state.decided));
     if (state.fix === f) {
       setApplied(false);
       $("fix-status").textContent = "Undone. The cells are back to what they were.";
