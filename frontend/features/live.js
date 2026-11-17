@@ -41,16 +41,15 @@ export function inRange(address, cell) {
   });
 }
 
-// Pure: the cells a flagged row's reasons name, as highlight.js colours them; and every "cell|reason" a check found
+// Pure: a cell a flagged row's reasons name, as highlight.js colours it
 const cellOf = (r, s, j) => colLetter(s.startCol + j) + (s.startRow + 2 + r.i);
-const cellsOf = (r, s) => spots(r, s.columns).map((j) => cellOf(r, s, j));
-export const findingKeys = (rows, s) => new Set(flaggedRows(rows).flatMap((r) => cellsOf(r, s).map((c) => `${c}|${r.reason}`)));
 
-// Pure: the rows a check flagged in a cell that was changed (edited: Excel's addresses) and not found there before for the
-// same reason, never one fixed or dismissed: surest first, then biggest, each with that cell
-export function newFindings(rows, s, decided = {}, edited = [], before = new Set()) {
+// Pure: the rows a check flagged in a cell that was changed (edited: Excel's addresses), never one fixed or dismissed:
+// surest first, then biggest, each with that cell. One already flagged before the edit counts too: John (2026-11-17)
+// wants every change answered, wrong or "nothing unusual", and a cell retyped still wrong said nothing at all
+export function findingsAt(rows, s, decided = {}, edited = []) {
   return flaggedRows(rows).filter((r) => !decided[r.i]).flatMap((r) => {
-    const k = spots(r, s.columns).find((j) => { const c = cellOf(r, s, j); return edited.some((a) => inRange(a, c)) && !before.has(`${c}|${r.reason}`); });
+    const k = spots(r, s.columns).find((j) => edited.some((a) => inRange(a, cellOf(r, s, j))));
     return k === undefined ? [] : [{ ...r, cell: cellOf(r, s, k), column: s.columns[k] }];
   });
 }
@@ -109,13 +108,12 @@ async function check(id, cells) {
   big.delete(s.sheet);
   const { decided, request } = await scanRequest(s, false);
   const body = await post("/scan", request, 300);
-  const found = newFindings(body.rows, s, decided, cells, state.found[s.sheet]);
-  state.found[s.sheet] = findingKeys(body.rows, s);
+  const found = findingsAt(body.rows, s, decided, cells);
   const pairs = await newPairs(s.sheet).catch(() => []);
   const lines = [found.length ? noteSaid(s.sheet, found[0], found.length - 1, s.names) : "", ...pairs.map(copiedSaid)].filter(Boolean);
   if (lines.length) say(lines, found.length ? { sheet: s.sheet, cell: found[0].cell } : { sheet: pairs[0].sheet });
-  // nothing flagged at all in the changed cells: said in the notice, with no sound, never over a note still showing
-  else if (!newFindings(body.rows, s, decided, cells).length && $("live-note").hidden) notice(checkedSaid(s.sheet, cells));
+  // nothing flagged in the changed cells: said in the notice, with no sound, never over a note still showing
+  else if ($("live-note").hidden) notice(checkedSaid(s.sheet, cells));
 }
 
 // The note stays until it is closed or a newer one takes its place

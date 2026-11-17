@@ -14,7 +14,6 @@ export const state = {
   order: [], // the flagged rows, worst first, as the last scan listed them
   aiAvailable: false,
   aiProvider: null, // the engine's /health ai_provider: "gemini", "relay", "claude", "free" (AH-151) or null
-  found: {}, // sheet -> the "cell|reason" keys its last check flagged (AH-181: a note says only what is new)
   working: false, // one sheet action at a time; while one runs the buttons are disabled, never silently queued
   view: null, // which page is showing
 };

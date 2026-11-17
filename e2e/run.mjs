@@ -1492,19 +1492,24 @@ if (mode === "live") { // AH-180, AH-181
     "AH-181: Show me brings that tab in front and selects the cell");
   await page.click("#live-close");
   ok(!(await note()), "AH-181: Close takes the note away");
+  // the same cell retyped and still wrong is said again: every change gets an answer (John, 2026-11-17)
+  await page.evaluate(() => __edit("Sales", "C30", 66666));
+  await waitNote("Units is 66666");
+  ok((await note()).includes('Sheet "Sales", cell C30: ') && await chimes() === 2, "AH-181: a flagged cell retyped and still wrong is said again, with a chime - " + (await note()));
+  await page.click("#live-close");
   // an ordinary value: said quietly in the notice that the cell was checked, with no note and no chime
   await page.evaluate(() => __edit("Sales", "B45", "Central"));
   const t45 = Date.now();
   await page.waitForFunction(() => document.getElementById("notice").textContent === 'Checked B45 on "Sales": nothing unusual.', null, { timeout: 8000 }).catch(() => {});
   const quiet = { ms: Date.now() - t45, said: await text("#notice"), note: await note(), chimes: await chimes() };
-  ok(quiet.said === 'Checked B45 on "Sales": nothing unusual.' && quiet.ms < 3500 && !quiet.note && quiet.chimes === 1,
+  ok(quiet.said === 'Checked B45 on "Sales": nothing unusual.' && quiet.ms < 3500 && !quiet.note && quiet.chimes === 2,
     "AH-181: an ordinary value typed is said checked in the notice, with no note and no chime - " + JSON.stringify(quiet));
   // the pane's own writes are never checked: Accept writes a cell and no note comes
   await find();
   await openRow(11);
   await page.click("#fix-apply"); await idle();
   await page.waitForTimeout(3000);
-  ok((await text("#fix-status")).startsWith("Accepted") && !(await note()) && await chimes() === 1, "AH-181: Accept writes its fix and raises no note - " + (await note()));
+  ok((await text("#fix-status")).startsWith("Accepted") && !(await note()) && await chimes() === 2, "AH-181: Accept writes its fix and raises no note - " + (await note()));
   await back();
   // turned off: an edit is not checked
   await page.click("#live");
@@ -1515,7 +1520,7 @@ if (mode === "live") { // AH-180, AH-181
   // AH-180: series 2's numbers pasted on tab 3, under its own header
   await page.evaluate((col) => __paste("Series 3", "B2", col.map((v) => [v])), wave(2));
   const pms = await waitNote('"Series 3" holds the same 40 numbers as "Series 2"');
-  ok((await note()).includes('"Series 3" holds the same 40 numbers as "Series 2", in the same order.') && await chimes() === 2, `AH-180: pasting series 2's numbers on tab 3 is said at once (${pms} ms), with a chime - ${await note()}`);
+  ok((await note()).includes('"Series 3" holds the same 40 numbers as "Series 2", in the same order.') && await chimes() === 3, `AH-180: pasting series 2's numbers on tab 3 is said at once (${pms} ms), with a chime - ${await note()}`);
 }
 
 // proof for people, at rest: the pointer off every button first (the full-page picture moved the page under it, and a

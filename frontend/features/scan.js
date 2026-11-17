@@ -15,7 +15,6 @@ import { codes, decisionsFor, rowHash } from "./decisions.js";
 import { undosFor } from "./undo-store.js";
 import { hideProfile } from "./profile.js";
 import { bookNotes } from "./tabs.js";
-import { findingKeys } from "./live.js";
 
 // Keep each scan for Power BI (a plain-text copy of the sheet on this PC): off unless turned on, like auto-fix
 export const powerBiOn = () => { try { return localStorage.getItem(POWER_BI_KEY) === "1"; } catch { return false; } };
@@ -71,7 +70,6 @@ async function scan(auto, held, t0) {
   $("sheet-name").textContent = s.sheet;
   renderResults(body.rows, s, body.fairness);
   $("book-notes").replaceChildren(...notes.map((line) => Object.assign(document.createElement("p"), { className: "notice", textContent: line })));
-  state.found[s.sheet] = findingKeys(body.rows, s); // AH-181: what checking as you work counts as found already
   if (auto !== false) {
     const said = levelChange(before, { level, rows: body.rows, hashes, sheet: s.sheet });
     $("level-change").textContent = said;

@@ -16,7 +16,7 @@ import { asHighlights, KEPT } from "./features/highlight.js";
 import * as K from "./constants/index.js";
 import { remember, forget, recall, clearAll, MAX_KEPT, OFFERED } from "./features/memory.js";
 import { measures, copiedTabs, copiedSaid, lastRowSaid } from "./features/tabs.js";
-import { newFindings, findingKeys, inRange, ignored, liveable, liveOn, soundOn, noteSaid, checkedSaid, LIVE_ROWS } from "./features/live.js";
+import { findingsAt, inRange, ignored, liveable, liveOn, soundOn, noteSaid, checkedSaid, LIVE_ROWS } from "./features/live.js";
 
 // Fixed / Dismissed are kept in the workbook under a code per row, so they outlive the pane (2026-10-20: a dismissed
 // row came back flagged after a reload, an accepted fix vanished). Same values = same code, on any PC, every time.
@@ -847,20 +847,18 @@ for (const f of readdirSync(new URL(".", import.meta.url)).filter((f) => f.endsW
     { severity: "High", magnitude: 1, cells: ["Units"], reason: "Units weird limit is 90; this is -5 (likely 5)" },
     { severity: "Low", magnitude: 9, cells: ["Item"], reason: "Item is odd" }, { severity: "Medium", magnitude: 5, cells: ["Units"], reason: "Units weird limit is 90; this is 9000" }];
   // sheet rows: row i is sheet row i + 2 (the header on row 1)
-  assert.deepEqual(newFindings(rows, s, {}, ["B3:B6"]).map((f) => f.cell), ["B4", "B6", "B3"], "surest first, then biggest");
-  assert.deepEqual(newFindings(rows, s, {}, ["B3:B4"]).map((f) => f.cell), ["B4", "B3"], "only in the cells changed");
-  assert.deepEqual(newFindings(rows, s, { 2: "dismissed" }, ["B3:B6"]).map((f) => f.cell), ["B6", "B3"], "never a row fixed or dismissed");
-  assert.deepEqual(newFindings(rows, s, {}, ["A5"]).map((f) => f.cell), ["A5"]);
-  assert.deepEqual(newFindings(rows, s, {}, ["B3:B6"], findingKeys(rows, s)), [], "found there before for the same reason: not new");
-  assert.deepEqual([...findingKeys(rows.slice(0, 2), s)], ["B3|Units weird limit is 90; this is 900 (likely 90)"]);
-  assert.equal(noteSaid("Series 3", newFindings(rows, s, {}, ["B4"])[0], 0, {}), 'Sheet "Series 3", cell B4: Very likely wrong. Units is -5, below its usual limit of 90 (likely 5).');
+  assert.deepEqual(findingsAt(rows, s, {}, ["B3:B6"]).map((f) => f.cell), ["B4", "B6", "B3"], "surest first, then biggest");
+  assert.deepEqual(findingsAt(rows, s, {}, ["B3:B4"]).map((f) => f.cell), ["B4", "B3"], "only in the cells changed");
+  assert.deepEqual(findingsAt(rows, s, { 2: "dismissed" }, ["B3:B6"]).map((f) => f.cell), ["B6", "B3"], "never a row fixed or dismissed");
+  assert.deepEqual(findingsAt(rows, s, {}, ["A5"]).map((f) => f.cell), ["A5"]);
+  assert.equal(noteSaid("Series 3", findingsAt(rows, s, {}, ["B4"])[0], 0, {}), 'Sheet "Series 3", cell B4: Very likely wrong. Units is -5, below its usual limit of 90 (likely 5).');
   const two = [{ severity: "Medium", magnitude: 1, cells: ["Units", "Item"], reason: "Item 7 does not add up: Units × 2 = 1800; Units weird limit is 90; this is 900" }];
-  assert.equal(noteSaid("Sales", newFindings(two, s, {}, ["B2"])[0], 0), 'Sheet "Sales", cell B2: Probably wrong. Units is 900, above its usual limit of 90.', "the line about the changed cell");
-  assert.equal(noteSaid("Sales", newFindings(two, s, {}, ["A2"])[0], 0), 'Sheet "Sales", cell A2: Probably wrong. Item 7 does not add up: Units × 2 = 1800.');
+  assert.equal(noteSaid("Sales", findingsAt(two, s, {}, ["B2"])[0], 0), 'Sheet "Sales", cell B2: Probably wrong. Units is 900, above its usual limit of 90.', "the line about the changed cell");
+  assert.equal(noteSaid("Sales", findingsAt(two, s, {}, ["A2"])[0], 0), 'Sheet "Sales", cell A2: Probably wrong. Item 7 does not add up: Units × 2 = 1800.');
   assert.equal(checkedSaid("Series 3", ["B12"]), 'Checked B12 on "Series 3": nothing unusual.');
   assert.equal(checkedSaid("Series 3", ["B2:B500"]), 'Checked B2:B500 on "Series 3": nothing unusual.');
   assert.equal(checkedSaid("S", ["A1", "B2", "A1", "C3", "D4", "E5"]), 'Checked A1, B2, C3 and 2 more on "S": nothing unusual.', "each address once, 3 named");
-  assert.equal(noteSaid("Sales", newFindings(rows, s, {}, ["B3"])[0], 3, {}), 'Sheet "Sales", cell B3: Probably wrong. Units is 900, above its usual limit of 90 (likely 90). And 3 more in what you changed.');
+  assert.equal(noteSaid("Sales", findingsAt(rows, s, {}, ["B3"])[0], 3, {}), 'Sheet "Sales", cell B3: Probably wrong. Units is 900, above its usual limit of 90 (likely 90). And 3 more in what you changed.');
 }
 
 console.log("panel self-check passed");
