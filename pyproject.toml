@@ -12,6 +12,10 @@ dependencies = [
     "numpy==2.5.3",
     "scipy==1.18.1",  # fairness chi-square, ECOD's skew
     "openpyxl==3.1.5",
+    # AH-178: openpyxl refuses hostile XML (entity expansion, external entities) only when defusedxml is importable
+    # (openpyxl.xml.DEFUSEDXML). It reached a dev machine through the dev extra alone, and constraints.txt only pins it,
+    # so the shipped exe read workbook XML with a weaker parser than any machine the tests ran on
+    "defusedxml==0.7.1",
     "flask==3.1.3",
     "anthropic==1.11.0",
     "cryptography==50.0.2",
