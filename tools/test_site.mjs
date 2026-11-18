@@ -3238,7 +3238,8 @@ for (const file of PAGES.filter((f) => /<header[\s\S]*aria-current="page"[\s\S]*
       document.getElementById("t-busy").addEventListener("click", () => { window.__go = true; }, { capture: true, once: true });
       if (window.__mo) window.__mo.disconnect();
       window.__mo = new MutationObserver(() => window.__texts.push(tk.textContent)); window.__mo.observe(tk, { childList: true, characterData: true, subtree: true });
-      const look = () => { const m = getComputedStyle(span).transform; if (window.__go) window.__meter.push([m === "none" ? 1 : new DOMMatrix(m).a, tk.textContent]);
+      const steps = () => [...document.querySelectorAll("#p-busy .stages li")].map((li) => (li.hasAttribute("data-done") ? "done" : li.getAttribute("aria-current") === "step" ? "now" : "wait")).join();
+      const look = () => { const m = getComputedStyle(span).transform; if (window.__go) window.__meter.push([m === "none" ? 1 : new DOMMatrix(m).a, tk.textContent, steps(), span.getAnimations().length]);
         const all = document.getAnimations(); window.__anims = Math.max(window.__anims, all.length);
         window.__loops += all.filter((a) => a.effect && a.effect.getComputedTiming().iterations === Infinity).length;
         if (window.__run) setTimeout(look, 16); };
@@ -3255,6 +3256,11 @@ for (const file of PAGES.filter((f) => /<header[\s\S]*aria-current="page"[\s\S]*
     want(r.loops === 0, `${label}: ${r.loops} samples saw an animation that never ends`);
     const climb = run.slice(0, run.findIndex(([, x]) => x === STAGES[2]) + 1);
     want(climb.every(([a], i) => i === 0 || a >= climb[i - 1][0] - 0.001) && full && Math.abs(full[0] - 1) <= 0.01, `${label}: the bar ${climb.map(([a, x]) => a.toFixed(2) + (x === STAGES[1] ? "*" : "")).join(" ")}`);
+    // AH-193 fix round F2 (the blind judge): "Step 1 of 3: reading your sheet… 100%" stood 0.4 s beside a full bar while
+    // the list still had reading under way and checking waiting. Whenever the bar is full (its fill over) or "100%"
+    // shows, reading is done and checking under way (the third step, Auto-fix's, never runs in the sample)
+    const early = run.filter(([a, x, list, filling]) => (/100%/.test(x) || (a === 1 && !filling)) && !list.startsWith("done,now,"));
+    want(run.some(([, x]) => /100%/.test(x)) && early.length === 0, `${label}: full or at 100% while a step after reading waits: ${JSON.stringify(early.slice(0, 3))}`);
     if (motion === "reduce") want(r.anims === 0, `${label}: ${r.anims} animations under reduced motion`);
     if (motion !== "reduce") {
       await p.waitForTimeout(900);
