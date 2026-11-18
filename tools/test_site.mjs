@@ -1213,6 +1213,36 @@ const done = async ({ ctx, problems, outside }, label, allowed = []) => {
     }
     await done(t, `${file} at ${width}px with text at ${size}`, [API]);
   }
+  // AH-199: the loop above never opens a detail box, and rows 11 and 22's arithmetic (`.nb`, nowrap since AH-148) pushed
+  // the page 131 px sideways at 320 px with text at 200%. Every box opened there leaves the page its width, cuts no word or
+  // number in two ("15476.23" was "15476.2" over "3" beside the 112 px label) and starts no line with a comma; at 100% text
+  // (390 and 1280 px) each box keeps its two columns, so it is no taller. AH-148's part 5 keeps each sum on one line there
+  for (const [width, size] of [[320, "200%"], [390, "100%"], [1280, "100%"]]) {
+    const t = await open("index.html", { width, height: 800, motion: "reduce" });
+    const p = t.page;
+    await p.evaluate((size) => { document.documentElement.style.fontSize = size; }, size);
+    await p.click("#t-found");
+    for (const m of await p.$$eval(".rowbtn", (b) => b.map((x) => x.getAttribute("aria-controls")))) {
+      await p.click(`.rowbtn[aria-controls="${m}"]`);
+      await p.waitForTimeout(100);
+      const r = await p.evaluate((m) => {
+        const dl = document.querySelector(`#${m} dl`), cut = [], comma = [], walk = document.createTreeWalker(dl, NodeFilter.SHOW_TEXT);
+        const top = (n, a, b) => { const g = document.createRange(); g.setStart(n, a); g.setEnd(n, b); return [...g.getClientRects()].map((x) => Math.round(x.top)); };
+        for (let n, last = null; (n = walk.nextNode()); last = n) {
+          for (const w of n.data.matchAll(/\S+/g)) if (new Set(top(n, w.index, w.index + w[0].length)).size > 1) cut.push(w[0]);
+          if (/^[,.:;]/.test(n.data) && last && last.data.length && top(n, 0, 1)[0] > top(last, last.data.length - 1, last.data.length)[0]) comma.push(n.data);
+        }
+        return { over: document.documentElement.scrollWidth - document.documentElement.clientWidth, cut, comma, columns: getComputedStyle(dl).gridTemplateColumns.split(" ").length };
+      }, m);
+      const at = `AH-199 index.html at ${width}px, text ${size}, ${m} open`;
+      if (r.over > 0) short.push(`${at}: scrolls ${r.over} px sideways`);
+      if (r.cut.length) short.push(`${at}: ${JSON.stringify(r.cut)} cut in two`);
+      if (r.comma.length) short.push(`${at}: a line starts with ${JSON.stringify(r.comma)}`);
+      if (size === "100%" && r.columns !== 2) short.push(`${at}: its labels sit over their values (${r.columns} column), a taller box`);
+      await p.keyboard.press("Escape");
+    }
+    await done(t, `detail boxes at ${width}px with text at ${size}`, [API]);
+  }
   // AH-113: Windows High Contrast (forced colours) drops every fill and shadow the page draws: the sample's "probably
   // wrong" cells (a wine fill) and "worth a check" cells (an inset line) looked like every other cell, the key's squares
   // vanished, and the bar's Download lost its box. Each mark must show as something the theme keeps, and the two kinds
@@ -3871,8 +3901,9 @@ console.log(`page transitions: ${measured.moving} ms of motion on screen (${meas
 {
   const miss = [], want = (ok, what) => { if (!ok) miss.push(what); };
   const lit = (p) => p.$$eval("#preview .sheet-map i", (is) => is.map((i, k) => (+getComputedStyle(i, "::before").opacity > 0.5 ? k + 2 : 0)).filter(Boolean).join());
+  // props sorted: Chromium 157 lists a keyframe's transform before its opacity, older ones the other way (AH-199)
   const moves = (els) => els.flatMap((el) => el.getAnimations({ subtree: true }).map((a) => ({ on: a.effect.pseudoElement || el.tagName.toLowerCase(), delay: a.effect.getTiming().delay, dur: a.effect.getComputedTiming().duration,
-    runs: a.effect.getComputedTiming().iterations, ease: a.effect.getTiming().easing, props: [...new Set(a.effect.getKeyframes().flatMap((f) => Object.keys(f).filter((k) => !["offset", "computedOffset", "easing", "composite"].includes(k))))].join() })));
+    runs: a.effect.getComputedTiming().iterations, ease: a.effect.getTiming().easing, props: [...new Set(a.effect.getKeyframes().flatMap((f) => Object.keys(f).filter((k) => !["offset", "computedOffset", "easing", "composite"].includes(k))))].sort().join() })));
   for (const [width, motion] of [[1280, "no-preference"], [390, "reduce"]]) {
     const t = await open("index.html", { width, height: 800, motion });
     const p = t.page, label = `AH-183 at ${width}px (${motion})`, still = motion === "reduce", settle = () => p.waitForTimeout(still ? 50 : 600);
