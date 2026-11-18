@@ -731,6 +731,13 @@ function woff2(file) {
   const heads = [...html["checks.html"].matchAll(/<tr class="reveal-item"><th scope="row"><span class="rule" aria-hidden="true"><\/span>([^<]+)<\/th>/g)].map((m) => m[1].replace(/&#39;|&apos;/g, "'"));
   for (const name of [...checks.matchAll(/<h3>([^<]+)<\/h3>/g)].map((m) => m[1])) assert.ok(heads.some((h) => h === name || h.startsWith(name + " ")), `checks.html has no row for the home page's "${name}": ${heads}`);
   assert.ok(/<h1 [^>]*id="checks-title"[^>]*>Every check Arcas runs<\/h1>/.test(html["checks.html"]) && !/<h2\b/.test((/<main[\s\S]*<\/main>/.exec(html["checks.html"]) || [""])[0]), "checks.html: the h1 is not the table's one heading");
+  // AH-196 (John, 2026-11-18): the Fairness note is one line under the table, word for word, never in a row: inside the
+  // Fairness row (#123) it took the table from 866 to 923 px, past the 1440 x 900 screen its nine rows fit
+  const FAIR_NOTE = "This is a data-quality signal, not a legal or compliance finding about discrimination: it says whether the numbers in this sheet look even, and nothing about whether anything is fair or lawful.";
+  const everyCheck = (/<section\b[^>]*\sid="every-check"[\s\S]*?<\/section>/.exec(html["checks.html"]) || [""])[0], end = everyCheck.indexOf("</table>");
+  const under = everyCheck.slice(end + 8).trimStart(), noteTag = /^<p [^>]*>/.exec(under); // compared as text: a RegExp built from a string is what Semgrep refuses
+  assert.ok(end > 0 && !everyCheck.slice(0, end).includes("data-quality signal") && !!noteTag && under.slice(noteTag[0].length).startsWith(FAIR_NOTE + "</p>") && html["checks.html"].split(FAIR_NOTE).length === 2,
+    "checks.html: the Fairness note is not one line right under the checks table, outside its rows");
   // every page's "Checks" goes to checks.html (the 404 page root-absolute)
   for (const p of PAGES) assert.ok(/<nav class="links"[^>]*>[\s\S]*?<a href="checks\.html"( aria-current="page")?>Checks<\/a>/.test(html[p]), `${p}: the bar's Checks is not checks.html`);
   assert.ok(read(MISSING).includes(`<a href="${ROOT_PATH}checks.html">Checks</a>`), "404.html: the bar's Checks is not checks.html");
@@ -3346,7 +3353,7 @@ console.log(`page transitions: ${measured.moving} ms of motion on screen (${meas
   }
   // (d) the measure at 1440: no line of running text holds more than 75 letters (the questions' answers, the steps'
   // aside, the checks' second column, the privacy and terms pages' text and table), counted per rendered line
-  for (const [file, sel] of [["index.html", ".faq .a p, .faq .a li, .steps .aside, .check-file p, .check-list p, .maker-text p, .proof-note"], ["checks.html", ".checks-table tbody td:not(.in-sample)"], ["cases.html", ".case p, .case li"], ["privacy.html", ".prose p, .prose li, .card td"], ["terms.html", ".prose p, .prose li"], ["support.html", ".faq .a p, .faq .a li, #it dd"]]) {
+  for (const [file, sel] of [["index.html", ".faq .a p, .faq .a li, .steps .aside, .check-file p, .check-list p, .maker-text p, .proof-note"], ["checks.html", ".checks-table tbody td:not(.in-sample), #every-check .proof-note"], ["cases.html", ".case p, .case li"], ["privacy.html", ".prose p, .prose li, .card td"], ["terms.html", ".prose p, .prose li"], ["support.html", ".faq .a p, .faq .a li, #it dd"]]) {
     const t = await open(file, { width: 1440, height: 900, motion: "reduce" });
     const p = t.page;
     await p.evaluate(() => document.fonts.ready);
