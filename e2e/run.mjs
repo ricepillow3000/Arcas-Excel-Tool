@@ -35,6 +35,9 @@ await page.exposeFunction("__unhandled", (kind, what) => unhandled.push(`${kind}
 await page.addInitScript(() => {
   addEventListener("unhandledrejection", (e) => __unhandled("unhandledrejection", String(e.reason?.stack || e.reason)));
   addEventListener("error", (e) => __unhandled("error", String(e.error?.stack || e.message)));
+  // every layout shift since this load, as CLS counts them (none just after a press)
+  window.__shift = 0;
+  new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) window.__shift += e.value; }).observe({ type: "layout-shift", buffered: true });
 });
 // AH-181: checking as you work is on unless turned off, and the other modes edit cells on purpose to test what a scan and
 // a fix do (a sort, a retyped cell): there it is off, so no check of its own adds a /scan call. Mode live turns it on, with
@@ -843,6 +846,13 @@ if (mode === "flow") {
     ok(calls.filter((c) => c[0] === "/profile").at(-1)?.[1].rows.length === 500, "on a 700-row sheet it sends the header and the first 500 rows only");
     await page.evaluate(() => { __drop("Long"); __activate("Sales"); });
     await page.reload(); await page.waitForSelector("#main-ui", { state: "visible" }); await profiled();
+    // AH-193 fix round: opened on this 300-row sheet, its lines landed about 150 ms after the main view and grew the box
+    // 33 px past its held height, pushing the options and the footer down (CLS 0.0156, the measurer's pane-shift.mjs):
+    // from the first paint to the lines in place, nothing moves
+    await page.waitForFunction(() => [...document.querySelectorAll("[data-enter]")].every((e) => !e.style.opacity && !e.style.transform), null, { timeout: 5000 });
+    await page.waitForTimeout(300);
+    const moved = await page.evaluate(() => window.__shift);
+    ok(moved === 0, `AH-193: opened on a 300-row sheet, Before you scan lands with the main view and nothing moves (layout shift ${moved})`);
   }
   await find();
   ok(await page.$eval("#before-scan", (e) => e.hidden), "a scan takes the place of Before you scan");

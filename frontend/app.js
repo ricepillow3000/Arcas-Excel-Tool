@@ -105,9 +105,13 @@ async function checkHealth(auto = false) {
     setAi(h.ai_available, h.ai_provider);
     // which engine answers: an old one gave 2 of 279 on a credit sheet and looked just like a new one (2026-10-15)
     $("engine-version").textContent = `Engine ${h.version || "from before 2026-10-15: update it"}`;
+    // AH-169: what a scan will check, before it. The main view waits for its lines, a second at most, the start-up
+    // skeleton standing in, so they land with it: shown first, a 300-row sheet's lines grew the box 33 px under the
+    // options and the footer (CLS 0.0156, AH-193 fix round). Past the second it says "Reading your sheet…", held
+    if (state.view === "empty-state" && !state.lastScan) await Promise.race([sayProfile(), new Promise((go) => setTimeout(go, 1000))]);
+    if (me !== asked) return;
     show("main-ui");
     show("server-down", false);
-    if (state.view === "empty-state" && !state.lastScan) sayProfile(); // AH-169: what a scan will check, before it
     moveTo("scan");
   } catch {
     if (me !== asked) return;
