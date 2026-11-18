@@ -33,11 +33,13 @@ const thenFocus = (fn, to) => async () => {
 };
 const fixDone = () => state.fix && state.undos[state.fix.i];
 
-if (typeof Office !== "undefined") {
+// AH-193: the pane opens on its own header and start-up skeleton while Office gets ready; it said "Open this inside
+// Excel." on bare paper to a person already in Excel, then moved 14 px when the main view came. Only outside Excel is it said
+const away = () => { show("app-body", false); show("sideload-msg"); };
+if (typeof Office === "undefined") away();
+else {
   Office.onReady((info) => {
-    if (info.host !== Office.HostType.Excel) return;
-    show("sideload-msg", false);
-    show("app-body");
+    if (info.host !== Office.HostType.Excel) return away();
     initMotion();
     oneClickEach();
     $("scan").onclick = act(() => runScan(true, true)); // held: the skeleton stays long enough to be seen
