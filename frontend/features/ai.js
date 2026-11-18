@@ -163,7 +163,7 @@ export function oddLines(odd, columns, startRow, startCol) {
   return lines.length > CAP ? [...lines.slice(0, CAP), `+ ${n(lines.length - CAP)} more words the AI found out of place.`] : lines;
 }
 
-// AH-201: Check subject rules with AI. The engine sends the AI only the sheet's headers and each column's kind, never a
+// AH-202: Check subject rules with AI. The engine sends the AI only the sheet's headers and each column's kind, never a
 // cell; the AI names rules its subject makes true (Net = Debit − Credit) and the engine checks each on every row
 export async function checkRules() {
   const { columns, rows, startRow, startCol } = state.lastScan;

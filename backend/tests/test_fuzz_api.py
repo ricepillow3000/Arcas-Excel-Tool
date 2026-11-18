@@ -47,7 +47,7 @@ def test_no_input_breaks_the_engine(case, monkeypatch):
     monkeypatch.setattr(client, "api_key_configured", lambda: True)
     monkeypatch.setattr(client, "suggest_fix", lambda *a, **k: {"explanation": "stub", "changes": []})
     monkeypatch.setattr(client, "odd_text", lambda values: ([{"column": c, "value": v[0], "why": "stub"} for c, v in values.items()], False))
-    # AH-201: a rule of each kind over the headers sent, so the engine's own check of them is attacked too
+    # AH-202: a rule of each kind over the headers sent, so the engine's own check of them is attacked too
     monkeypatch.setattr(client, "subject_rules", lambda heads: (stub_rules([h for h, _ in heads]), len(heads)))
     response = case.call()
     assert response.status_code != 403, "the origin gate refused the attack - it would test nothing"

@@ -362,7 +362,7 @@ def create_app(scan_csv=None):
 
     @app.post("/rules")
     def rules_route():
-        """AH-201: optional AI subject rules. Only the sheet's own headers and each column's kind (number, date, text,
+        """AH-202: optional AI subject rules. Only the sheet's own headers and each column's kind (number, date, text,
         id) go to the AI, never a cell; every rule it names is checked here on every row (engine/rules.py)."""
         body = request.get_json(silent=True)
         if err := _bad(body):

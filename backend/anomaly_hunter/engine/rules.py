@@ -1,4 +1,4 @@
-"""AH-201: rules a sheet's subject makes true (Net = Debit − Credit, Ship date before Delivery date), proposed by the AI
+"""AH-202: rules a sheet's subject makes true (Net = Debit − Credit, Ship date before Delivery date), proposed by the AI
 from the column headers alone and checked here on every row. The AI never sees a cell; it only names headers, and a
 rule is a fixed shape of columns, never text run as code. A rule is believed only where the sheet itself shows it:
 on 10+ rows (MIN_ROWS), true on 95% of them (HOLDS), an order on all but max(1, 0.1%) (ORDER_OFF). Then each row against it is said, naming its cells."""
@@ -10,7 +10,7 @@ from anomaly_hunter.engine.pipeline import _cent, _decimals, _in_order, summary_
 
 MIN_ROWS = 10
 HOLDS = 0.95
-# an order a few rows break is the subject's own exception, never a rule (AH-201: "Arrival before Entry", true on 513
+# an order a few rows break is the subject's own exception, never a rule (AH-202: "Arrival before Entry", true on 513
 # of 518 rows, flagged a pre-arrival shipment's 5 valid rows): the bar of pipeline.date_order, max(1, 0.1%) against it
 ORDER_OFF = 0.001
 HEADER = 100  # characters of a header sent: a header can carry a person's name or a note, and a long one is no name

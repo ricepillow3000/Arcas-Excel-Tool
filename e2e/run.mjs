@@ -1355,26 +1355,26 @@ if (mode === "ai") { // engine started with a Claude key pointed at stub_claude.
       status: document.getElementById("status").getBoundingClientRect().height, notice: document.getElementById("notice").textContent }));
     ok(m.odd === m.body, `Check words' answer, or why it could not check, is at body size - ${m.odd} (body ${m.body})`);
     ok(m.notice === "" && m.status < 1, `with nothing to say and nothing running, the progress and notice line holds no space over the summary - ${m.status} px`); }
-  // AH-201: Check subject rules with AI sends only /rules; the AI reads the headers and kinds, never a cell; its rule is
+  // AH-202: Check subject rules with AI sends only /rules; the AI reads the headers and kinds, never a cell; its rule is
   // checked on every row and the rows against it named by row, column letter and header; its words are text, never
   // markup; a rule naming a header that was not sent is dropped. The stub answers Total = Units x UnitCost with markup in
   // "why", and an order of a "Ship date" the sheet has not
   posts.length = 0;
   await page.click("#rules-check"); await idle();
-  ok(posts.join() === "/rules", "AH-201: Check subject rules with AI sends only /rules - " + posts);
+  ok(posts.join() === "/rules", "AH-202: Check subject rules with AI sends only /rules - " + posts);
   { const lines = await page.$$eval("#rules-list li", (lis) => lis.map((li) => li.textContent));
     const rule = lines.find((l) => /^True on (all \d+|\d+ of \d+) rows: Total = Units × UnitCost\. The AI says: <img src=x onerror=/.test(l));
     ok(rule && (rule.startsWith("True on all") || lines.some((l) => /^Row \d+, column E \(Total\): Total \S+ is not Units × UnitCost \(\S+\): a rule the AI read from your headers, true on \d+ of \d+ rows\.$/.test(l)))
-      && !lines.some((l) => l.includes("Ship date")), "AH-201: the rule, its AI words as text and the rows against it, a rule of a header not sent dropped - " + JSON.stringify(lines.slice(0, 3)));
-    ok(!(await page.$("#rules-list img")) && !(await page.evaluate(() => window.__pwned)), "AH-201: the AI's words are text, never markup");
+      && !lines.some((l) => l.includes("Ship date")), "AH-202: the rule, its AI words as text and the rows against it, a rule of a header not sent dropped - " + JSON.stringify(lines.slice(0, 3)));
+    ok(!(await page.$("#rules-list img")) && !(await page.evaluate(() => window.__pwned)), "AH-202: the AI's words are text, never markup");
     const asked = fs.readFileSync(DIR + "claude.log", "utf8").trim().split("\n").map(JSON.parse).find((l) => l.prompt.includes("column headers of a spreadsheet"));
-    ok(asked && asked.prompt.includes('["Units", "number"]') && !/7777|170\.43|"East"|2026-/.test(asked.prompt), "AH-201: Check subject rules sends the headers and their kinds only, never a cell"); }
+    ok(asked && asked.prompt.includes('["Units", "number"]') && !/7777|170\.43|"East"|2026-/.test(asked.prompt), "AH-202: Check subject rules sends the headers and their kinds only, never a cell"); }
   for (const [how, fail, words] of [
     ["the provider fails", (r) => r.fulfill({ status: 502, contentType: "application/json", body: JSON.stringify({ error: AI_BROKE }) }), AI_BROKE],
     ["the engine goes down mid-call", dropMidway, DOWN]]) {
     await failing(DROPPED, async () => { await page.route("**/rules", fail, { times: 1 }); await page.click("#rules-check"); await idle(); });
-    ok((await text("#rules-list")) === "AI could not check: " + words && !(await page.isDisabled("#rules-check")), `AH-201: Check subject rules when ${how}: said in plain words - ` + (await text("#rules-list")));
-    ok((await looksLikeNotice("#rules-list li")).ok, `AH-201: Check subject rules when ${how}: a notice at body size, said once`);
+    ok((await text("#rules-list")) === "AI could not check: " + words && !(await page.isDisabled("#rules-check")), `AH-202: Check subject rules when ${how}: said in plain words - ` + (await text("#rules-list")));
+    ok((await looksLikeNotice("#rules-list li")).ok, `AH-202: Check subject rules when ${how}: a notice at body size, said once`);
   }
   await page.click("#rules-check"); await idle();
   // AH-170: Check words' lines name cells of the sheet they were asked about: another sheet's check never shows them
@@ -1384,7 +1384,7 @@ if (mode === "ai") { // engine started with a Claude key pointed at stub_claude.
   await find();
   ok(oddBefore > 0 && (await page.$$eval("#odd-list li", (lis) => lis.length)) === 0 && (await text("#sheet-name")) === "Other",
     `AH-170: Find problems on another sheet clears the old Check words lines (${oddBefore} before)`);
-  ok((await page.$$eval("#rules-list li", (lis) => lis.length)) === 0, "AH-201: Find problems on another sheet clears the old Check subject rules lines");
+  ok((await page.$$eval("#rules-list li", (lis) => lis.length)) === 0, "AH-202: Find problems on another sheet clears the old Check subject rules lines");
 }
 
 if (mode === "nokey") { // engine started with no key: John's free AI through the relay, here stub_claude.py's /fix (e2e/engine.py)

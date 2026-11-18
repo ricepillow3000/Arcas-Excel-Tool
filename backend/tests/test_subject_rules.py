@@ -1,4 +1,4 @@
-"""AH-201: Check subject rules with AI. The AI reads the sheet's own headers and each column's kind, never a cell, and
+"""AH-202: Check subject rules with AI. The AI reads the sheet's own headers and each column's kind, never a cell, and
 names rules its subject makes true (Net = Debit − Credit, Ship date before Delivery date); the engine checks each on
 every row and lists the rows that break a rule that otherwise holds."""
 import json

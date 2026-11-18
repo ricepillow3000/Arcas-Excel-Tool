@@ -576,7 +576,7 @@ def _rules_prompt(headers):
 
 
 def subject_rules(headers):
-    """AH-201: headers = [(the sheet's own header, its kind)] in sheet order -> ([rule dicts], how many were sent). Only
+    """AH-202: headers = [(the sheet's own header, its kind)] in sheet order -> ([rule dicts], how many were sent). Only
     headers and kinds go, never a cell: the first SENT that fit one request. A rule naming anything that was not sent
     is dropped, and its 'why' is one line of at most 120 characters. The engine checks the rest on every row."""
     sent = []

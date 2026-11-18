@@ -1,4 +1,4 @@
-"""AH-201 rules step: POST every episode sheet to the real engine's /rules (the AI reads the headers, the engine checks
+"""AH-202 rules step: POST every episode sheet to the real engine's /rules (the AI reads the headers, the engine checks
 each rule on every row) and write a merged scan where each row a rule flags that the scan did not is Medium on the rule's
 cells, beside the scan's own rows. judge.py then scores the merged files unchanged.
 usage: GEMINI_API_KEY=... python -I rules.py <repo> <sheets_dir> <scan_dir> <out_dir>

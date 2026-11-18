@@ -206,7 +206,7 @@ assert.equal(summaryOf([{ severity: "High" }, { severity: null }]), "1 of 2 rows
   assert.equal(lines.at(-1), "+ 10 more words the AI found out of place.");
   assert.equal(oddLines(Array.from({ length: K.CAP }, (_, k) => ({ row: k, col: 0, value: `w${k}`, why: "x" })), ["Item"], 0, 0).length, K.CAP, "exactly CAP lines need no more line");
 }
-// AH-201: Check subject rules says each rule once (true on all rows, on most with the rows against it after it, did not
+// AH-202: Check subject rules says each rule once (true on all rows, on most with the rows against it after it, did not
 // hold, too few rows) with the AI's why, each row by its sheet row and its cells' letters and the sheet's own headers
 {
   const r = (said, held, total, holds, why = "x") => ({ said, held, total, holds, why });

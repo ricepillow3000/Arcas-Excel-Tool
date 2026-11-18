@@ -106,7 +106,7 @@ These are the general reasoning rules the engine now follows, in addition to the
 The episodes, keys, scanner and judge are in `backend/bench/adversarial/` so any later build can be scored the
 same way.
 
-## AH-201: John's choice 3, the AI checks subject rules (2026-11-18)
+## AH-202: John's choice 3, the AI checks subject rules (2026-11-18)
 John picked choice 3: send the AI only the column headers and whether each holds numbers, dates or text, never a
 cell. The AI proposes subject rules (a sum, a product, an order, a value that is 0 after a date, a parent that is
 the sum of its children). Arcas checks each one on every row on the PC, and only believes a rule that holds on 95% of

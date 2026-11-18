@@ -3318,7 +3318,7 @@
  },
  {
   "id": "rules-rows-loosen",
-  "guard": "A subject rule is believed on 10+ rows (MIN_ROWS) true on 95% of them (HOLDS); else nothing is flagged (AH-201)",
+  "guard": "A subject rule is believed on 10+ rows (MIN_ROWS) true on 95% of them (HOLDS); else nothing is flagged (AH-202)",
   "file": "backend/anomaly_hunter/engine/rules.py",
   "old": "MIN_ROWS = 10",
   "new": "MIN_ROWS = 9",
@@ -3329,7 +3329,7 @@
  },
  {
   "id": "rules-rows-tighten",
-  "guard": "A subject rule is believed on 10+ rows (MIN_ROWS) true on 95% of them (HOLDS); else nothing is flagged (AH-201)",
+  "guard": "A subject rule is believed on 10+ rows (MIN_ROWS) true on 95% of them (HOLDS); else nothing is flagged (AH-202)",
   "file": "backend/anomaly_hunter/engine/rules.py",
   "old": "MIN_ROWS = 10",
   "new": "MIN_ROWS = 11",
@@ -3340,7 +3340,7 @@
  },
  {
   "id": "rules-holds-loosen",
-  "guard": "A subject rule is believed on 10+ rows (MIN_ROWS) true on 95% of them (HOLDS); else nothing is flagged (AH-201)",
+  "guard": "A subject rule is believed on 10+ rows (MIN_ROWS) true on 95% of them (HOLDS); else nothing is flagged (AH-202)",
   "file": "backend/anomaly_hunter/engine/rules.py",
   "old": "HOLDS = 0.95",
   "new": "HOLDS = 0.9",
@@ -3351,7 +3351,7 @@
  },
  {
   "id": "rules-holds-tighten",
-  "guard": "A subject rule is believed on 10+ rows (MIN_ROWS) true on 95% of them (HOLDS); else nothing is flagged (AH-201)",
+  "guard": "A subject rule is believed on 10+ rows (MIN_ROWS) true on 95% of them (HOLDS); else nothing is flagged (AH-202)",
   "file": "backend/anomaly_hunter/engine/rules.py",
   "old": "HOLDS = 0.95",
   "new": "HOLDS = 0.96",
@@ -3362,7 +3362,7 @@
  },
  {
   "id": "rules-header-loosen",
-  "guard": "Check subject rules sends at most the first 200 headers (SENT) that fit one request, each one line of at most 100 characters (HEADER), never a cell (AH-201)",
+  "guard": "Check subject rules sends at most the first 200 headers (SENT) that fit one request, each one line of at most 100 characters (HEADER), never a cell (AH-202)",
   "file": "backend/anomaly_hunter/engine/rules.py",
   "old": "HEADER = 100",
   "new": "HEADER = 101",
@@ -3373,7 +3373,7 @@
  },
  {
   "id": "rules-header-tighten",
-  "guard": "Check subject rules sends at most the first 200 headers (SENT) that fit one request, each one line of at most 100 characters (HEADER), never a cell (AH-201)",
+  "guard": "Check subject rules sends at most the first 200 headers (SENT) that fit one request, each one line of at most 100 characters (HEADER), never a cell (AH-202)",
   "file": "backend/anomaly_hunter/engine/rules.py",
   "old": "HEADER = 100",
   "new": "HEADER = 99",
@@ -3384,7 +3384,7 @@
  },
  {
   "id": "rules-sent-loosen",
-  "guard": "Check subject rules sends at most the first 200 headers (SENT) that fit one request, each one line of at most 100 characters (HEADER), never a cell (AH-201)",
+  "guard": "Check subject rules sends at most the first 200 headers (SENT) that fit one request, each one line of at most 100 characters (HEADER), never a cell (AH-202)",
   "file": "backend/anomaly_hunter/ai/client.py",
   "old": "SENT = 200",
   "new": "SENT = 201",
@@ -3395,7 +3395,7 @@
  },
  {
   "id": "rules-sent-tighten",
-  "guard": "Check subject rules sends at most the first 200 headers (SENT) that fit one request, each one line of at most 100 characters (HEADER), never a cell (AH-201)",
+  "guard": "Check subject rules sends at most the first 200 headers (SENT) that fit one request, each one line of at most 100 characters (HEADER), never a cell (AH-202)",
   "file": "backend/anomaly_hunter/ai/client.py",
   "old": "SENT = 200",
   "new": "SENT = 199",
@@ -3406,7 +3406,7 @@
  },
  {
   "id": "rules-budget-loosen",
-  "guard": "Check subject rules sends at most the first 200 headers (SENT) that fit one request, each one line of at most 100 characters (HEADER), never a cell (AH-201)",
+  "guard": "Check subject rules sends at most the first 200 headers (SENT) that fit one request, each one line of at most 100 characters (HEADER), never a cell (AH-202)",
   "file": "backend/anomaly_hunter/ai/client.py",
   "old": "        if not _fits(_rules_prompt([*sent, h]), RULES_SCHEMA, \"rules\"):\n            break\n",
   "new": "",
@@ -3417,7 +3417,7 @@
  },
  {
   "id": "rules-unsent-loosen",
-  "guard": "An AI subject rule naming a header not sent, a column twice or a column of the wrong kind is dropped (AH-201)",
+  "guard": "An AI subject rule naming a header not sent, a column twice or a column of the wrong kind is dropped (AH-202)",
   "file": "backend/anomaly_hunter/ai/client.py",
   "old": "        if named and all(n in names for n in named):",
   "new": "        if named:",
@@ -3429,7 +3429,7 @@
  },
  {
   "id": "rules-unknown-loosen",
-  "guard": "An AI subject rule naming a header not sent, a column twice or a column of the wrong kind is dropped (AH-201)",
+  "guard": "An AI subject rule naming a header not sent, a column twice or a column of the wrong kind is dropped (AH-202)",
   "file": "backend/anomaly_hunter/engine/rules.py",
   "old": "if not named or any(h not in heads for h in named) or len(set(named)) != len(named):",
   "new": "if not named or len(set(named)) != len(named):",
@@ -3440,7 +3440,7 @@
  },
  {
   "id": "rules-twice-loosen",
-  "guard": "An AI subject rule naming a header not sent, a column twice or a column of the wrong kind is dropped (AH-201)",
+  "guard": "An AI subject rule naming a header not sent, a column twice or a column of the wrong kind is dropped (AH-202)",
   "file": "backend/anomaly_hunter/engine/rules.py",
   "old": "if not named or any(h not in heads for h in named) or len(set(named)) != len(named):",
   "new": "if not named or any(h not in heads for h in named):",
@@ -3451,7 +3451,7 @@
  },
  {
   "id": "rules-kind-loosen",
-  "guard": "An AI subject rule naming a header not sent, a column twice or a column of the wrong kind is dropped (AH-201)",
+  "guard": "An AI subject rule naming a header not sent, a column twice or a column of the wrong kind is dropped (AH-202)",
   "file": "backend/anomaly_hunter/engine/rules.py",
   "old": " or any(kind(h) != \"number\" for h in [t, *parts]):",
   "new": ":",
@@ -3462,7 +3462,7 @@
  },
  {
   "id": "rules-shared-header-loosen",
-  "guard": "An AI subject rule naming a header not sent, a column twice or a column of the wrong kind is dropped (AH-201)",
+  "guard": "An AI subject rule naming a header not sent, a column twice or a column of the wrong kind is dropped (AH-202)",
   "file": "backend/anomaly_hunter/engine/rules.py",
   "old": "    return {h: js[0] for h, js in seen.items() if len(js) == 1}",
   "new": "    return {h: js[0] for h, js in seen.items()}",
@@ -3474,7 +3474,7 @@
  },
  {
   "id": "rules-count-loosen",
-  "guard": "At most 20 AI subject rules (MAX_RULES), each 'why' one line of at most 120 characters (AH-201)",
+  "guard": "At most 20 AI subject rules (MAX_RULES), each 'why' one line of at most 120 characters (AH-202)",
   "file": "backend/anomaly_hunter/ai/client.py",
   "old": "\"rules\").rules[:MAX_RULES]:",
   "new": "\"rules\").rules[:MAX_RULES + 1]:",
@@ -3485,7 +3485,7 @@
  },
  {
   "id": "rules-count-tighten",
-  "guard": "At most 20 AI subject rules (MAX_RULES), each 'why' one line of at most 120 characters (AH-201)",
+  "guard": "At most 20 AI subject rules (MAX_RULES), each 'why' one line of at most 120 characters (AH-202)",
   "file": "backend/anomaly_hunter/ai/client.py",
   "old": "\"rules\").rules[:MAX_RULES]:",
   "new": "\"rules\").rules[:MAX_RULES - 1]:",
@@ -3496,7 +3496,7 @@
  },
  {
   "id": "rules-why-loosen",
-  "guard": "At most 20 AI subject rules (MAX_RULES), each 'why' one line of at most 120 characters (AH-201)",
+  "guard": "At most 20 AI subject rules (MAX_RULES), each 'why' one line of at most 120 characters (AH-202)",
   "file": "backend/anomaly_hunter/ai/client.py",
   "old": "keep.append({**d, \"why\": \" \".join(d[\"why\"].split())[:120]})",
   "new": "keep.append({**d, \"why\": d[\"why\"][:121]})",
@@ -3507,7 +3507,7 @@
  },
  {
   "id": "rules-why-tighten",
-  "guard": "At most 20 AI subject rules (MAX_RULES), each 'why' one line of at most 120 characters (AH-201)",
+  "guard": "At most 20 AI subject rules (MAX_RULES), each 'why' one line of at most 120 characters (AH-202)",
   "file": "backend/anomaly_hunter/ai/client.py",
   "old": "keep.append({**d, \"why\": \" \".join(d[\"why\"].split())[:120]})",
   "new": "keep.append({**d, \"why\": \" \".join(d[\"why\"].split())[:119]})",
@@ -3518,7 +3518,7 @@
  },
  {
   "id": "rules-lines-loosen",
-  "guard": "Check subject rules says at most CAP lines in the pane, then one line for the rest (AH-201)",
+  "guard": "Check subject rules says at most CAP lines in the pane, then one line for the rest (AH-202)",
   "file": "frontend/features/ai.js",
   "old": "  return lines.length > CAP ? [...lines.slice(0, CAP), `+ ${n(lines.length - CAP)} more lines.`] : lines;",
   "new": "  return lines;",
@@ -3529,7 +3529,7 @@
  },
  {
   "id": "rules-lines-tighten",
-  "guard": "Check subject rules says at most CAP lines in the pane, then one line for the rest (AH-201)",
+  "guard": "Check subject rules says at most CAP lines in the pane, then one line for the rest (AH-202)",
   "file": "frontend/features/ai.js",
   "old": "  return lines.length > CAP ? [...lines.slice(0, CAP), `+ ${n(lines.length - CAP)} more lines.`] : lines;",
   "new": "  return lines.length >= CAP ? [...lines.slice(0, CAP), `+ ${n(lines.length - CAP)} more lines.`] : lines;",
@@ -3540,7 +3540,7 @@
  },
  {
   "id": "rules-order-loosen",
-  "guard": "An order the AI proposes is believed only where at most max(1, 0.1%) of its rows break it (ORDER_OFF, the bar of date_order) (AH-201)",
+  "guard": "An order the AI proposes is believed only where at most max(1, 0.1%) of its rows break it (ORDER_OFF, the bar of date_order) (AH-202)",
   "file": "backend/anomaly_hunter/engine/rules.py",
   "old": "ORDER_OFF = 0.001",
   "new": "ORDER_OFF = 0.002",
@@ -3551,7 +3551,7 @@
  },
  {
   "id": "rules-order-tighten",
-  "guard": "An order the AI proposes is believed only where at most max(1, 0.1%) of its rows break it (ORDER_OFF, the bar of date_order) (AH-201)",
+  "guard": "An order the AI proposes is believed only where at most max(1, 0.1%) of its rows break it (ORDER_OFF, the bar of date_order) (AH-202)",
   "file": "backend/anomaly_hunter/engine/rules.py",
   "old": "ORDER_OFF = 0.001",
   "new": "ORDER_OFF = 0.0009",
@@ -3562,7 +3562,7 @@
  },
  {
   "id": "rules-order-bar-loosen",
-  "guard": "An order the AI proposes is believed only where at most max(1, 0.1%) of its rows break it (ORDER_OFF, the bar of date_order) (AH-201)",
+  "guard": "An order the AI proposes is believed only where at most max(1, 0.1%) of its rows break it (ORDER_OFF, the bar of date_order) (AH-202)",
   "file": "backend/anomaly_hunter/engine/rules.py",
   "old": "if r.get(\"kind\") == \"order\" else held",
   "new": "if False else held",
