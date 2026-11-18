@@ -4058,6 +4058,35 @@ console.log(`page transitions: ${measured.moving} ms of motion on screen (${meas
   assert.deepEqual(miss, [], `AH-193:\n${miss.join("\n")}`);
   console.log("AH-193: the navy band ends on navy, Download alone on its row above 760 px, a check on checks.html's first screen, a selection navy on a gold tint, gold lines on paper, the sample's data at 400 beside its 800 flags, and no third Windows line on a phone");
 }
+// ---- AH-193 fix round F1 (the blind judge, 390 x 844): a detail box's Close broke as "Clos / e" on a phone, its 44 px
+// min-width letting the box's head squeeze it below its word. Each box's Close and Accept keep their word on one line at
+// 390 and 320 px, and at 320 px with text at 200%, where they take a line under the title and the head never runs past
+// the box (the box's own arithmetic, kept whole since AH-148, is wider than 320 px at 200%: not the head's) ----
+{
+  const miss = [];
+  for (const [width, size] of [[390, "100%"], [320, "100%"], [320, "200%"]]) {
+    const t = await open("index.html", { width, height: 844, motion: "reduce" });
+    const p = t.page;
+    if (size !== "100%") await p.evaluate((size) => { document.documentElement.style.fontSize = size; }, size);
+    for (const id of await p.$$eval("#p-found .matrix", (ms) => ms.map((m) => m.id))) {
+      await p.$eval(`.rowbtn[aria-controls="${id}"]`, (b) => b.click());
+      await p.waitForTimeout(50);
+      const r = await p.evaluate((id) => {
+        const box = document.getElementById(id);
+        const head = box.querySelector(".m-head"), edge = Math.round(box.getBoundingClientRect().right);
+        return { open: !box.hidden, wide: head.scrollWidth - head.clientWidth,
+          buttons: [...box.querySelectorAll(".m-head button")].map((b) => { const g = document.createRange(); g.selectNodeContents(b);
+            return { text: b.textContent, lines: new Set([...g.getClientRects()].map((x) => Math.round(x.top))).size, fits: b.scrollWidth <= b.clientWidth, right: Math.round(b.getBoundingClientRect().right) }; }), edge };
+      }, id);
+      const bad = r.buttons.filter((b) => b.lines !== 1 || !b.fits || b.right > r.edge);
+      if (!r.open || r.wide > 0 || bad.length) miss.push(`${id} at ${width} px, text ${size}: ${JSON.stringify({ open: r.open, wide: r.wide, bad })}`);
+      await p.$eval(`#${id} .m-close`, (b) => b.click());
+    }
+    await done(t, `AH-193 F1 the detail boxes' buttons at ${width} px, text ${size}`, [API]);
+  }
+  assert.deepEqual(miss, [], `AH-193 F1:\n${miss.join("\n")}`);
+  console.log("AH-193 F1: every detail box's Close and Accept keep their word on one line at 390 and 320 px, and at 320 px with text at 200%, inside the box, its head never wider than the box");
+}
 await browser.close();
 server.close();
 console.log("website browser check passed");
