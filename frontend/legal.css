@@ -34,7 +34,7 @@ body:has(.stack){--wrap:780px;--inline:max(var(--margin),calc((100% - var(--wrap
    wide pane at 200%) and at 200% text, where they should wrap (AH-112) */
 html{scroll-behavior:smooth;scroll-padding-top:20px}
 body{font-family:var(--sans);background:var(--tex),var(--paper);color:var(--ink);line-height:1.6;-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
-a{color:var(--navy);font-weight:600;text-decoration-color:var(--wine);text-decoration-thickness:1px;text-underline-offset:3px;overflow-wrap:anywhere}
+a{color:var(--navy);font-weight:600;text-decoration-color:var(--gold);text-decoration-thickness:1px;text-underline-offset:3px;overflow-wrap:anywhere}
 a:hover{text-decoration-thickness:2px}
 a:active{text-decoration-thickness:3px}
 :focus-visible{outline:2px solid var(--navy);outline-offset:2px}

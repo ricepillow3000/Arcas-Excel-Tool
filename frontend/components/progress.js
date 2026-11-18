@@ -14,7 +14,7 @@ export function busy(text, pct = null) {
   $("busy-text").textContent = text || "";
   $("busy-secs").textContent = "";
   $("busy-bar").classList.toggle("unknown", pct === null);
-  $("busy-bar").style.width = pct === null ? "" : `${Math.round(pct * 100)}%`;
+  $("busy-bar").style.setProperty("--p", pct === null ? "" : Math.round(pct * 100) / 100);
 }
 
 // While the engine checks there is no fraction to show (AH-149): the seconds it has taken, counted beside the words, once
