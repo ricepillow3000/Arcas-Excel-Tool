@@ -531,6 +531,18 @@ dl.anchor { position: relative; margin: 0; display: grid; grid-template-columns:
 #sha { display: flow-root; width: calc(32ch + 18px); max-width: 100%; }
 @container sha (width < calc(32ch + 18px)) { #sha { width: calc(16ch + 18px); } }
 .nb { white-space: nowrap; } /* a word or a sum that must stay whole: SHA-256, a sample's date, a detail box's arithmetic (AH-148 final pass: "170.43 ÷" ended one line, "2.99" began the next) */
+/* a detail box's arithmetic is one piece that moves to the next line whole, and breaks at its own spaces only when it is
+   wider than the box: nowrap pushed rows 11 and 22's boxes 131 px past a 320 px screen at 200% text, and 19 px past
+   their own border at 100% */
+:is(.matrix, [data-pop-copy]) .nb { display: inline-block; max-width: 100%; white-space: normal; }
+/* where the box is under 16 of its own ems (a 320 px phone with text at 200%), each label sits over its value: beside a
+   112 px label the value had 115 px, and "15476.23" broke as "15476.2" over "3", "Checks" as "Check" over "s" (AH-199).
+   At 100% text the box is 21 ems or more, two columns as before */
+:is(.matrix, [data-pop-copy]) { container-type: inline-size; }
+@container (width < 16em) {
+  :is(.matrix, [data-pop-copy]) dl { grid-template-columns: minmax(0, 1fr); }
+  :is(.matrix, [data-pop-copy]) dt { border-right: 0; border-bottom: 0; padding-bottom: 0; }
+}
 /* the hash may break anywhere, the release page link's words never ("pag / e" on a phone, AH-138 review) */
 #sha a { word-break: normal; overflow-wrap: normal; }
 #sha::before { content: "0000000000000000000000000000000000000000000000000000000000000000"; float: left; width: 100%; margin-right: -100%; visibility: hidden; }
