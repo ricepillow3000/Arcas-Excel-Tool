@@ -3315,5 +3315,27 @@
    "backend/tests/test_line_endings.py::test_every_tracked_text_file_checks_out_with_lf_on_a_windows_pc",
    "backend/tests/test_line_endings.py::test_install_bat_keeps_crlf_for_cmd_and_the_files_read_line_by_line_keep_lf"
   ]
+ },
+ {
+  "id": "pane-motion-only-transform-loosen",
+  "guard": "only transform and opacity move in a pane transition (AH-193)",
+  "file": "frontend/styles/components.css",
+  "old": "transform-origin: 0 50%; transition: transform .2s var(--ease); }",
+  "new": "transform-origin: 0 50%; transition: width .2s var(--ease); }",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "pane-opens-on-header-loosen",
+  "guard": "the pane opens on its header and skeleton, never on \"Open this inside Excel.\" (AH-193)",
+  "file": "frontend/taskpane.html",
+  "old": "<p id=\"sideload-msg\" class=\"pad\" hidden>",
+  "new": "<p id=\"sideload-msg\" class=\"pad\">",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
  }
 ]

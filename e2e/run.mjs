@@ -35,6 +35,9 @@ await page.exposeFunction("__unhandled", (kind, what) => unhandled.push(`${kind}
 await page.addInitScript(() => {
   addEventListener("unhandledrejection", (e) => __unhandled("unhandledrejection", String(e.reason?.stack || e.reason)));
   addEventListener("error", (e) => __unhandled("error", String(e.error?.stack || e.message)));
+  // every layout shift since this load, as CLS counts them (none just after a press)
+  window.__shift = 0;
+  new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) window.__shift += e.value; }).observe({ type: "layout-shift", buffered: true });
 });
 // AH-181: checking as you work is on unless turned off, and the other modes edit cells on purpose to test what a scan and
 // a fix do (a sort, a retyped cell): there it is off, so no check of its own adds a /scan call. Mode live turns it on, with
@@ -167,6 +170,20 @@ const contrast = async (where) => {
   await page.$$eval("#main-ui details", (ds, was) => ds.forEach((d, k) => (d.open = was[k])), was);
   ok(bad.length === 0, `${where}: every text, box edge and placeholder clears WCAG AA - ` + JSON.stringify(bad));
 };
+// AH-193: selected text reads on every ground the pane has (paper, the navy bands, the wine button), in the website's
+// selection: navy on a light gold. Only a background was set, so the header's cream name selected sat on it at 1.1:1
+{ const sel = await page.evaluate(() => {
+    const pen = Object.assign(document.createElement("canvas"), { width: 1, height: 1 }).getContext("2d", { willReadFrequently: true });
+    const rgb = (s) => { pen.fillStyle = "#fff"; pen.fillRect(0, 0, 1, 1); pen.fillStyle = s; pen.fillRect(0, 0, 1, 1); return [...pen.getImageData(0, 0, 1, 1).data].slice(0, 3); };
+    const lum = (c) => c.map((v) => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }).reduce((t, v, k) => t + v * [0.2126, 0.7152, 0.0722][k], 0);
+    return ["header h1", "#pane-footer .pf-tag", "#empty-state p", "#scan"].map((q) => { const s = getComputedStyle(document.querySelector(q), "::selection");
+      const [a, b] = [lum(rgb(s.color)), lum(rgb(s.backgroundColor))].sort((x, y) => y - x); return [q, +((a + 0.05) / (b + 0.05)).toFixed(2)]; }); });
+  ok(sel.every(([, r]) => r >= 4.5), "AH-193: selected text clears WCAG AA on paper, on the navy bands and on the wine button - " + JSON.stringify(sel)); }
+// AH-193: the progress bar fills by scaleX (transform and opacity only move, M1), where it grew by its width
+{ const b = await page.evaluate(async () => { const { busy } = await import("./components/progress.js"); busy("probe", 0.5);
+    const bar = document.getElementById("busy-bar"); bar.getAnimations().forEach((a) => a.finish());
+    const c = getComputedStyle(bar), seen = [c.transform, c.transitionProperty]; busy(""); return seen; });
+  ok(scaleOf(b[0]) === 0.5 && b[1] === "transform", "AH-193: half done, the progress bar is drawn at half its width by scaleX - " + JSON.stringify(b)); }
 // a person's double-click: two presses on one spot, 150 ms apart, the second counted as the second click (event.detail 2),
 // as the OS reports it. Clicked where the button is drawn once the card has settled, as a person aims (AH-127)
 const doubleClick = async (sel, gap = 150) => {
@@ -231,11 +248,13 @@ if (mode === "flow") {
     ok(on.results && on.bg === atRest, `AH-149 review r2: once the results are in and nothing runs, Find problems is on and in its full colour at once - ${on.bg} (before any scan ${atRest})`);
     ok(on.mark === "none", "AH-149 review r2: no white square in Find problems (it read as a Stop icon) - " + on.mark); }
   // AH-166: Find problems keeps its wine under the pointer: its hover was navy, and after a scan the pointer still on it
-  // showed a navy button (John). A darker wine now, drawn through a canvas to plain RGB; a press stays navy and ringed
+  // showed a navy button (John). A darker wine now, drawn through a canvas to plain RGB; a press stays navy and ringed.
+  // AH-193: the hover's colour is a layer drawn across by scaleX, as the website's buttons: read on that layer, fully drawn
   { const rgb = (c) => page.evaluate((c) => { const x = Object.assign(document.createElement("canvas"), { width: 1, height: 1 }).getContext("2d");
       x.fillStyle = c; x.fillRect(0, 0, 1, 1); return [...x.getImageData(0, 0, 1, 1).data].slice(0, 3); }, c);
     await idle(); await page.hover("#scan"); await page.waitForTimeout(500);
-    const hover = await page.evaluate(() => getComputedStyle(document.getElementById("scan")).backgroundColor);
+    const hover = await page.evaluate(() => { const l = getComputedStyle(document.getElementById("scan"), "::before");
+      return l.content === "none" ? "no layer" : /^(none|matrix\(1, 0, 0, 1, 0, 0\))$/.test(l.transform) ? l.backgroundColor : "half drawn " + l.transform; });
     await page.mouse.move(0, 0); await page.waitForTimeout(500);
     const [h, w] = [await rgb(hover), await rgb(atRest)], light = (c) => c[0] + c[1] + c[2];
     ok(h[0] > h[1] && h[0] > h[2] && light(h) < light(w) && h.join() !== w.join(), `AH-166: hovered, Find problems is a darker wine, never navy - ${hover} ${h} (at rest ${w})`); }
@@ -814,6 +833,10 @@ if (mode === "flow") {
       && said.includes("No column says who the rows are, so no fairness check will run.") && JSON.stringify(said) === JSON.stringify(profiles.at(-1)?.lines)
       && sent?.rows.length === 300 && JSON.stringify(sent.columns) === JSON.stringify(rows[0]),
       "Before you scan: on opening the pane says the engine's /profile lines for the sheet, one a line - " + JSON.stringify(said));
+    // AH-193: its first line is a sentence: the empty state's heading rule (#empty-state p:first-child) balanced it like
+    // a heading ("This sheet looks like a / time series by OrderDate."); the empty state's own first line keeps it
+    const wrap = await page.evaluate(() => ["#before-scan-lines p", "#empty-state > p"].map((q) => getComputedStyle(document.querySelector(q)).getPropertyValue("text-wrap-style")));
+    ok(wrap[0] !== "balance" && wrap[1] === "balance", "AH-193: a line of Before you scan wraps as a sentence, never balanced like the heading above it - " + JSON.stringify(wrap));
     ok((await page.evaluate(() => JSON.stringify(__settings))) === book0 && (await page.evaluate(() => JSON.stringify(Object.entries(localStorage).sort()))) === local0,
       "and saves nothing in the workbook or on this PC - " + (await page.evaluate(() => Object.keys(__settings))));
     await contrast("the empty state with Before you scan");
@@ -823,6 +846,13 @@ if (mode === "flow") {
     ok(calls.filter((c) => c[0] === "/profile").at(-1)?.[1].rows.length === 500, "on a 700-row sheet it sends the header and the first 500 rows only");
     await page.evaluate(() => { __drop("Long"); __activate("Sales"); });
     await page.reload(); await page.waitForSelector("#main-ui", { state: "visible" }); await profiled();
+    // AH-193 fix round: opened on this 300-row sheet, its lines landed about 150 ms after the main view and grew the box
+    // 33 px past its held height, pushing the options and the footer down (CLS 0.0156, the measurer's pane-shift.mjs):
+    // from the first paint to the lines in place, nothing moves
+    await page.waitForFunction(() => [...document.querySelectorAll("[data-enter]")].every((e) => !e.style.opacity && !e.style.transform), null, { timeout: 5000 });
+    await page.waitForTimeout(300);
+    const moved = await page.evaluate(() => window.__shift);
+    ok(moved === 0, `AH-193: opened on a 300-row sheet, Before you scan lands with the main view and nothing moves (layout shift ${moved})`);
   }
   await find();
   ok(await page.$eval("#before-scan", (e) => e.hidden), "a scan takes the place of Before you scan");
