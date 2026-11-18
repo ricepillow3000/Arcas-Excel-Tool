@@ -2391,6 +2391,908 @@
   ]
  },
  {
+  "id": "formula-cells-loosen",
+  "guard": "A formula's cell is never judged or named by the limits; a typed cell among formulas still is (AH-198)",
+  "file": "backend/anomaly_hunter/engine/detectors.py",
+  "old": "if np.isnan(v) or formula[i] or meant[i]:",
+  "new": "if np.isnan(v) or meant[i]:",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_formula_cells.py::test_a_slip_in_an_input_is_named_on_the_input_never_on_the_formula_it_feeds"
+  ]
+ },
+ {
+  "id": "formula-cells-tighten",
+  "guard": "A formula's cell is never judged or named by the limits; a typed cell among formulas still is (AH-198)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "computed = {c: np.array([row[j] is not None for row in grid])",
+  "new": "computed = {c: np.array([True for row in grid])",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_formula_cells.py::test_a_typed_cell_in_a_column_of_formulas_is_still_judged_by_its_limits"
+  ]
+ },
+ {
+  "id": "pinned-sum-loosen",
+  "guard": "Where the formula check pins a row's broken cell, a sum about that cell names it alone (AH-198)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if \" does not add up\" in r and r.cols[0] in pinned else r",
+  "new": "if False else r",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_formula_cells.py::test_a_sum_about_the_cell_the_formula_check_pins_names_that_cell_alone"
+  ]
+ },
+ {
+  "id": "pinned-sum-tighten",
+  "guard": "Where the formula check pins a row's broken cell, a sum about that cell names it alone (AH-198)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if \" does not add up\" in r and r.cols[0] in pinned else r",
+  "new": "if \" does not add up\" in r else r",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_formula_cells.py::test_a_sum_with_no_formula_to_pin_it_still_names_every_cell_it_reads"
+  ]
+ },
+ {
+  "id": "circular-loosen",
+  "guard": "A formula that names its own cell (RC, R[0]C[0]) is a circular reference; another row's or column's, or text, is not (AH-198)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "C(?:\\[0\\])?(?![\\w\\[])\")",
+  "new": "C(?:\\[0\\])?\")",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_formula_cells.py::test_a_reference_to_another_row_or_column_or_text_reading_rc_is_no_circular_reference"
+  ]
+ },
+ {
+  "id": "circular-tighten",
+  "guard": "A formula that names its own cell (RC, R[0]C[0]) is a circular reference; another row's or column's, or text, is not (AH-198)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "R(?:\\[0\\])?C(?:\\[0\\])?(?![",
+  "new": "R\\[0\\]C\\[0\\](?![",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_formula_cells.py::test_a_formula_that_names_its_own_cell_is_a_circular_reference"
+  ]
+ },
+ {
+  "id": "mirror-rows-loosen",
+  "guard": "A counter-entry: the same number, of 3+ significant digits, typed in another column within 3 rows, and odd there too, is no slip (AH-198)",
+  "file": "backend/anomaly_hunter/engine/detectors.py",
+  "old": "SIBLINGS = 3",
+  "new": "SIBLINGS = 4",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_counter_entries.py::test_a_twin_four_rows_away_or_one_of_two_significant_digits_proves_nothing"
+  ]
+ },
+ {
+  "id": "mirror-rows-tighten",
+  "guard": "A counter-entry: the same number, of 3+ significant digits, typed in another column within 3 rows, and odd there too, is no slip (AH-198)",
+  "file": "backend/anomaly_hunter/engine/detectors.py",
+  "old": "SIBLINGS = 3",
+  "new": "SIBLINGS = 2",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_counter_entries.py::test_a_twin_of_three_significant_digits_three_rows_away_is_the_limit"
+  ]
+ },
+ {
+  "id": "mirror-digits-loosen",
+  "guard": "A counter-entry: the same number, of 3+ significant digits, typed in another column within 3 rows, and odd there too, is no slip (AH-198)",
+  "file": "backend/anomaly_hunter/engine/detectors.py",
+  "old": ".strip(\"0\")) < 3:",
+  "new": ".strip(\"0\")) < 2:",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_counter_entries.py::test_a_twin_four_rows_away_or_one_of_two_significant_digits_proves_nothing"
+  ]
+ },
+ {
+  "id": "mirror-digits-tighten",
+  "guard": "A counter-entry: the same number, of 3+ significant digits, typed in another column within 3 rows, and odd there too, is no slip (AH-198)",
+  "file": "backend/anomaly_hunter/engine/detectors.py",
+  "old": ".strip(\"0\")) < 3:",
+  "new": ".strip(\"0\")) < 4:",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_counter_entries.py::test_a_twin_of_three_significant_digits_three_rows_away_is_the_limit"
+  ]
+ },
+ {
+  "id": "mirror-odd-loosen",
+  "guard": "A counter-entry: the same number, of 3+ significant digits, typed in another column within 3 rows, and odd there too, is no slip (AH-198)",
+  "file": "backend/anomaly_hunter/engine/detectors.py",
+  "old": "\n                   and limits.get(cols[k]) and _crossed(v, *limits[cols[k]][:2]) is not None for k",
+  "new": "\n                   for k",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_counter_entries.py::test_a_twin_that_is_ordinary_in_its_own_column_was_met_by_chance"
+  ]
+ },
+ {
+  "id": "company-count-loosen",
+  "guard": "A breach with no typo behind it and 2+ other breaches within 10% of its distance from the median, in a column whose spread is a quarter of its median, is the column's own amount (AH-198)",
+  "file": "backend/anomaly_hunter/engine/detectors.py",
+  "old": "company(v, weird) >= 2",
+  "new": "company(v, weird) >= 1",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_counter_entries.py::test_one_near_value_is_not_a_crowd_and_two_just_too_far_are_not_either"
+  ]
+ },
+ {
+  "id": "company-count-tighten",
+  "guard": "A breach with no typo behind it and 2+ other breaches within 10% of its distance from the median, in a column whose spread is a quarter of its median, is the column's own amount (AH-198)",
+  "file": "backend/anomaly_hunter/engine/detectors.py",
+  "old": "company(v, weird) >= 2",
+  "new": "company(v, weird) >= 3",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_counter_entries.py::test_a_value_past_its_limit_with_two_others_near_it_is_the_columns_own_amount"
+  ]
+ },
+ {
+  "id": "company-near-loosen",
+  "guard": "A breach with no typo behind it and 2+ other breaches within 10% of its distance from the median, in a column whose spread is a quarter of its median, is the column's own amount (AH-198)",
+  "file": "backend/anomaly_hunter/engine/detectors.py",
+  "old": "NEAR = 0.1  #",
+  "new": "NEAR = 0.102  #",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_counter_entries.py::test_one_near_value_is_not_a_crowd_and_two_just_too_far_are_not_either"
+  ]
+ },
+ {
+  "id": "company-near-tighten",
+  "guard": "A breach with no typo behind it and 2+ other breaches within 10% of its distance from the median, in a column whose spread is a quarter of its median, is the column's own amount (AH-198)",
+  "file": "backend/anomaly_hunter/engine/detectors.py",
+  "old": "NEAR = 0.1  #",
+  "new": "NEAR = 0.098  #",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_counter_entries.py::test_a_value_past_its_limit_with_two_others_near_it_is_the_columns_own_amount"
+  ]
+ },
+ {
+  "id": "company-scale-loosen",
+  "guard": "A breach with no typo behind it and 2+ other breaches within 10% of its distance from the median, in a column whose spread is a quarter of its median, is the column's own amount (AH-198)",
+  "file": "backend/anomaly_hunter/engine/detectors.py",
+  "old": "SCALED = 0.25  #",
+  "new": "SCALED = 0.0  #",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_counter_entries.py::test_a_cluster_far_off_a_column_that_barely_varies_is_never_a_crowd"
+  ]
+ },
+ {
+  "id": "company-scale-tighten",
+  "guard": "A breach with no typo behind it and 2+ other breaches within 10% of its distance from the median, in a column whose spread is a quarter of its median, is the column's own amount (AH-198)",
+  "file": "backend/anomaly_hunter/engine/detectors.py",
+  "old": "SCALED = 0.25  #",
+  "new": "SCALED = 1.0  #",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_counter_entries.py::test_a_value_past_its_limit_with_two_others_near_it_is_the_columns_own_amount"
+  ]
+ },
+ {
+  "id": "pointer-share-loosen",
+  "guard": "A pointer column (99% of its values name one row of another column) has roots, never blanks (AH-198)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "POINTS = 0.99  #",
+  "new": "POINTS = 0.98  #",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_hierarchy_roots.py::test_a_column_with_two_values_naming_no_one_row_is_no_pointer_and_its_blanks_are_slips"
+  ]
+ },
+ {
+  "id": "pointer-share-tighten",
+  "guard": "A pointer column (99% of its values name one row of another column) has roots, never blanks (AH-198)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "POINTS = 0.99  #",
+  "new": "POINTS = 1.0  #",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_hierarchy_roots.py::test_a_pointer_with_one_value_in_a_hundred_naming_no_one_row_is_still_a_pointer"
+  ]
+ },
+ {
+  "id": "pointer-one-row-loosen",
+  "guard": "A pointer column (99% of its values name one row of another column) has roots, never blanks (AH-198)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "index[n == 1])",
+  "new": "index[n >= 1])",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_hierarchy_roots.py::test_a_column_of_another_columns_values_on_many_rows_is_no_tree"
+  ]
+ },
+ {
+  "id": "date-rows-loosen",
+  "guard": "One date column on or after another on 50+ rows but one: that row is a contradiction, the sheet's own order never named (AH-198)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "DATE_ROWS = 50  #",
+  "new": "DATE_ROWS = 49  #",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_date_order.py::test_fifty_rows_are_enough_and_forty_nine_are_not"
+  ]
+ },
+ {
+  "id": "date-rows-tighten",
+  "guard": "One date column on or after another on 50+ rows but one: that row is a contradiction, the sheet's own order never named (AH-198)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "DATE_ROWS = 50  #",
+  "new": "DATE_ROWS = 51  #",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_date_order.py::test_a_delivery_before_its_shipment_names_the_delivery_when_the_sheet_runs_in_shipping_order"
+  ]
+ },
+ {
+  "id": "date-breaks-loosen",
+  "guard": "One date column on or after another on 50+ rows but one: that row is a contradiction, the sheet's own order never named (AH-198)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "<= max(1, 0.001 * both.sum())",
+  "new": "<= max(2, 0.001 * both.sum())",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_date_order.py::test_two_rows_against_the_order_are_how_the_dates_are_never_a_slip"
+  ]
+ },
+ {
+  "id": "date-breaks-tighten",
+  "guard": "One date column on or after another on 50+ rows but one: that row is a contradiction, the sheet's own order never named (AH-198)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "<= max(1, 0.001 * both.sum())",
+  "new": "<= max(0, 0.001 * both.sum())",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_date_order.py::test_a_delivery_before_its_shipment_names_the_delivery_when_the_sheet_runs_in_shipping_order"
+  ]
+ },
+ {
+  "id": "date-anchor-tighten",
+  "guard": "One date column on or after another on 50+ rows but one: that row is a contradiction, the sheet's own order never named (AH-198)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "named = [c for c in (b, a) if not _in_order(when[c], i, before.sum())] or [b, a]",
+  "new": "named = [b, a]",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_date_order.py::test_a_delivery_before_its_shipment_names_the_delivery_when_the_sheet_runs_in_shipping_order"
+  ]
+ },
+ {
+  "id": "records-count-loosen",
+  "guard": "A record of 20+ multi-line entries: the one line of 3+ that differs from its agreeing lines; one entry off by a digit swap names its cell (AH-198)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "RECORDS = 20  #",
+  "new": "RECORDS = 19  #",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_records.py::test_nineteen_entries_are_too_few_to_know_the_rule"
+  ]
+ },
+ {
+  "id": "records-count-tighten",
+  "guard": "A record of 20+ multi-line entries: the one line of 3+ that differs from its agreeing lines; one entry off by a digit swap names its cell (AH-198)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "RECORDS = 20  #",
+  "new": "RECORDS = 21  #",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_records.py::test_the_one_line_of_an_entry_posted_on_another_day_is_flagged"
+  ]
+ },
+ {
+  "id": "records-lines-loosen",
+  "guard": "A record of 20+ multi-line entries: the one line of 3+ that differs from its agreeing lines; one entry off by a digit swap names its cell (AH-198)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if len(rows) >= 3 and",
+  "new": "if len(rows) >= 2 and",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_records.py::test_in_an_entry_of_two_lines_which_one_differs_is_unknown"
+  ]
+ },
+ {
+  "id": "records-lines-tighten",
+  "guard": "A record of 20+ multi-line entries: the one line of 3+ that differs from its agreeing lines; one entry off by a digit swap names its cell (AH-198)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if len(rows) >= 3 and",
+  "new": "if len(rows) >= 4 and",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_records.py::test_the_one_line_of_an_entry_posted_on_another_day_is_flagged"
+  ]
+ },
+ {
+  "id": "balance-off-loosen",
+  "guard": "A record of 20+ multi-line entries: the one line of 3+ that differs from its agreeing lines; one entry off by a digit swap names its cell (AH-198)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "BALANCE_OFF = 0.02  #",
+  "new": "BALANCE_OFF = 0.03  #",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_balanced_records.py::test_three_entries_off_in_a_hundred_are_how_the_sheet_is"
+  ]
+ },
+ {
+  "id": "balance-off-tighten",
+  "guard": "A record of 20+ multi-line entries: the one line of 3+ that differs from its agreeing lines; one entry off by a digit swap names its cell (AH-198)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "BALANCE_OFF = 0.02  #",
+  "new": "BALANCE_OFF = 0.01  #",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_balanced_records.py::test_two_entries_off_in_a_hundred_are_each_named_by_their_swap"
+  ]
+ },
+ {
+  "id": "scale-group-loosen",
+  "guard": "A long sheet's label of 20+ values gets its own limits where the label sets the scale; only a slip of zeros votes (AH-198)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if len(v) < 20:",
+  "new": "if len(v) < 19:",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_long_format_scale.py::test_twenty_values_of_a_label_are_enough_and_nineteen_are_not"
+  ]
+ },
+ {
+  "id": "scale-group-tighten",
+  "guard": "A long sheet's label of 20+ values gets its own limits where the label sets the scale; only a slip of zeros votes (AH-198)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if len(v) < 20:",
+  "new": "if len(v) < 21:",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_long_format_scale.py::test_twenty_values_of_a_label_are_enough_and_nineteen_are_not"
+  ]
+ },
+ {
+  "id": "scale-slip-loosen",
+  "guard": "A long sheet's label of 20+ values gets its own limits where the label sets the scale; only a slip of zeros votes (AH-198)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if fix is not None and fix != -y:",
+  "new": "if True:\n                    fix = fix or y",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_long_format_scale.py::test_a_real_critical_value_with_no_slip_behind_it_is_left_alone"
+  ]
+ },
+ {
+  "id": "scale-fit-tighten",
+  "guard": "A long sheet's label of 20+ values gets its own limits where the label sets the scale; only a slip of zeros votes (AH-198)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "SCALE_FIT = 0.5  #",
+  "new": "SCALE_FIT = 0.999  #",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_long_format_scale.py::test_a_decimal_point_lost_in_one_test_of_a_long_sheet_is_found_among_its_own_test"
+  ]
+ },
+ {
+  "id": "coded-codes-loosen",
+  "guard": "A misspelling its row's code proves (10+ codes of 2+ rows) is Medium (AH-198)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "len(multi) >= 10 and",
+  "new": "len(multi) >= 9 and",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_coded_spellings.py::test_nine_codes_are_too_few_to_prove_it_and_it_stays_worth_a_check"
+  ]
+ },
+ {
+  "id": "coded-codes-tighten",
+  "guard": "A misspelling its row's code proves (10+ codes of 2+ rows) is Medium (AH-198)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "len(multi) >= 10 and",
+  "new": "len(multi) >= 11 and",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_coded_spellings.py::test_a_misspelling_its_rows_own_code_proves_is_a_slip_not_a_guess"
+  ]
+ },
+ {
+  "id": "tree-depth-loosen",
+  "guard": "In an indented tree (a pointer found on the path above on 99% of its 20+ lines, at most DEPTH levels), a line is also where it hangs: a sub-tree listed again under another parent is no copy, the same line twice under one parent is (AH-198 fix round 2)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if len(path) > DEPTH:",
+  "new": "if len(path) > DEPTH + 1:",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_tree_layout.py::test_a_chain_sixty_five_levels_deep_is_no_tree"
+  ]
+ },
+ {
+  "id": "tree-depth-tighten",
+  "guard": "In an indented tree (a pointer found on the path above on 99% of its 20+ lines, at most DEPTH levels), a line is also where it hangs: a sub-tree listed again under another parent is no copy, the same line twice under one parent is (AH-198 fix round 2)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "DEPTH = 64  #",
+  "new": "DEPTH = 63  #",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_tree_layout.py::test_a_tree_sixty_four_levels_deep_is_still_a_tree"
+  ]
+ },
+ {
+  "id": "tree-path-loosen",
+  "guard": "In an indented tree (a pointer found on the path above on 99% of its 20+ lines, at most DEPTH levels), a line is also where it hangs: a sub-tree listed again under another parent is no copy, the same line twice under one parent is (AH-198 fix round 2)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if missed > (1 - POINTS) * has.sum():",
+  "new": "if missed > 0.5 * has.sum():",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_hierarchy_roots.py::test_a_column_with_two_values_naming_no_one_row_is_no_pointer_and_its_blanks_are_slips"
+  ]
+ },
+ {
+  "id": "tree-path-tighten",
+  "guard": "In an indented tree (a pointer found on the path above on 99% of its 20+ lines, at most DEPTH levels), a line is also where it hangs: a sub-tree listed again under another parent is no copy, the same line twice under one parent is (AH-198 fix round 2)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if missed > (1 - POINTS) * has.sum():",
+  "new": "if missed > 0:",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_tree_layout.py::test_a_bill_with_one_line_in_a_hundred_hung_under_no_row_on_its_path_is_still_a_tree"
+  ]
+ },
+ {
+  "id": "tree-dup-loosen",
+  "guard": "In an indented tree (a pointer found on the path above on 99% of its 20+ lines, at most DEPTH levels), a line is also where it hangs: a sub-tree listed again under another parent is no copy, the same line twice under one parent is (AH-198 fix round 2)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "cells = np.column_stack([cells, parent.astype(str)])",
+  "new": "cells = np.column_stack([cells, np.zeros(len(df)).astype(str)])",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_tree_layout.py::test_a_shared_sub_assembly_listed_again_under_another_product_is_the_trees_layout_never_a_copy"
+  ]
+ },
+ {
+  "id": "tree-dup-tighten",
+  "guard": "In an indented tree (a pointer found on the path above on 99% of its 20+ lines, at most DEPTH levels), a line is also where it hangs: a sub-tree listed again under another parent is no copy, the same line twice under one parent is (AH-198 fix round 2)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "cells = np.column_stack([cells, parent.astype(str)])",
+  "new": "cells = np.column_stack([cells, np.arange(len(df)).astype(str)])",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_tree_layout.py::test_the_same_line_twice_under_one_parent_is_still_a_copy"
+  ]
+ },
+ {
+  "id": "variant-rows-loosen",
+  "guard": "A second formula a column writes on VARIANT+ rows, or a formula on every row of one label of 5+ rows (those only), is the column's own, never a break (AH-198 fix round 2)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "counts[f[i]] >= VARIANT}",
+  "new": "counts[f[i]] >= VARIANT - 1}",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_formula_variants.py::test_a_second_formula_written_on_four_rows_is_four_breaks"
+  ]
+ },
+ {
+  "id": "variant-rows-tighten",
+  "guard": "A second formula a column writes on VARIANT+ rows, or a formula on every row of one label of 5+ rows (those only), is the column's own, never a break (AH-198 fix round 2)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "VARIANT = 5  #",
+  "new": "VARIANT = 6  #",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_formula_variants.py::test_a_second_formula_the_column_writes_on_five_rows_is_its_own"
+  ]
+ },
+ {
+  "id": "variant-role-loosen",
+  "guard": "A second formula a column writes on VARIANT+ rows, or a formula on every row of one label of 5+ rows (those only), is the column's own, never a break (AH-198 fix round 2)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if len(r) >= VARIANT and r <= off))",
+  "new": "if len(r) >= VARIANT and len(r & off) >= VARIANT))",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_formula_variants.py::test_a_label_whose_rows_mostly_keep_the_usual_formula_has_none_of_its_own"
+  ]
+ },
+ {
+  "id": "variant-role-tighten",
+  "guard": "A second formula a column writes on VARIANT+ rows, or a formula on every row of one label of 5+ rows (those only), is the column's own, never a break (AH-198 fix round 2)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if len(r) >= VARIANT and r <= off))",
+  "new": "if len(r) >= VARIANT and r < off))",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_formula_variants.py::test_a_formula_on_every_row_of_a_label_is_that_labels_own"
+  ]
+ },
+ {
+  "id": "minus-rows-loosen",
+  "guard": "Minus signs that are exactly the rows of one label (2+ rows, every row it labels) are the label's meaning, never a stray minus (AH-198 fix round 2)",
+  "file": "backend/anomaly_hunter/engine/detectors.py",
+  "old": "if neg.sum() < 2:",
+  "new": "if neg.sum() < 1:",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_signed_by_label.py::test_a_label_written_on_one_negative_row_alone_explains_nothing"
+  ]
+ },
+ {
+  "id": "minus-rows-tighten",
+  "guard": "Minus signs that are exactly the rows of one label (2+ rows, every row it labels) are the label's meaning, never a stray minus (AH-198 fix round 2)",
+  "file": "backend/anomaly_hunter/engine/detectors.py",
+  "old": "if neg.sum() < 2:",
+  "new": "if neg.sum() < 3:",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_signed_by_label.py::test_negatives_that_are_every_row_of_one_label_are_that_labels_meaning"
+  ]
+ },
+ {
+  "id": "minus-label-loosen",
+  "guard": "Minus signs that are exactly the rows of one label (2+ rows, every row it labels) are the label's meaning, never a stray minus (AH-198 fix round 2)",
+  "file": "backend/anomaly_hunter/engine/detectors.py",
+  "old": "set(np.flatnonzero(lab == next(iter(named)))) == rows:",
+  "new": "set(np.flatnonzero(lab == next(iter(named)))) >= rows:",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_signed_by_label.py::test_a_negative_its_label_writes_positive_elsewhere_is_still_a_stray_minus"
+  ]
+ },
+ {
+  "id": "held-balance-loosen",
+  "guard": "An amount in a record whose two columns agree (`_balanced`) is worth a check at most; in a record that is off it still votes (AH-198 fix round 2)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "agree = (ta - tb).round(6).abs() < 0.005",
+  "new": "agree = (ta - tb).round(6).abs() >= 0",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_balanced_records.py::test_a_huge_amount_in_an_entry_that_does_not_balance_is_still_a_slip"
+  ]
+ },
+ {
+  "id": "held-balance-tighten",
+  "guard": "An amount in a record whose two columns agree (`_balanced`) is worth a check at most; in a record that is off it still votes (AH-198 fix round 2)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "agree = (ta - tb).round(6).abs() < 0.005",
+  "new": "agree = (ta - tb).round(6).abs() < 0",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_balanced_records.py::test_a_huge_amount_in_an_entry_that_balances_is_worth_a_check_never_a_slip"
+  ]
+ },
+ {
+  "id": "corroborate-loosen",
+  "guard": "Of two cells a digit swap could mend, the one whose amount the sheet writes outside the record is the real one; neither written elsewhere, neither is named (AH-198 fix round 2)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "found = [f for f in found if not elsewhere(x[f[1]].iat[f[0]])]",
+  "new": "found = found[:1]",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_balanced_records.py::test_of_two_cells_a_swap_could_mend_neither_is_named_when_neither_is_written_elsewhere"
+  ]
+ },
+ {
+  "id": "corroborate-tighten",
+  "guard": "Of two cells a digit swap could mend, the one whose amount the sheet writes outside the record is the real one; neither written elsewhere, neither is named (AH-198 fix round 2)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if len(found) > 1:  # written again",
+  "new": "if False:  # written again",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_balanced_records.py::test_of_two_cells_a_swap_could_mend_the_one_the_sheet_writes_again_elsewhere_is_the_real_one"
+  ]
+ },
+ {
+  "id": "weak-slip-loosen",
+  "guard": "One weird-limit breach alone on its row, which no slip (UNDO) reads back inside the usual limits, within 2 widths of the weird limits from their middle (REACH), and is no minus sign below a floor of 0, is worth a check, never a vote (AH-198 fix round 2)",
+  "file": "backend/anomaly_hunter/engine/detectors.py",
+  "old": "and all(_crossed(f(v), lo, hi) is not None for f in UNDO))",
+  "new": "and any(_crossed(f(v), lo, hi) is not None for f in UNDO))",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_weak_evidence.py::test_a_weight_in_pounds_among_kilos_is_read_back_and_still_probably_wrong"
+  ]
+ },
+ {
+  "id": "weak-tighten",
+  "guard": "One weird-limit breach alone on its row, which no slip (UNDO) reads back inside the usual limits, within 2 widths of the weird limits from their middle (REACH), and is no minus sign below a floor of 0, is worth a check, never a vote (AH-198 fix round 2)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if v != 1 or len(lim[\"reasons\"][i]) != 1",
+  "new": "if True or len(lim[\"reasons\"][i]) != 1",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_weak_evidence.py::test_a_lone_breach_nothing_reads_back_is_worth_a_check"
+  ]
+ },
+ {
+  "id": "key-groups-loosen",
+  "guard": "A column one value for each code of a key (10+ groups of 2+, all but max(1, 5%), at most 2): the one cell of a group differing from 2+ agreeing rows is wrong; never a name's key or a word for no value (AH-198 fix round 2)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "KEY_GROUPS = 10  #",
+  "new": "KEY_GROUPS = 9  #",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_key_values.py::test_nine_parts_are_too_few_to_know_the_rule"
+  ]
+ },
+ {
+  "id": "key-groups-tighten",
+  "guard": "A column one value for each code of a key (10+ groups of 2+, all but max(1, 5%), at most 2): the one cell of a group differing from 2+ agreeing rows is wrong; never a name's key or a word for no value (AH-198 fix round 2)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "KEY_GROUPS = 10  #",
+  "new": "KEY_GROUPS = 11  #",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_key_values.py::test_a_cost_its_parts_two_other_lines_never_write_is_wrong"
+  ]
+ },
+ {
+  "id": "key-off-loosen",
+  "guard": "A column one value for each code of a key (10+ groups of 2+, all but max(1, 5%), at most 2): the one cell of a group differing from 2+ agreeing rows is wrong; never a name's key or a word for no value (AH-198 fix round 2)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "KEY_OFF = 0.05  #",
+  "new": "KEY_OFF = 0.1  #",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_key_values.py::test_two_parts_off_in_twenty_are_how_the_costs_are"
+  ]
+ },
+ {
+  "id": "key-off-tighten",
+  "guard": "A column one value for each code of a key (10+ groups of 2+, all but max(1, 5%), at most 2): the one cell of a group differing from 2+ agreeing rows is wrong; never a name's key or a word for no value (AH-198 fix round 2)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "KEY_OFF = 0.05  #",
+  "new": "KEY_OFF = 0.04  #",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_key_values.py::test_two_parts_off_in_forty_are_each_a_slip"
+  ]
+ },
+ {
+  "id": "key-agree-loosen",
+  "guard": "A column one value for each code of a key (10+ groups of 2+, all but max(1, 5%), at most 2): the one cell of a group differing from 2+ agreeing rows is wrong; never a name's key or a word for no value (AH-198 fix round 2)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "or counts.iloc[0] < 2:",
+  "new": "or counts.iloc[0] < 1:",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_key_values.py::test_a_part_of_two_lines_has_no_agreeing_two_to_go_by"
+  ]
+ },
+ {
+  "id": "key-agree-tighten",
+  "guard": "A column one value for each code of a key (10+ groups of 2+, all but max(1, 5%), at most 2): the one cell of a group differing from 2+ agreeing rows is wrong; never a name's key or a word for no value (AH-198 fix round 2)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "or counts.iloc[0] < 2:",
+  "new": "or counts.iloc[0] < 3:",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_key_values.py::test_a_cost_its_parts_two_other_lines_never_write_is_wrong"
+  ]
+ },
+ {
+  "id": "key-code-loosen",
+  "guard": "A column one value for each code of a key (10+ groups of 2+, all but max(1, 5%), at most 2): the one cell of a group differing from 2+ agreeing rows is wrong; never a name's key or a word for no value (AH-198 fix round 2)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "v.str.contains(r\"\\d\").mean() >= 0.9 and",
+  "new": "v.str.contains(r\"\\d\").mean() >= 0 and",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_key_values.py::test_a_name_is_no_key_two_parts_may_share_one"
+  ]
+ },
+ {
+  "id": "key-code-tighten",
+  "guard": "A column one value for each code of a key (10+ groups of 2+, all but max(1, 5%), at most 2): the one cell of a group differing from 2+ agreeing rows is wrong; never a name's key or a word for no value (AH-198 fix round 2)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "v.str.contains(r\"\\d\").mean() >= 0.9 and",
+  "new": "v.str.contains(r\"\\d\").mean() > 1 and",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_key_values.py::test_a_cost_its_parts_two_other_lines_never_write_is_wrong"
+  ]
+ },
+ {
+  "id": "key-novalue-loosen",
+  "guard": "A column one value for each code of a key (10+ groups of 2+, all but max(1, 5%), at most 2): the one cell of a group differing from 2+ agreeing rows is wrong; never a name's key or a word for no value (AH-198 fix round 2)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "said = {c: v.where(~v.fillna(\"\").str.fullmatch(NO_VALUE_WORD)) for c, v in said.items()}",
+  "new": "said = said",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_key_values.py::test_a_word_for_no_value_is_never_another_value_of_its_key"
+  ]
+ },
+ {
+  "id": "steady-ratio-loosen",
+  "guard": "A number steady in each record (within STEADY in 90% of 20+ records): a value read back among its record's others by a decimal point or a sign, within READ_BACK, is that slip; a unit never (AH-198 fix round 2)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "STEADY = 1.2  #",
+  "new": "STEADY = 1.3  #",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_own_scale.py::test_records_that_vary_more_than_a_fifth_hold_no_size_of_their_own"
+  ]
+ },
+ {
+  "id": "steady-ratio-tighten",
+  "guard": "A number steady in each record (within STEADY in 90% of 20+ records): a value read back among its record's others by a decimal point or a sign, within READ_BACK, is that slip; a unit never (AH-198 fix round 2)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "STEADY = 1.2  #",
+  "new": "STEADY = 1.1  #",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_own_scale.py::test_three_subjects_that_vary_just_under_a_fifth_are_still_steady"
+  ]
+ },
+ {
+  "id": "steady-share-loosen",
+  "guard": "A number steady in each record (within STEADY in 90% of 20+ records): a value read back among its record's others by a decimal point or a sign, within READ_BACK, is that slip; a unit never (AH-198 fix round 2)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "(ratio <= STEADY).mean() < 0.9:",
+  "new": "(ratio <= STEADY).mean() < 0.85:",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_own_scale.py::test_records_that_vary_more_than_a_fifth_hold_no_size_of_their_own"
+  ]
+ },
+ {
+  "id": "steady-share-tighten",
+  "guard": "A number steady in each record (within STEADY in 90% of 20+ records): a value read back among its record's others by a decimal point or a sign, within READ_BACK, is that slip; a unit never (AH-198 fix round 2)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "(ratio <= STEADY).mean() < 0.9:",
+  "new": "(ratio <= STEADY).mean() < 0.95:",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_own_scale.py::test_one_subject_that_varies_more_than_a_fifth_and_the_slips_leave_ninety_percent_steady"
+  ]
+ },
+ {
+  "id": "steady-readback-loosen",
+  "guard": "A number steady in each record (within STEADY in 90% of 20+ records): a value read back among its record's others by a decimal point or a sign, within READ_BACK, is that slip; a unit never (AH-198 fix round 2)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "READ_BACK = 1.05  #",
+  "new": "READ_BACK = 1.1  #",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_own_scale.py::test_a_value_read_back_within_five_percent_of_its_subjects_others_is_a_slip_and_eight_percent_is_not"
+  ]
+ },
+ {
+  "id": "steady-readback-tighten",
+  "guard": "A number steady in each record (within STEADY in 90% of 20+ records): a value read back among its record's others by a decimal point or a sign, within READ_BACK, is that slip; a unit never (AH-198 fix round 2)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "READ_BACK = 1.05  #",
+  "new": "READ_BACK = 1.0  #",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_own_scale.py::test_a_value_read_back_within_five_percent_of_its_subjects_others_is_a_slip_and_eight_percent_is_not"
+  ]
+ },
+ {
+  "id": "steady-unit-loosen",
+  "guard": "A number steady in each record (within STEADY in 90% of 20+ records): a value read back among its record's others by a decimal point or a sign, within READ_BACK, is that slip; a unit never (AH-198 fix round 2)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "for f in SCALES):",
+  "new": "for f in SCALES + (lambda v: v / 2.20462,)):",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_own_scale.py::test_pounds_among_a_subjects_kilos_are_never_read_back"
+  ]
+ },
+ {
+  "id": "key-cap-loosen",
+  "guard": "A column one value for each code of a key (10+ groups of 2+, all but max(1, 5%), at most 2): the one cell of a group differing from 2+ agreeing rows is wrong; never a name's key or a word for no value (AH-198 fix round 2)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "KEY_CAP = 2  #",
+  "new": "KEY_CAP = 3  #",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_key_values.py::test_three_parts_off_are_how_the_costs_are_however_many_parts_agree"
+  ]
+ },
+ {
+  "id": "key-cap-tighten",
+  "guard": "A column one value for each code of a key (10+ groups of 2+, all but max(1, 5%), at most 2): the one cell of a group differing from 2+ agreeing rows is wrong; never a name's key or a word for no value (AH-198 fix round 2)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "KEY_CAP = 2  #",
+  "new": "KEY_CAP = 1  #",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_key_values.py::test_two_parts_off_in_forty_are_each_a_slip"
+  ]
+ },
+ {
+  "id": "role-typed-rows-loosen",
+  "guard": "Where no one formula holds a column, a typed value on the one row of a label of 10+ rows (ROLE_ROWS) whose others all use a formula there is that formula typed over; 9 rows or 2 typed are how it is written (AH-198 fix round 2)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "ROLE_ROWS = 10  #",
+  "new": "ROLE_ROWS = 9  #",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_formula_variants.py::test_nine_rows_of_a_label_are_too_few_to_know_its_formula"
+  ]
+ },
+ {
+  "id": "role-typed-rows-tighten",
+  "guard": "Where no one formula holds a column, a typed value on the one row of a label of 10+ rows (ROLE_ROWS) whose others all use a formula there is that formula typed over; 9 rows or 2 typed are how it is written (AH-198 fix round 2)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "ROLE_ROWS = 10  #",
+  "new": "ROLE_ROWS = 11  #",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_formula_variants.py::test_a_value_typed_on_the_one_row_of_ten_of_a_label_whose_others_use_a_formula_is_that_formula_typed_over"
+  ]
+ },
+ {
+  "id": "role-typed-one-loosen",
+  "guard": "Where no one formula holds a column, a typed value on the one row of a label of 10+ rows (ROLE_ROWS) whose others all use a formula there is that formula typed over; 9 rows or 2 typed are how it is written (AH-198 fix round 2)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if len(idx) >= ROLE_ROWS and len(typed) == 1 and",
+  "new": "if len(idx) >= ROLE_ROWS and len(typed) >= 1 and",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_formula_variants.py::test_two_typed_rows_of_a_label_are_how_it_is_written"
+  ]
+ },
+ {
+  "id": "weak-reach-loosen",
+  "guard": "One weird-limit breach alone on its row, which no slip (UNDO) reads back inside the usual limits, within 2 widths of the weird limits from their middle (REACH), and is no minus sign below a floor of 0, is worth a check, never a vote (AH-198 fix round 2)",
+  "file": "backend/anomaly_hunter/engine/detectors.py",
+  "old": "REACH = 2  #",
+  "new": "REACH = 3  #",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_weak_evidence.py::test_a_breach_further_out_is_no_extreme_of_the_column_and_still_a_vote"
+  ]
+ },
+ {
+  "id": "weak-reach-tighten",
+  "guard": "One weird-limit breach alone on its row, which no slip (UNDO) reads back inside the usual limits, within 2 widths of the weird limits from their middle (REACH), and is no minus sign below a floor of 0, is worth a check, never a vote (AH-198 fix round 2)",
+  "file": "backend/anomaly_hunter/engine/detectors.py",
+  "old": "REACH = 2  #",
+  "new": "REACH = 1.9  #",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_weak_evidence.py::test_a_breach_twice_the_width_of_the_weird_limits_from_their_middle_is_the_columns_own_extreme"
+  ]
+ },
+ {
+  "id": "weak-minus-loosen",
+  "guard": "One weird-limit breach alone on its row, which no slip (UNDO) reads back inside the usual limits, within 2 widths of the weird limits from their middle (REACH), and is no minus sign below a floor of 0, is worth a check, never a vote (AH-198 fix round 2)",
+  "file": "backend/anomaly_hunter/engine/detectors.py",
+  "old": "and not (v < 0 and lo is not None and lo >= 0) and all(",
+  "new": "and all(",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_weak_evidence.py::test_a_minus_sign_in_a_column_that_never_goes_below_zero_is_still_probably_wrong"
+  ]
+ },
+ {
+  "id": "key-date-loosen",
+  "guard": "A column one value for each code of a key (10+ groups of 2+, all but max(1, 5%), at most 2): the one cell of a group differing from 2+ agreeing rows is wrong; never a name's key or a word for no value (AH-198 fix round 2)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "and not v.str.fullmatch(r\"\\d{1,4}[-/.]\\d{1,2}[-/.]\\d{1,4}\").mean() > 0.1",
+  "new": "and True",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_key_values.py::test_a_date_is_no_key_two_things_happen_on_one_day"
+  ]
+ },
+ {
+  "id": "key-runs-loosen",
+  "guard": "A column one value for each code of a key (10+ groups of 2+, all but max(1, 5%), at most 2): the one cell of a group differing from 2+ agreeing rows is wrong; never a name's key or a word for no value (AH-198 fix round 2)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if (size >= 2).sum() < KEY_GROUPS or (runs == 1).all():",
+  "new": "if (size >= 2).sum() < KEY_GROUPS:",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_records.py::test_nineteen_entries_are_too_few_to_know_the_rule"
+  ]
+ },
+ {
   "id": "eol-lf-loosen",
   "guard": "every tracked text file checks out LF on every PC, a Windows one too (AH-186)",
   "file": ".gitattributes",

@@ -1,0 +1,277 @@
+{
+ "lab_results": {
+  "domain": "clinical trial central laboratory results (long format, one test per row)",
+  "errors": [
+   {
+    "row": 260,
+    "cols": [
+     "Result"
+    ],
+    "kind": "typo: extra zero / lost decimal point",
+    "domain_specific": true,
+    "proof": "Potassium 44.0 mmol/L is incompatible with life (reference 3.5-5.1, every other potassium in the file is 3-6); it is 4.4 with the decimal point lost, 10x the subject's other potassium results."
+   },
+   {
+    "row": 23,
+    "cols": [
+     "Result Date",
+     "Collection Date"
+    ],
+    "kind": "logical contradiction: result before collection",
+    "domain_specific": false,
+    "proof": "Result Date is 4 days before Collection Date; a sample cannot be resulted before it is drawn, and the same collection's other tests are resulted on or after the collection date."
+   }
+  ],
+  "traps": [
+   {
+    "row": 407,
+    "col": "Result",
+    "why": "Potassium 6.8 mmol/L is a real critical hyperkalaemia, correctly flagged H; critical lab values occur in trials and must be reported, not corrected."
+   },
+   {
+    "row": 70,
+    "col": "Result",
+    "why": "Hemoglobin 6.1 g/dL is severe anaemia, a real critical value flagged L, far below the others but physiologically possible."
+   },
+   {
+    "row": 111,
+    "col": "Result",
+    "why": "Base excess is a signed quantity; -9.4 mmol/L is a real metabolic acidosis, flagged L. Negative values are normal in this test."
+   },
+   {
+    "row": 285,
+    "col": "Result",
+    "why": "CRP 212 mg/L is a real acute infection/inflammation value (CRP routinely reaches 100-300+), flagged H; not a typo."
+   }
+  ]
+ },
+ "gl_journal": {
+  "domain": "double-entry general ledger journal, Q1 2026",
+  "errors": [
+   {
+    "row": 152,
+    "cols": [
+     "Credit"
+    ],
+    "kind": "logical contradiction: entry debits do not equal credits (transposed digits)",
+    "domain_specific": true,
+    "proof": "Entry JE-1068: debit to Accounts Receivable equals revenue + 20% VAT for the original revenue 7647.67; the Sales Revenue credit reads 6747.67, so the entry's debits differ from its credits by 900.00 (digits transposed). VAT is exactly 20% of 7647.67."
+   },
+   {
+    "row": 127,
+    "cols": [
+     "Net"
+    ],
+    "kind": "broken formula: value typed over the Net formula",
+    "domain_specific": false,
+    "proof": "Every other Net cell is =Debit-Credit; this one is a typed constant 4540.79 that does not equal Debit 4127.99 minus Credit 0."
+   },
+   {
+    "row": 64,
+    "cols": [
+     "Net"
+    ],
+    "kind": "circular reference",
+    "domain_specific": false,
+    "proof": "The Net formula refers to its own cell (=RC), so Excel shows 0 while Credit is non-zero; every other Net is =Debit-Credit."
+   },
+   {
+    "row": 20,
+    "cols": [
+     "Net"
+    ],
+    "kind": "broken formula: points at the row above",
+    "domain_specific": false,
+    "proof": "This Net formula is =R[-1]C[-2]-R[-1]C[-1]: it shows the previous line's Debit-Credit instead of its own line's."
+   },
+   {
+    "row": 16,
+    "cols": [
+     "Account Name"
+    ],
+    "kind": "misspelt category",
+    "domain_specific": false,
+    "proof": "Account 2000 is named 'Accounts Payable' on every other line; this line reads 'Acounts Payable'."
+   },
+   {
+    "row": 181,
+    "cols": [
+     "Posting Date"
+    ],
+    "kind": "domain rule: lines of one journal entry carry different posting dates",
+    "domain_specific": true,
+    "proof": "Entry JE-1080's lines 1 and 2 are posted 2026-03-16; line 3 is posted 2026-03-02. A journal entry posts on one date, so this line is mis-dated (it would fall into another period's balance)."
+   }
+  ],
+  "traps": [
+   {
+    "row": 72,
+    "col": "Debit",
+    "why": "Storno (red) reversal: the accrual of JE posted 2026-01-30 is reversed with a negative debit; its entry still balances (-18,400 debit = -18,400 credit)."
+   },
+   {
+    "row": 73,
+    "col": "Credit",
+    "why": "Negative credit on the storno reversal line, matching the negative debit of the same entry; valid reversal practice."
+   },
+   {
+    "row": 115,
+    "col": "Debit",
+    "why": "A real capital purchase of 486,500 debited to Equipment, balanced by Accounts Payable; far larger than routine lines but correct."
+   }
+  ]
+ },
+ "shipments": {
+  "domain": "multi-currency freight shipments with conversion to EUR",
+  "errors": [
+   {
+    "row": 275,
+    "cols": [
+     "Weight (kg)"
+    ],
+    "kind": "unit mismatch: grams in a kilogram column",
+    "domain_specific": true,
+    "proof": "A single courier piece of 1700.0 kg is impossible (courier pieces here are 0.3-30 kg, parcel limits ~70 kg), and its freight equals the courier rate for 1.7 kg: the weight was entered in grams."
+   },
+   {
+    "row": 129,
+    "cols": [
+     "Delivery Date",
+     "Transit Days"
+    ],
+    "kind": "logical contradiction: delivered before shipped",
+    "domain_specific": false,
+    "proof": "Delivery Date is 3 days before Ship Date, so Transit Days is -3; a shipment cannot arrive before it leaves."
+   },
+   {
+    "row": 133,
+    "cols": [
+     "Freight EUR"
+    ],
+    "kind": "broken formula: value typed over Freight EUR",
+    "domain_specific": false,
+    "proof": "Every other Freight EUR cell is =Freight Amount x FX Rate; this one is a typed constant (the previous row's Freight EUR) that does not equal its own amount x rate."
+   },
+   {
+    "row": 265,
+    "cols": [
+     "Freight EUR"
+    ],
+    "kind": "broken formula: points at the row above",
+    "domain_specific": false,
+    "proof": "Freight EUR here is =R[-1]C[-2]*R[-1]C[-1], the previous shipment's amount x rate, not its own."
+   },
+   {
+    "row": 197,
+    "cols": [
+     "Freight Amount"
+    ],
+    "kind": "unit mismatch: cents among dollars",
+    "domain_specific": false,
+    "proof": "USD 538621.0 for 1618.9 kg by air is about 100x the per-kg price of every other USD air shipment (3-4 EUR/kg + ~85 base); the amount was entered in cents (5386.21 USD)."
+   },
+   {
+    "row": 24,
+    "cols": [
+     "Mode"
+    ],
+    "kind": "misspelt category",
+    "domain_specific": false,
+    "proof": "Mode reads 'Courrier'; the column's modes are Air, Sea, Road and Courier."
+   }
+  ],
+  "traps": [
+   {
+    "row": 112,
+    "col": "Freight Amount",
+    "why": "Amount 256742 is in JPY; yen amounts are ~150x EUR amounts, and Freight EUR converts it to a normal sea rate."
+   },
+   {
+    "row": 59,
+    "col": "Weight (kg)",
+    "why": "A courier document envelope of 0.3 kg; tiny next to pallets and containers but normal for Courier, priced at the courier minimum."
+   },
+   {
+    "row": 82,
+    "col": "Transit Days",
+    "why": "Same-day courier delivery within Europe: Transit Days 0 is valid (delivery equals ship date), not a missing value."
+   }
+  ]
+ },
+ "bom": {
+  "domain": "multi-level engineering bill of materials with extended quantities",
+  "errors": [
+   {
+    "row": 82,
+    "cols": [
+     "Extended Qty"
+    ],
+    "kind": "circular reference",
+    "domain_specific": false,
+    "proof": "Extended Qty formula refers to its own cell (=RC), shows 0 although Qty Per and the parent's Extended Qty are non-zero; all other child lines use Qty Per x parent Extended Qty x (1+Scrap)."
+   },
+   {
+    "row": 83,
+    "cols": [
+     "Extended Qty"
+    ],
+    "kind": "broken formula: value typed over Extended Qty",
+    "domain_specific": false,
+    "proof": "This child line's Extended Qty is a typed constant equal to Qty Per x parent qty without the parent's own multiplier (stale), not the column's formula Qty Per x parent Extended Qty x (1+Scrap)."
+   },
+   {
+    "row": 163,
+    "cols": [
+     "Extended Qty"
+    ],
+    "kind": "broken formula: points at the wrong parent row",
+    "domain_specific": false,
+    "proof": "Its formula multiplies by the Extended Qty of the row just above its parent instead of its parent (named in Parent Part), unlike every sibling line."
+   },
+   {
+    "row": 206,
+    "cols": [
+     "Qty Per"
+    ],
+    "kind": "unit mismatch: millimetres in a metre column",
+    "domain_specific": true,
+    "proof": "Qty Per 840 with UoM M means 840 metres of cable for one subassembly; every other M line is 0.5-3.0 m. It was entered in millimetres (0.84 m)."
+   },
+   {
+    "row": 202,
+    "cols": [
+     "Qty Per"
+    ],
+    "kind": "sign flip where the domain forbids negatives",
+    "domain_specific": true,
+    "proof": "A purchased hex bolt HB-M8X25 cannot be a by-product; the same part number is a positive quantity on every other line, so the negative Qty Per (and negative Extended Qty) is a sign error."
+   },
+   {
+    "row": 203,
+    "cols": [
+     "Level"
+    ],
+    "kind": "domain rule: child level is not its parent's level + 1",
+    "domain_specific": true,
+    "proof": "Level 3 but its Parent Part FX-9-SA4 is a level 1 subassembly; a child sits exactly one level below its parent (its siblings are level 2)."
+   }
+  ],
+  "traps": [
+   {
+    "row": 60,
+    "col": "Qty Per",
+    "why": "A reference document line (assembly drawing) carries quantity 0 by design, so its Extended Qty is 0."
+   },
+   {
+    "row": 43,
+    "col": "Qty Per",
+    "why": "A negative component quantity is how ERP BOMs model a by-product (steel offcut returned to stock); its Extended Qty is legitimately negative."
+   },
+   {
+    "row": 133,
+    "col": "Scrap %",
+    "why": "30% scrap is normal for die-cut gaskets nested from sheet (the skeleton is waste), though far above the 1-8% of other lines."
+   }
+  ]
+ }
+}
