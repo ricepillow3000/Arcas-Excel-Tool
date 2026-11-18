@@ -196,4 +196,35 @@ for (const width of [320, 500]) {
   }
   await ctx.close();
 }
+
+// AH-193: while Office gets ready (700 ms here, as a real Excel may take) the pane shows its own header and start-up
+// skeleton, never "Open this inside Excel." on bare paper, and nothing moves when the main view takes their place: the
+// message's margin shifted the page 14 px (CLS 0.009). Outside Excel the message still shows
+{
+  const late = (host) => { const src = fs.readFileSync(DIR + "fake-office.js", "utf8"), was = 'onReady: (cb) => setTimeout(() => cb({ host: "Excel" }), 0)';
+    if (!src.includes(was)) throw new Error("fake-office.js: onReady changed, AH-193's late Office no longer applies");
+    return src.replace(was, `onReady: (cb) => setTimeout(() => cb({ host: ${host} }), 700)`); };
+  const seen = (page) => page.evaluate(() => Object.fromEntries(["sideload-msg", "app-body", "skeleton", "main-ui"].map((id) => [id, document.getElementById(id).checkVisibility()])));
+  const page = await browser.newPage({ ignoreHTTPSErrors: true, viewport: { width: 360, height: 640 } });
+  await page.addInitScript(() => { window.__cls = 0;
+    new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) window.__cls += e.value; }).observe({ type: "layout-shift", buffered: true }); });
+  await page.route("https://appsforoffice.microsoft.com/**", (r) => r.fulfill({ contentType: "text/javascript", body: late('"Excel"') }));
+  await page.goto("https://127.0.0.1:5055/taskpane.html", { waitUntil: "domcontentloaded" });
+  const first = await seen(page);
+  ok(first.skeleton && first["app-body"] && !first["sideload-msg"] && !first["main-ui"], "AH-193: before Office is ready the pane shows its header and skeleton, never \"Open this inside Excel.\" - " + JSON.stringify(first));
+  await page.evaluate(() => __load("Sales", [["Item", "Units"], ["Pen", 5], ["Pad", 7]], []));
+  await page.waitForSelector("#main-ui", { state: "visible" });
+  await page.waitForFunction(() => [...document.querySelectorAll("[data-enter]")].every((e) => !e.style.opacity && !e.style.transform), null, { timeout: 5000 });
+  await page.waitForTimeout(300);
+  const cls = await page.evaluate(() => window.__cls);
+  ok(cls === 0, `AH-193: from the first paint to the main view nothing moves (layout shift ${cls})`);
+  await page.close();
+  const away = await browser.newPage({ ignoreHTTPSErrors: true, viewport: { width: 360, height: 640 } });
+  await away.route("https://appsforoffice.microsoft.com/**", (r) => r.fulfill({ contentType: "text/javascript", body: late("null") }));
+  await away.goto("https://127.0.0.1:5055/taskpane.html");
+  await away.waitForTimeout(1000);
+  const out = await seen(away);
+  ok(out["sideload-msg"] && !out["app-body"], "AH-193: opened outside Excel, the pane says \"Open this inside Excel.\" and nothing else - " + JSON.stringify(out));
+  await away.close();
+}
 await browser.close();

@@ -135,8 +135,12 @@ export function fadeIn(el) {
 export function initMotion() {
   const calm = still();
   initField(document.querySelector(".pane-hero"), calm);
+  // AH-193: the header shows before Office is ready, held at the entrance's start pose (global.css, held): the brand flies
+  // in from there; already shown by itself (an Office slower than 1.4 s), it stays where it is
+  const head = [...document.querySelectorAll("header [data-enter]")];
+  if (!calm && head.some((e) => e.getAnimations().some((a) => a.animationName === "held" && a.playState === "running"))) enter(head);
+  document.getElementById("app-body")?.setAttribute("data-ready", "");
   if (calm) return;
-  enter(document.querySelectorAll("header [data-enter]"));
   const main = document.getElementById("main-ui");
   if (!main) return;
   const watch = new MutationObserver(() => {

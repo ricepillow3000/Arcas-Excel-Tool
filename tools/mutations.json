@@ -3317,6 +3317,28 @@
   ]
  },
  {
+  "id": "pane-motion-only-transform-loosen",
+  "guard": "only transform and opacity move in a pane transition (AH-193)",
+  "file": "frontend/styles/components.css",
+  "old": "transform-origin: 0 50%; transition: transform .2s var(--ease); }",
+  "new": "transform-origin: 0 50%; transition: width .2s var(--ease); }",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "pane-opens-on-header-loosen",
+  "guard": "the pane opens on its header and skeleton, never on \"Open this inside Excel.\" (AH-193)",
+  "file": "frontend/taskpane.html",
+  "old": "<p id=\"sideload-msg\" class=\"pad\" hidden>",
+  "new": "<p id=\"sideload-msg\" class=\"pad\">",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
   "id": "rules-rows-loosen",
   "guard": "A subject rule is believed on 10+ rows (MIN_ROWS) true on 95% of them (HOLDS); else nothing is flagged (AH-202)",
   "file": "backend/anomaly_hunter/engine/rules.py",

@@ -33,11 +33,13 @@ const thenFocus = (fn, to) => async () => {
 };
 const fixDone = () => state.fix && state.undos[state.fix.i];
 
-if (typeof Office !== "undefined") {
+// AH-193: the pane opens on its own header and start-up skeleton while Office gets ready; it said "Open this inside
+// Excel." on bare paper to a person already in Excel, then moved 14 px when the main view came. Only outside Excel is it said
+const away = () => { show("app-body", false); show("sideload-msg"); };
+if (typeof Office === "undefined") away();
+else {
   Office.onReady((info) => {
-    if (info.host !== Office.HostType.Excel) return;
-    show("sideload-msg", false);
-    show("app-body");
+    if (info.host !== Office.HostType.Excel) return away();
     initMotion();
     oneClickEach();
     $("scan").onclick = act(() => runScan(true, true)); // held: the skeleton stays long enough to be seen
@@ -104,9 +106,13 @@ async function checkHealth(auto = false) {
     setAi(h.ai_available, h.ai_provider);
     // which engine answers: an old one gave 2 of 279 on a credit sheet and looked just like a new one (2026-10-15)
     $("engine-version").textContent = `Engine ${h.version || "from before 2026-10-15: update it"}`;
+    // AH-169: what a scan will check, before it. The main view waits for its lines, a second at most, the start-up
+    // skeleton standing in, so they land with it: shown first, a 300-row sheet's lines grew the box 33 px under the
+    // options and the footer (CLS 0.0156, AH-193 fix round). Past the second it says "Reading your sheet…", held
+    if (state.view === "empty-state" && !state.lastScan) await Promise.race([sayProfile(), new Promise((go) => setTimeout(go, 1000))]);
+    if (me !== asked) return;
     show("main-ui");
     show("server-down", false);
-    if (state.view === "empty-state" && !state.lastScan) sayProfile(); // AH-169: what a scan will check, before it
     moveTo("scan");
   } catch {
     if (me !== asked) return;

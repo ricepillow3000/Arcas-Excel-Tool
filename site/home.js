@@ -281,7 +281,9 @@
       let fill = null, lights = [];
       const step = (k) => {
         ticker.textContent = STAGES[k];
-        const at = k < 2 ? 0 : 1;
+        // reading is done the moment its bar is full and says 100%: the list marked it under way for that 0.4 s, checking
+        // still waiting, beside a full bar (AH-193 fix round F2, the blind judge)
+        const at = k ? 1 : 0;
         steps.forEach((li, i) => { if (i === at) li.setAttribute("aria-current", "step"); else li.removeAttribute("aria-current"); li.toggleAttribute("data-done", i < at); });
       };
       const stop = () => { timers.forEach(clearTimeout); if (fill) fill.cancel(); lights.forEach((a) => a.cancel()); if (run === stop) run = null; };

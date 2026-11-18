@@ -2,7 +2,7 @@
 
 John's rule (2026-11-10): don't trust green checks. A guard is held only when (1) a test keeps the wrong out and a test
 lets the right in, at the very limit, (2) both are named here, and (3) a planted bug turns them red. `tools/mutate.py`
-plants each mutant of `tools/mutations.json` (322 of them) in a throwaway copy of the repo and runs its tests; one they
+plants each mutant of `tools/mutations.json` (324 of them) in a throwaway copy of the repo and runs its tests; one they
 survive fails the run (`python tools/check.py --mutate`, CI's `mutation` job on every push and pull request).
 
 A loosen mutant lets the wrong in (a check removed, a limit widened); a tighten mutant keeps the right out (a limit cut
