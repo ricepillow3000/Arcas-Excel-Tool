@@ -1,4 +1,10 @@
+# AH-186: every text file checks out LF on every PC. Left unspecified, core.autocrlf=true (Windows, GitHub's Windows
+# runners) wrote CRLF, and tools/test_site.mjs read none of contact.yml's field ids (mutations.json the same day, AH-189)
+* text=auto eol=lf
+# cmd.exe runs install.bat line by line and needs CRLF
 *.bat text eol=crlf
+# the Chaos Dataset is scored byte for byte, its CRLF included (test_chaos_dataset.py)
+docs/airlock/chaos_dataset.csv -text
 # an invite kit (relay/new-invite.mjs) is git archive HEAD: install.bat and the engine read nothing in these
 /.claude export-ignore
 /docs export-ignore

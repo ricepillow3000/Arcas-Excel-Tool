@@ -2389,5 +2389,29 @@
    "backend/tests/test_fuzz_api.py::test_a_sheet_whose_number_columns_are_filled_only_on_a_skipped_row_scans_without_an_engine_error",
    "backend/tests/test_fuzz_api.py::test_the_decimals_of_a_column_with_no_number_are_zero_and_a_filled_column_reports_its_own"
   ]
+ },
+ {
+  "id": "eol-lf-loosen",
+  "guard": "every tracked text file checks out LF on every PC, a Windows one too (AH-186)",
+  "file": ".gitattributes",
+  "old": "* text=auto eol=lf\n",
+  "new": "",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_line_endings.py::test_every_tracked_text_file_checks_out_with_lf_on_a_windows_pc",
+   "backend/tests/test_line_endings.py::test_install_bat_keeps_crlf_for_cmd_and_the_files_read_line_by_line_keep_lf"
+  ]
+ },
+ {
+  "id": "eol-bat-tighten",
+  "guard": "install.bat checks out CRLF, the line ending cmd.exe needs (AH-186)",
+  "file": ".gitattributes",
+  "old": "*.bat text eol=crlf",
+  "new": "*.bat text eol=lf",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_line_endings.py::test_every_tracked_text_file_checks_out_with_lf_on_a_windows_pc",
+   "backend/tests/test_line_endings.py::test_install_bat_keeps_crlf_for_cmd_and_the_files_read_line_by_line_keep_lf"
+  ]
  }
 ]
