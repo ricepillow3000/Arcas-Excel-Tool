@@ -2050,8 +2050,9 @@ const revealed = (p, sel) => p.$$eval(sel, (es) => es.map((e) => { const c = get
     dur: Math.round(parseFloat(c.transitionDuration) * 1000), revealed: e.hasAttribute("data-revealed"), settled: e.hasAttribute("data-settled") }; }));
 let reveal = null;
 {
-  // the checks table's 9 rows (AH-98; they were 8 cards, AH-171 added Formulas), on checks.html since AH-159, where the table starts below a
-  // 1440 x 900 screen (at 856 px since AH-171 took the h2 out) and its nine rows fit one
+  // the checks table's 9 rows (AH-98; they were 8 cards, AH-171 added Formulas), on checks.html since AH-159, where its
+  // nine rows fit one 1440 x 900 screen. Since AH-193 the first of them is on the first screen (771 px: a check where the
+  // page opened on an empty navy field), so it rises at load and the 8 below the fold are the ones that wait
   const t = await open("checks.html", { width: 1440, init: () => { window.__unobserved = []; const un = IntersectionObserver.prototype.unobserve;
     IntersectionObserver.prototype.unobserve = function (el) { window.__unobserved.push(el); return un.call(this, el); }; } });
   const p = t.page, GRID = ".checks-table tbody > .reveal-item";
@@ -2061,15 +2062,19 @@ let reveal = null;
   // (a) before any scrolling: the checks below the fold wait one --reveal-rise down, see-through, on their own layer
   const before = await revealed(p, GRID);
   assert.equal(await p.evaluate(() => document.documentElement.hasAttribute("data-js")), true, "boot.js did not mark the page");
-  assert.ok(before.length === 9 && before.every((x) => x.op === "0" && x.x === 0 && x.y === tok.rise && /transform/.test(x.will) && /opacity/.test(x.will) && !x.revealed),
-    `the checks before they are seen: ${JSON.stringify(before[0])}`);
+  const seen = before.filter((x) => x.revealed).length; // AH-193: the first check, on the first screen
+  assert.ok(before.length === 9 && seen === 1 && before[0].revealed, `the first check is not the one revealed on the first screen: ${JSON.stringify(before.map((x) => x.revealed))}`);
+  assert.ok(before.slice(seen).every((x) => x.op === "0" && x.x === 0 && x.y === tok.rise && /transform/.test(x.will) && /opacity/.test(x.will) && !x.revealed),
+    `the checks before they are seen: ${JSON.stringify(before[seen])}`);
   // scrolled into view in one step once the hero's entrance is over, traced: the window runs from the scroll to the last
   // item's transitionend
   await p.waitForFunction(() => document.getAnimations().every((a) => a.timeline !== document.timeline), null, { timeout: 3000 });
-  await p.evaluate(() => { let n = 0; addEventListener("transitionend", (e) => { if (e.propertyName === "opacity" && e.target.matches(".checks-table tbody > .reveal-item") && ++n === 9) console.timeStamp("reveal-end"); }, true); });
+  await p.evaluate((left) => { let n = 0; addEventListener("transitionend", (e) => { if (e.propertyName === "opacity" && e.target.matches(".checks-table tbody > .reveal-item") && ++n === left) console.timeStamp("reveal-end"); }, true); }, 9 - seen);
   await browser.startTracing(p, { categories: ["devtools.timeline"] });
-  await p.evaluate(() => { const g = document.querySelector(".checks-table"); let top = 0; for (let e = g; e; e = e.offsetParent) top += e.offsetTop;
-    console.timeStamp("reveal-start"); scrollTo(0, top - 30); }); // AH-171: 9 rows, 866 px: from 30 px down they fit the screen
+  // AH-193: the rows that wait, from 30 px down: rows 2 to 9 fit the screen (all 9 from the table's top no longer did on
+  // main: the ninth's waiting pose ended at 977 px, past the observer's 828)
+  await p.evaluate((seen) => { const g = document.querySelectorAll(".checks-table tbody > tr")[seen]; let top = 0; for (let e = g; e; e = e.offsetParent) top += e.offsetTop;
+    console.timeStamp("reveal-start"); scrollTo(0, top - 30); }, seen);
   await p.waitForTimeout(100);
   const rising = await revealed(p, GRID);
   await p.waitForFunction(() => document.querySelectorAll(".checks-table tbody > [data-settled]").length === 9, null, { timeout: 4000 });
@@ -2080,13 +2085,14 @@ let reveal = null;
   assert.ok(s0 && s1, "the trace has no reveal window");
   const count = (name, to) => events.filter((e) => e.name === name && e.pid === s0.pid && e.tid === s0.tid && e.ts >= s0.ts && e.ts <= to).length;
   // (b) at rest, in place, with transition delays 0, 30, 60 ms ... in page order (the table's rows are list rows,
-  // data-reveal-group="rows", AH-138), held at the cap after it
+  // data-reveal-group="rows", AH-138), held at the cap after it: the 8 that came into view together (the first rose
+  // alone at load, at 0)
   const after = await revealed(p, GRID);
-  const want = after.map((x, i) => Math.min(i, tok.cap) * tok.row);
-  assert.ok(rising.every((x) => x.revealed) && rising.some((x) => +x.op < 1 || x.y > 0), `the checks did not rise in: ${JSON.stringify(rising[7])}`);
+  const want = after.map((x, i) => i < seen ? 0 : Math.min(i - seen, tok.cap) * tok.row);
+  assert.ok(rising.every((x) => x.revealed) && rising.slice(seen).some((x) => +x.op < 1 || x.y > 0), `the checks did not rise in: ${JSON.stringify(rising[7])}`);
   assert.ok(after.every((x) => x.op === "1" && x.tf === "none"), `the checks are not at rest: ${JSON.stringify(after)}`);
   assert.deepEqual(after.map((x) => x.delay), want, "the checks' transition delays");
-  assert.ok(want.length > tok.cap, "the checks never reach the stagger's cap");
+  assert.ok(want.length - seen > tok.cap, "the checks never reach the stagger's cap");
   assert.ok(after.every((x) => x.ease === "cubic-bezier(0.16, 1, 0.3, 1), cubic-bezier(0.16, 1, 0.3, 1)" && x.dur === tok.dur), `the reveal's curve or length: ${after[0].ease} ${after[0].dur}`);
   // (c) settled: the layer is let go
   assert.ok(after.every((x) => x.settled && x.will === "auto"), `will-change after the reveal: ${after.map((x) => x.will)}`);

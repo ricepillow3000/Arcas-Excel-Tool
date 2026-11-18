@@ -218,7 +218,8 @@ own sideways overflow.
 
 ### What the tests hold it to
 
-At 1440 x 900 (`tools/test_site.mjs`): before scrolling, a row of the checks table below the fold has opacity 0,
+At 1440 x 900 (`tools/test_site.mjs`): the table's first row is on the first screen since AH-193 and rises at load;
+before scrolling, a row of the checks table below the fold has opacity 0,
 `translateY` equal to `--reveal-rise` and `will-change: transform, opacity`; after it is scrolled into view the table's 8
 rows (all 8 on one screen: rows padded 16 and 20 px, AH-98; 12 and 16 since AH-148, whose measure gave them more lines) rest at opacity 1
 with no transform, with transition delays 0, 30, 60, 90, 120, 150, 180, 180 ms (list rows, AH-138; the headline, fact
