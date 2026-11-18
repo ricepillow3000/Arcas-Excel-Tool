@@ -507,6 +507,7 @@ dl.anchor { position: relative; margin: 0; display: grid; grid-template-columns:
 #sha { display: flow-root; width: calc(32ch + 18px); max-width: 100%; }
 @container sha (width < calc(32ch + 18px)) { #sha { width: calc(16ch + 18px); } }
 .nb { white-space: nowrap; } /* a word or a sum that must stay whole: SHA-256, a sample's date, a detail box's arithmetic (AH-148 final pass: "170.43 ÷" ended one line, "2.99" began the next) */
+.iso-date { white-space: nowrap; } /* AH-201: a date in the pane's quote never breaks at its hyphen, as in the pane (frontend .iso-date, AH-170); .nb wraps inside a detail box (AH-199) */
 /* a detail box's arithmetic is one piece that moves to the next line whole, and breaks at its own spaces only when it is
    wider than the box: nowrap pushed rows 11 and 22's boxes 131 px past a 320 px screen at 200% text, and 19 px past
    their own border at 100% */

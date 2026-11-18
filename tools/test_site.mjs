@@ -1216,8 +1216,10 @@ const done = async ({ ctx, problems, outside }, label, allowed = []) => {
   // AH-199: the loop above never opens a detail box, and rows 11 and 22's arithmetic (`.nb`, nowrap since AH-148) pushed
   // the page 131 px sideways at 320 px with text at 200%. Every box opened there leaves the page its width, cuts no word or
   // number in two ("15476.23" was "15476.2" over "3" beside the 112 px label) and starts no line with a comma; at 100% text
-  // (390 and 1280 px) each box keeps its two columns, so it is no taller. AH-148's part 5 keeps each sum on one line there
-  for (const [width, size] of [[320, "200%"], [390, "100%"], [1280, "100%"]]) {
+  // (390 and 1280 px) each box keeps its two columns, so it is no taller. AH-148's part 5 keeps each sum on one line there.
+  // AH-201: the pane's quote under the table too, and 320 px at 100%: its ISO dates broke at a hyphen, "2026-01-" over "09"
+  // (rows 5, 21, 41 and 57 at 390 px, row 22 at 320 px)
+  for (const [width, size] of [[320, "200%"], [320, "100%"], [390, "100%"], [1280, "100%"]]) {
     const t = await open("index.html", { width, height: 800, motion: "reduce" });
     const p = t.page;
     await p.evaluate((size) => { document.documentElement.style.fontSize = size; }, size);
@@ -1226,9 +1228,9 @@ const done = async ({ ctx, problems, outside }, label, allowed = []) => {
       await p.click(`.rowbtn[aria-controls="${m}"]`);
       await p.waitForTimeout(100);
       const r = await p.evaluate((m) => {
-        const dl = document.querySelector(`#${m} dl`), cut = [], comma = [], walk = document.createTreeWalker(dl, NodeFilter.SHOW_TEXT);
+        const dl = document.querySelector(`#${m} dl`), cut = [], comma = [];
         const top = (n, a, b) => { const g = document.createRange(); g.setStart(n, a); g.setEnd(n, b); return [...g.getClientRects()].map((x) => Math.round(x.top)); };
-        for (let n, last = null; (n = walk.nextNode()); last = n) {
+        for (const root of [dl, document.querySelector(`#${m} .m-said`)]) for (let n, last = null, walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT); (n = walk.nextNode()); last = n) {
           for (const w of n.data.matchAll(/\S+/g)) if (new Set(top(n, w.index, w.index + w[0].length)).size > 1) cut.push(w[0]);
           if (/^[,.:;]/.test(n.data) && last && last.data.length && top(n, 0, 1)[0] > top(last, last.data.length - 1, last.data.length)[0]) comma.push(n.data);
         }
