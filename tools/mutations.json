@@ -3537,5 +3537,38 @@
   "tests": [
    "node frontend/selfcheck.js"
   ]
+ },
+ {
+  "id": "rules-order-loosen",
+  "guard": "An order the AI proposes is believed only where at most max(1, 0.1%) of its rows break it (ORDER_OFF, the bar of date_order) (AH-201)",
+  "file": "backend/anomaly_hunter/engine/rules.py",
+  "old": "ORDER_OFF = 0.001",
+  "new": "ORDER_OFF = 0.002",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_subject_rules.py::test_an_order_two_rows_break_in_1000_is_the_subjects_exception_and_in_2000_each_row_is_flagged"
+  ]
+ },
+ {
+  "id": "rules-order-tighten",
+  "guard": "An order the AI proposes is believed only where at most max(1, 0.1%) of its rows break it (ORDER_OFF, the bar of date_order) (AH-201)",
+  "file": "backend/anomaly_hunter/engine/rules.py",
+  "old": "ORDER_OFF = 0.001",
+  "new": "ORDER_OFF = 0.0009",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_subject_rules.py::test_an_order_two_rows_break_in_1000_is_the_subjects_exception_and_in_2000_each_row_is_flagged"
+  ]
+ },
+ {
+  "id": "rules-order-bar-loosen",
+  "guard": "An order the AI proposes is believed only where at most max(1, 0.1%) of its rows break it (ORDER_OFF, the bar of date_order) (AH-201)",
+  "file": "backend/anomaly_hunter/engine/rules.py",
+  "old": "if r.get(\"kind\") == \"order\" else held",
+  "new": "if False else held",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_subject_rules.py::test_an_order_two_rows_break_in_1000_is_the_subjects_exception_and_in_2000_each_row_is_flagged"
+  ]
  }
 ]

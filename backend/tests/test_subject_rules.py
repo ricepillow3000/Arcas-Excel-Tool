@@ -89,6 +89,20 @@ def test_two_numbers_in_order_name_both_cells():
     assert flagged[0]["reason"].startswith("DBP 118 is above SBP 72:")
 
 
+def orders(n, breaks):
+    rows = [[120 + i % 11, 70 + i % 9] for i in range(n)]
+    for i in breaks:
+        rows[i] = [72, 118]  # swapped
+    return judged(["SBP", "DBP"], rows, rule("order", first="DBP", then="SBP"))
+
+
+def test_an_order_two_rows_break_in_1000_is_the_subjects_exception_and_in_2000_each_row_is_flagged():
+    checked, flagged = orders(1000, (10, 500))
+    assert checked[0]["held"] == 998 and not checked[0]["holds"] and flagged == []
+    checked, flagged = orders(2000, (10, 1500))
+    assert checked[0]["holds"] and [r["row"] for r in flagged] == [10, 1500]
+
+
 def test_a_value_that_is_not_zero_after_its_date_is_flagged():
     rows = [[f"A{i}", f"2026-0{1 + i % 9}-01", "2026-06-15" if i % 2 else "", 0 if i % 2 and 1 + i % 9 > 6 else 500 + i]
             for i in range(200)]
