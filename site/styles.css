@@ -231,7 +231,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .band-dark { background: var(--grain-dark), var(--grid-dark), var(--dark); color: var(--on-dark-2); border-top-color: var(--dark); overflow-x: clip; } /* a heading lying face down (.lift) reaches past the screen's edge in perspective: never a sideways scroll */
 .band-dark h2, .band-dark h3 { color: var(--on-dark); }
 .band-dark .label, .band-dark .fact { color: var(--gold-hi); }
-.band-dark .sec-lede { color: var(--on-dark-2); }
+.band-dark :is(.sec-lede, .proof-note) { color: var(--on-dark-2); }
 
 /* hero: a huge headline over ten columns, the text from column 7, then the sample sheet as the picture */
 .hero { padding-block: var(--s7) var(--s6); background: var(--grain), var(--grid), var(--paper); }
