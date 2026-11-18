@@ -753,6 +753,38 @@ function woff2(file) {
   assert.ok(/(?:^|\})\s*\.proof-note\s*\{[^}]*max-width:\s*var\(--measure\)/.test(css), "styles.css: the line under the proof strip is not held to the measure");
   assert.ok(/<p id="list-hint" class="hint">[^<]*Check each one before you accept: you know your data best\.[^<]*<\/p>/.test(pane), "the pane's list does not ask to check each row before Accept");
 }
+// ---- AH-193 (the unslop pass, 2026-11-18): gold for the drawn lines on paper, the sample's data at 400 so its flagged
+// cells' 800 stands out, motion.js asked for beside the stylesheet, and every page's bytes paid for like its height ----
+{
+  const miss = [];
+  const want = (ok, what) => { if (!ok) miss.push(what); };
+  // S5: B3, gold is for lines: the hairlines drawn over a step, a proof figure or a ledger cell; on the navy band gold-hi
+  want(/(?:^|\})\s*\.rule\s*\{[^}]*background:\s*var\(--gold\);/.test(css), "styles.css: the drawn hairlines on paper (.rule) are not the dark gold");
+  want(/(?:^|\})\s*\.check-list \.rule\s*\{\s*background:\s*var\(--gold-hi\);/.test(css) && /(?:^|\})\s*\.checks-table \.rule\s*\{[^}]*background:\s*var\(--gold-hi\);/.test(css), "styles.css: the hairlines on the navy band are not gold-hi");
+  // S6: one weight for data, and the filtered cell's the same as a plain one's (R5 in the browser compares the two)
+  want(/(?:^|\})\s*table\.grid\s*\{[^}]*font:\s*400 /.test(css), "styles.css: the sample's cells are not set at 400");
+  want(!/td\.mended\) \{[^}]*font-weight:\s*500/.test(css), "styles.css: a filtered-out cell is still set at 500");
+  // S7: the entrance's script arrives beside the stylesheet instead of after it (R3: the slow phone's headline waited
+  // for it, 2250-2342 ms against a 2500 budget); every page that runs motion.js asks for it in its <head>
+  for (const p of PAGES) {
+    const src = html[p], head = src.slice(0, src.indexOf("</head>"));
+    if (!src.includes('<script src="motion.js" defer></script>')) continue;
+    want(head.includes('<link rel="preload" href="motion.js" as="script">'), `${p}: runs motion.js without preloading it`);
+    want(head.indexOf('href="motion.js"') > head.indexOf('href="styles.css"') || !head.includes('href="motion.js"'), `${p}: preloads motion.js ahead of the stylesheet`);
+  }
+  // S7: bytes are paid for, as height is (R3: styles.css 37 to 100 KB and the deferred scripts 49 to 120 KB in 15 days,
+  // and no test capped a byte). What a first visit to each page downloads, gzipped as Pages serves it: the page, the
+  // stylesheet and every script. The caps are the bytes of AH-193 plus about 1 KB: a change that adds more raises its cap
+  // here and says why
+  const CAPS = { "index.html": 89400, "privacy.html": 85200, "support.html": 82200, "terms.html": 79200, "thanks.html": 78000, "checks.html": 79300, "cases.html": 79000, "code-signing.html": 78700 };
+  for (const p of PAGES) {
+    const files = [p, ...new Set([...html[p].matchAll(/\s(?:src|href)="([a-z-]+\.(?:css|js))"/g)].map((m) => m[1]))];
+    const sizes = files.map((f) => [f, zlib.gzipSync(fs.readFileSync(path.join(SITE, f)), { level: 9 }).length]);
+    const total = sizes.reduce((n, [, b]) => n + b, 0);
+    want(total <= CAPS[p], `${p}: ${total} bytes gzipped, over its cap of ${CAPS[p]} (${sizes.map(([f, b]) => `${f} ${b}`).join(", ")})`);
+  }
+  assert.deepEqual(miss, [], `AH-193:\n${miss.join("\n")}`);
+}
 console.log(`website static check passed (${PAGES.length} pages, ${SCRIPTS.length} scripts)`);
 if (!process.argv.includes("--browser")) process.exit(0);
 
@@ -2398,7 +2430,9 @@ console.log('sample: every "⋯" row spans the table body between its neighbours
 // runs measured on 2026-11-02 (headline first shown 1066-1205 ms, at rest 1968-2028 ms, every block in place 617-624 ms
 // after the last scroll), so a slower page fails and a busy box does not ----
 {
-  const BUDGET = { shown: 2500, rest: 4100, settled: 1300 };
+  // AH-193: shown tightened from 2500 to 2000 once motion.js is preloaded beside the stylesheet (R3: 2250-2342 ms
+  // without it, so a busy box failed now and then; with it about 1600)
+  const BUDGET = { shown: 2000, rest: 4100, settled: 1300 };
   let t0 = 0;
   const t = await open("index.html", { width: 390, height: 844, until: "commit", setup: async (p) => {
     const cdp = await p.context().newCDPSession(p);
@@ -3941,6 +3975,73 @@ console.log(`page transitions: ${measured.moving} ms of motion on screen (${meas
   }
   assert.deepEqual(miss, [], `AH-183:\n${miss.join("\n")}`);
   console.log("AH-183: the sheet's map lit as the table is (filters, After fixes, Accept), Scanning lights it row by row once, an accepted fix lands in its cell then draws its gold line, a jump's box draws the sheet's Totals with its row marked, revealed once; nothing moves under reduced motion");
+}
+// ---- AH-193 (the unslop pass, 2026-11-18): the navy band ends on a clean edge, the hero's one main button alone on its
+// row, a check on checks.html's first screen, a selection in the house colours, gold lines on paper, data at 400, and
+// the phone's hero says Windows twice, not three times ----
+{
+  const miss = [];
+  const want = (ok, what) => { if (!ok) miss.push(what); };
+  const overflow = (p) => p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  // S1: the next block's paper (.calm, 96 px of feather) reached 47 px up over the band's foot, a grey fog at 121,127,141
+  // (R1, R2). Each pixel 3, 10 and 30 px above the band's bottom, mid-width, is the band's navy within 20 a channel
+  for (const [width, height] of [[1280, 800], [1440, 900]]) {
+    const t = await open("index.html", { width, height, motion: "reduce" });
+    const p = t.page;
+    const y = await p.evaluate(() => { const r = document.getElementById("checks").getBoundingClientRect(); scrollTo(0, scrollY + r.bottom - innerHeight / 2); return Math.round(document.getElementById("checks").getBoundingClientRect().bottom); });
+    await p.waitForTimeout(400);
+    for (const up of [3, 10, 30]) {
+      const { px } = png(await p.screenshot({ clip: { x: width / 2, y: y - up, width: 1, height: 1 } }));
+      want([12, 25, 56].every((v, k) => Math.abs(px[k] - v) <= 20), `S1 at ${width} x ${height}: ${up} px above the navy band's foot reads ${[...px.subarray(0, 3)]}, not the navy 12,25,56`);
+    }
+    await done(t, `AH-193 S1 the band's edge at ${width}`, [API]);
+  }
+  // S2: above 760 px Download stands alone on its row and the two quieter buttons share the next (Contact John wrapped
+  // alone under the other two, R1); a phone keeps its own flow; nothing scrolls sideways
+  for (const [width, height] of [[761, 800], [1024, 768], [1280, 800], [1440, 900], [390, 844]]) {
+    const t = await open("index.html", { width, height, motion: "reduce" });
+    const [dl, look, talk] = await t.page.$$eval(".hero-cta a", (as) => as.map((a) => { const r = a.getBoundingClientRect(); return { x: Math.round(r.left), y: Math.round(r.top) }; }));
+    // (at 761 the hero's column is too narrow for two buttons side by side: they wrap, the download still alone)
+    if (width > 760) want(dl.y < look.y && look.x === dl.x && (width < 1280 ? dl.y < talk.y : look.y === talk.y && talk.x > look.x), `S2 at ${width}: the hero's buttons at ${JSON.stringify([dl, look, talk])}`);
+    else want((await t.page.$eval(".hero-cta", (e) => getComputedStyle(e).display)) === "flex", `S2 at ${width}: the phone's hero buttons are no longer a flex row`);
+    want((await overflow(t.page)) <= 0, `S2 at ${width}: the page scrolls sideways`);
+    await done(t, `AH-193 S2 the hero's buttons at ${width}`, [API]);
+  }
+  // S3: checks.html opened on a heading, its lede and an empty navy field (the table's head at 846 px of 800); the fact
+  // and the lede now share a row, so the first check is on the first screen
+  for (const [width, height] of [[1280, 800], [1440, 900]]) {
+    const t = await open("checks.html", { width, height, motion: "reduce" });
+    const r = await t.page.evaluate(() => { const b = document.querySelector(".checks-table tbody tr").getBoundingClientRect(); return { top: Math.round(b.top), bottom: Math.round(b.bottom), h: innerHeight }; });
+    want(r.top < r.h && (width < 1440 || r.bottom <= r.h), `S3 checks.html at ${width} x ${height}: its first check is at ${r.top} to ${r.bottom} of a ${r.h} px screen`);
+    await done(t, `AH-193 S3 checks.html at ${width}`, [API]);
+  }
+  // S4: a selection was the browser's blue, the one colour outside the brand (R1); now navy on a gold tint, readable on
+  // paper and on the navy band alike (the pane's pair, AH-193 P1)
+  {
+    const t = await open("index.html", { width: 1280, height: 800, motion: "reduce" });
+    const r = await t.page.evaluate(() => {
+      const pen = document.createElement("canvas").getContext("2d", { willReadFrequently: true });
+      const rgba = (s) => { pen.clearRect(0, 0, 1, 1); pen.fillStyle = "rgb(0 0 0 / 0)"; pen.fillStyle = s; pen.fillRect(0, 0, 1, 1); return [...pen.getImageData(0, 0, 1, 1).data]; };
+      const lum = (c) => { const f = (v) => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]); };
+      return [".hero-copy p", "#checks .check-list p", ".notice-bar p", "footer .reveal-item"].map((sel) => { const c = getComputedStyle(document.querySelector(sel), "::selection"), bg = rgba(c.backgroundColor), fg = rgba(c.color);
+        const [x, y] = [lum(fg), lum(bg)].sort((a, b) => b - a); return { sel, bg: bg.join(), fg: fg.join(), ratio: +((x + 0.05) / (y + 0.05)).toFixed(2) }; });
+    });
+    for (const s of r) want(s.bg.endsWith(",255") && s.ratio >= 4.5, `S4 a selection in ${s.sel}: ${s.fg} on ${s.bg} is ${s.ratio}:1`);
+    await done(t, "AH-193 S4 a selection", [API]);
+  }
+  // S5, S6, S8 as rendered
+  for (const [width, height] of [[1280, 800], [390, 844]]) {
+    const t = await open("index.html", { width, height, motion: "reduce" });
+    const r = await t.page.evaluate(() => { const c = (sel, k, pseudo) => getComputedStyle(document.querySelector(sel), pseudo)[k];
+      return { step: c(".steps li .rule", "backgroundColor"), proof: c("#proof .rule", "backgroundColor"), band: c(".check-list .rule", "backgroundColor"),
+        cell: c("#p-found tbody tr:first-child td:nth-child(4)", "fontWeight"), flag: c("#r11 td.flag", "fontWeight"), note: c(".hero .note", "display") }; });
+    want(r.step === "rgb(153, 125, 58)" && r.proof === "rgb(153, 125, 58)" && r.band === "rgb(201, 168, 90)", `S5 at ${width}: the drawn lines ${JSON.stringify(r)}`);
+    want(r.cell === "400" && r.flag === "800", `S6 at ${width}: the sample's cells at ${r.cell}, its flagged cell at ${r.flag}`);
+    want(width > 760 ? r.note !== "none" : r.note === "none", `S8 at ${width}: the hero's note "Free for Windows with desktop Excel." is ${r.note}`);
+    await done(t, `AH-193 S5 S6 S8 at ${width}`, [API]);
+  }
+  assert.deepEqual(miss, [], `AH-193:\n${miss.join("\n")}`);
+  console.log("AH-193: the navy band ends on navy, Download alone on its row above 760 px, a check on checks.html's first screen, a selection navy on a gold tint, gold lines on paper, the sample's data at 400 beside its 800 flags, and no third Windows line on a phone");
 }
 await browser.close();
 server.close();

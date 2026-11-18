@@ -251,8 +251,8 @@ The rest of the promises, all in `tools/test_site.mjs --browser`:
 
 ## Scroll-linked decoration
 
-Two decorations follow the scroll bar: the gold or navy hairline on top of a check or a step (`span.rule`, drawn
-across with `scaleX`) and the drift of section labels and headlines (`data-depth`, moved with `translate`, so it never
+Two decorations follow the scroll bar: the gold hairline on top of a check or a step (`span.rule`, drawn
+across with `scaleX`; gold-hi on the navy band, the dark gold on paper since AH-193, navy kept for frames) and the drift of section labels and headlines (`data-depth`, moved with `translate`, so it never
 fights the reveal's `transform` on the same headline). In browsers with scroll timelines, CSS does all of it:
 
 ```css
@@ -351,6 +351,9 @@ and the notice line's links are not glides: they still land at once.
 ## Loading order
 
 1. HTML, `styles.css` and the font (preloaded, `font-display: swap`) block the first paint; `boot.js` is 0.5 KB.
+   `motion.js` is preloaded too (AH-193), so it arrives beside the stylesheet instead of after it with the other
+   deferred scripts, and runs the moment parsing ends: on the slow phone the headline shows at 1.6 s, not 2.25 s, and
+   its budget is 2,000 ms. Every page's first visit is held to a gzipped byte cap in `tools/test_site.mjs`.
 2. The headings and text paint first. The bar's and the hero's blocks are held for their entrance by `data-ah` and
    fly in from `motion.js` (WAAPI, on the compositor); if the scripts are later than 1.4 s, `boot.js` shows the blocks
    and the entrance is skipped rather than replayed over them. The 1.4 s is a deadline for the entrance's start; the
@@ -592,3 +595,15 @@ only `transform` and `opacity` move, on `--ease-out`, once, and under `prefers-r
 - Not built: step numbers lit by the scroll, a scroll progress line, a 201-square proof grid, a FLIP for the filters
   (decoration, or page height the budget does not have).
 
+## AH-193 (2026-11-18): the unslop pass
+
+Nothing new moves. Every rule above holds; the pass takes out what read as a fault or a template:
+
+- **The band's edge.** The block after the navy band lays its still paper (`.calm`) 96 px past its top, and 47 px of it
+  fogged the band's foot at 1280 and 1440. That block clips at its own top (`.band-dark + .section { overflow-y: clip }`),
+  so the band ends on navy; the paper still fades sideways and below as above.
+- **The hero's buttons.** Above 760 px Download stands alone on its row and the two quieter buttons share the next: a
+  zero-height line break after it, and the row gap given to the quieter buttons as their margin, so nothing grows. The
+  entrance's order is the page's order, unchanged.
+- **The drawn hairlines** (`span.rule`) on paper are the dark gold; they draw by `scaleX` as before.
+- **Speed.** `motion.js` is preloaded on every page that runs it (Loading order, above).
