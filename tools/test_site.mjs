@@ -776,6 +776,9 @@ function woff2(file) {
   // and no test capped a byte). What a first visit to each page downloads, gzipped as Pages serves it: the page, the
   // stylesheet and every script. The caps are the bytes of AH-193 plus about 1 KB: a change that adds more raises its cap
   // here and says why
+  // F3 (AH-193 fix round, the blind judge): the sheet's map had no words, so a visitor could not tell what its 60 marks
+  // were. A pointer that rests on it is told, at no height (a title); it stays aria-hidden, the table says it all
+  want(/<div class="sheet-map" aria-hidden="true" title="Each mark is one row of the sheet: filled is probably wrong, outlined is worth a check\.">/.test(html["index.html"]), "index.html: the sheet's map does not say what its marks are");
   const CAPS = { "index.html": 89400, "privacy.html": 85200, "support.html": 82200, "terms.html": 79200, "thanks.html": 78000, "checks.html": 79300, "cases.html": 79000, "code-signing.html": 78700 };
   for (const p of PAGES) {
     const files = [p, ...new Set([...html[p].matchAll(/\s(?:src|href)="([a-z-]+\.(?:css|js))"/g)].map((m) => m[1]))];
