@@ -1,0 +1,417 @@
+{
+ "pk_sampling": {
+  "domain": "Phase 1 two-period food-effect crossover PK sampling log: 24 subjects in 4 dose cohorts, 13 timepoints per period",
+  "errors": [
+   {
+    "row": 253,
+    "cols": [
+     "Dose_mg"
+    ],
+    "kind": "group_mismatch",
+    "domain_specific": false,
+    "proof": "Cohort B is dosed 50 mg on every other row, including the other 25 rows of S-1010; this one row of the same subject and period says 100 mg."
+   },
+   {
+    "row": 75,
+    "cols": [
+     "Actual_h"
+    ],
+    "kind": "sequence_break",
+    "domain_specific": true,
+    "proof": "The 12 h sample's Actual_h 1.75 is earlier than the same profile's 8 h sample (7.91); elapsed time after dose must increase along a profile, and its Deviation_min is far outside every window."
+   },
+   {
+    "row": 557,
+    "cols": [
+     "Sample_Date"
+    ],
+    "kind": "date_arithmetic",
+    "domain_specific": false,
+    "proof": "Dosed at clock hour 8.25 and drawn 24.46 h later the sample falls on the next day, yet Sample_Date equals Dose_Date 2026-05-05."
+   },
+   {
+    "row": 297,
+    "cols": [
+     "Conc_ng_mL"
+    ],
+    "kind": "unit_mismatch",
+    "domain_specific": true,
+    "proof": "0.0459 is below the LLOQ of 0.5 ng/mL yet BLQ says N; the neighbouring timepoints of the profile put it near 45.9 ng/mL, i.e. the value was entered in ug/mL."
+   },
+   {
+    "row": 174,
+    "cols": [
+     "Deviation_min"
+    ],
+    "kind": "formula_error",
+    "domain_specific": false,
+    "proof": "Every other Deviation_min is (Actual_h - Nominal_h) * 60; this cell multiplies by 6, so the deviation is a tenth of the real one and still looks plausible."
+   },
+   {
+    "row": 468,
+    "cols": [
+     "Conc_ng_mL",
+     "BLQ"
+    ],
+    "kind": "impossible_value",
+    "domain_specific": true,
+    "proof": "Period 1 pre-dose sample: the subject has never been dosed, so it must be below the LLOQ like every other Period 1 pre-dose row; 3.8 ng/mL is reported."
+   },
+   {
+    "row": 359,
+    "cols": [
+     "Dose_Date"
+    ],
+    "kind": "group_mismatch",
+    "domain_specific": false,
+    "proof": "The other 12 rows of S-1014 period 2 share one later Dose_Date; this row carries the period 1 date 2026-04-13, 14 days before, which also contradicts its own Sample_Date and Actual_h."
+   }
+  ],
+  "traps": [
+   {
+    "row": 78,
+    "col": "Actual_h",
+    "why": "Pre-dose sample drawn 1.45 h (87 min) before dosing: an extreme but inside the 90 min pre-dose window; a negative elapsed time is how every pre-dose row is written."
+   },
+   {
+    "row": 429,
+    "col": "Conc_ng_mL",
+    "why": "Period 2 pre-dose level of 0.62 ng/mL, just above the LLOQ, is under 5% of the subject's period 1 Cmax (1610.0), the accepted limit for a crossover; not an error."
+   },
+   {
+    "row": 218,
+    "col": "Within_Window",
+    "why": "A late draw outside its 30 min window, recorded with its true time and a documented deviation comment; the N is correct."
+   },
+   {
+    "row": 517,
+    "col": "Sample_Date",
+    "why": "This period was dosed at clock hour 13.5, so the 12 h sample falls after midnight and its Sample_Date is correctly the next day, unlike other subjects' 12 h samples."
+   },
+   {
+    "row": 369,
+    "col": "Conc_ng_mL",
+    "why": "The cohort C Cmax far above the others belongs to a high-exposure subject whose whole profile, in both periods, is about 2.4 times the cohort; a consistent profile, not a typo."
+   }
+  ]
+ },
+ "fa_depreciation": {
+  "domain": "Fixed-asset depreciation schedule, FY2020-FY2026, one row per asset and year, with the depreciation journal (Dr expense / Cr accumulated depreciation)",
+  "errors": [
+   {
+    "row": 447,
+    "cols": [
+     "Opening_Accum_Dep"
+    ],
+    "kind": "circular_reference",
+    "domain_specific": false,
+    "proof": "Opening_Accum_Dep is =Closing-Depreciation of its own row while Closing is =Opening+Depreciation: a circular reference that shows a plausible number; every other opening is the previous year's closing (=R[-1]C[2])."
+   },
+   {
+    "row": 122,
+    "cols": [
+     "Depreciation_Expense"
+    ],
+    "kind": "sign_flip",
+    "domain_specific": true,
+    "proof": "Depreciation expense on a straight-line asset cannot be negative; -27857.05 is typed over the formula, which gives 27857.05, and it pulls accumulated depreciation down."
+   },
+   {
+    "row": 450,
+    "cols": [
+     "Cost"
+    ],
+    "kind": "unit_mismatch",
+    "domain_specific": false,
+    "proof": "The asset's other rows give Cost 20220.27; this row gives 20.22 (keyed in thousands), so its depreciation and NBV are a thousandth of the real ones."
+   },
+   {
+    "row": 336,
+    "cols": [
+     "Cr_Account"
+    ],
+    "kind": "cross_class_posting",
+    "domain_specific": true,
+    "proof": "A Plant & Machinery depreciation (Dr 6120) is credited to 1640, the Vehicles accumulated depreciation account; every other row of the class and of this asset credits 1620."
+   },
+   {
+    "row": 214,
+    "cols": [
+     "Depreciation_Expense"
+    ],
+    "kind": "formula_error",
+    "domain_specific": true,
+    "proof": "First year in service for 4 months, but the formula drops *Months/12 and charges a full year; a plausible amount that every other straight-line row prorates."
+   },
+   {
+    "row": 509,
+    "cols": [
+     "Months"
+    ],
+    "kind": "date_arithmetic",
+    "domain_specific": true,
+    "proof": "In service 2024-08-15: under the full-month convention every other first year counts 5 months from that month to December; this row claims 12 and over-depreciates."
+   },
+   {
+    "row": 165,
+    "cols": [
+     "Fiscal_Year",
+     "Depreciation_Expense"
+    ],
+    "kind": "post_disposal_activity",
+    "domain_specific": true,
+    "proof": "FA-10025 was disposed in FY2025 (proceeds and gain on that row), yet a FY2026 row still charges depreciation on it."
+   },
+   {
+    "row": 207,
+    "cols": [
+     "Depreciation_Expense",
+     "NBV"
+    ],
+    "kind": "formula_error",
+    "domain_specific": true,
+    "proof": "Final year of a 5-year vehicle: the formula lost its MIN cap and charges a full year, so accumulated depreciation passes Cost - Salvage and NBV falls below the salvage value."
+   }
+  ],
+  "traps": [
+   {
+    "row": 67,
+    "col": "Depreciation_Expense",
+    "why": "Land is never depreciated: no method, no life, no accounts and a zero charge are correct, and NBV stays at cost."
+   },
+   {
+    "row": 140,
+    "col": "Depreciation_Expense",
+    "why": "IT Equipment uses double-declining balance, a second formula the whole class shares; it charges on cost less opening accumulated depreciation, not straight line."
+   },
+   {
+    "row": 334,
+    "col": "Gain_Loss_on_Disposal",
+    "why": "Sold below its NBV, so the disposal is a loss: a negative gain is the right sign."
+   },
+   {
+    "row": 13,
+    "col": "Depreciation_Expense",
+    "why": "A 5-year vehicle in service since February 2020 is fully depreciated to its salvage value; it stays on the register with a zero charge."
+   },
+   {
+    "row": 324,
+    "col": "Asset_ID",
+    "why": "Two identical forklifts bought the same day at the same price: their schedules repeat row for row under two asset IDs, which is correct."
+   }
+  ]
+ },
+ "landed_cost": {
+  "domain": "US import landed-cost sheet: multi-currency invoices, weight-based freight allocation, ad valorem and specific duties, one row per invoice line",
+  "errors": [
+   {
+    "row": 59,
+    "cols": [
+     "FX_USD_per_Unit"
+    ],
+    "kind": "fx_rate_mismatch",
+    "domain_specific": true,
+    "proof": "Every other EUR line shipped 2026-01-30, including the rest of this shipment, uses 1.0909; this line uses 1.099 (two digits swapped)."
+   },
+   {
+    "row": 301,
+    "cols": [
+     "Gross_Weight_kg"
+    ],
+    "kind": "unit_mismatch",
+    "domain_specific": false,
+    "proof": "Every other GLV-6110 line weighs the same kg per unit; this one is 2.2046 times that (456.4 for 207.0 kg: pounds), and it takes too much of the shipment's freight."
+   },
+   {
+    "row": 153,
+    "cols": [
+     "Freight_Alloc_USD"
+    ],
+    "kind": "allocation_not_reconciling",
+    "domain_specific": false,
+    "proof": "The weight total in this line's allocation leaves out the shipment's last line, so its share is too big and the shipment's allocations add up to more than its freight."
+   },
+   {
+    "row": 341,
+    "cols": [
+     "Duty_USD"
+    ],
+    "kind": "formula_error",
+    "domain_specific": true,
+    "proof": "HS 8481.80 is ad valorem (AV 0.02): duty is Line_Value_USD x rate, but this cell multiplies the rate by the gross weight, as only SPEC_KG lines do."
+   },
+   {
+    "row": 265,
+    "cols": [
+     "Qty"
+    ],
+    "kind": "sign_flip",
+    "domain_specific": true,
+    "proof": "An import line cannot ship a negative quantity (-1500) with a positive gross weight; line value and landed cost turn negative while the landed unit cost still looks normal."
+   },
+   {
+    "row": 136,
+    "cols": [
+     "Shipment_Freight_USD"
+    ],
+    "kind": "group_mismatch",
+    "domain_specific": false,
+    "proof": "The shipment's other lines carry freight 2356.99; this line says 3256.99, so its allocation and the shipment total no longer reconcile."
+   },
+   {
+    "row": 70,
+    "cols": [
+     "Entry_Date"
+    ],
+    "kind": "date_swap",
+    "domain_specific": true,
+    "proof": "The shipment's other lines were entered 2026-02-04; this line says 2026-04-02 (day and month swapped), outside the 15-day customs entry window around arrival 2026-02-02."
+   },
+   {
+    "row": 64,
+    "cols": [
+     "Landed_Cost_USD"
+    ],
+    "kind": "formula_error",
+    "domain_specific": false,
+    "proof": "Landed cost is goods value + allocated freight + duty on every other line; this formula leaves out the freight and gives a plausible, too low number."
+   }
+  ],
+  "traps": [
+   {
+    "row": 249,
+    "col": "Duty_Rate",
+    "why": "Mexican-origin goods qualify for USMCA: a zero duty rate on an HS code that is dutiable from every other origin is correct."
+   },
+   {
+    "row": 199,
+    "col": "Duty_USD",
+    "why": "Wine (HS 2204.21) pays a specific duty per kg, a second formula its whole category uses: duty = weight x 0.063 USD/kg, not 6.3% of value."
+   },
+   {
+    "row": 145,
+    "col": "Entry_Date",
+    "why": "A pre-arrival customs entry, filed 2 days before the vessel arrives: allowed, so an Entry_Date before Arrival_Date is valid here."
+   },
+   {
+    "row": 281,
+    "col": "SKU",
+    "why": "Two purchase orders for the same SKU, quantity and price consolidated in one container: two identical lines under different line numbers."
+   },
+   {
+    "row": 326,
+    "col": "Unit_Price_FC",
+    "why": "One machining centre at EUR 186,400 weighing 4,200 kg: an extreme price and weight that take most of the shipment freight, all genuine."
+   }
+  ]
+ },
+ "ev_mass_rollup": {
+  "domain": "Multi-level BOM mass and centre-of-gravity roll-up for three electric utility vehicle variants, with alternates and effectivity dates",
+  "errors": [
+   {
+    "row": 116,
+    "cols": [
+     "Unit_Mass_kg"
+    ],
+    "kind": "unit_mismatch",
+    "domain_specific": false,
+    "proof": "FST-M8X25 weighs 0.0142 kg on every other row of the BOM; here 14.2 (grams), which inflates its sub-assembly's roll-up."
+   },
+   {
+    "row": 180,
+    "cols": [
+     "Unit_Mass_kg"
+    ],
+    "kind": "circular_reference",
+    "domain_specific": false,
+    "proof": "The sub-assembly's mass formula adds its own Ext_Mass_kg, which is computed from this same cell: a circular reference still showing the old, plausible total."
+   },
+   {
+    "row": 150,
+    "cols": [
+     "Unit_Mass_kg"
+    ],
+    "kind": "sign_flip",
+    "domain_specific": true,
+    "proof": "A part cannot have negative mass (arms may be negative, masses never); the minus sign lowers its parent's roll-up and shifts its centre of gravity."
+   },
+   {
+    "row": 297,
+    "cols": [
+     "Parent_PN"
+    ],
+    "kind": "hierarchy_mismatch",
+    "domain_specific": true,
+    "proof": "By its level the row sits under SA-72383, which rolls it up, but Parent_PN says SA-72373, a sibling sub-assembly."
+   },
+   {
+    "row": 264,
+    "cols": [
+     "Unit_Mass_kg"
+    ],
+    "kind": "rollup_missing_child",
+    "domain_specific": true,
+    "proof": "The mass roll-up skips P-44226, a primary, effective child that the same row's CG formulas include, so the mass is too low and the CG is wrong."
+   },
+   {
+    "row": 218,
+    "cols": [
+     "Effective_To"
+    ],
+    "kind": "date_inversion",
+    "domain_specific": false,
+    "proof": "Effective_To 2023-04-01 is before Effective_From 2024-09-01; the replacement part on the next row starts 2025-04-01, the real end date."
+   },
+   {
+    "row": 287,
+    "cols": [
+     "Unit_Mass_kg"
+    ],
+    "kind": "stale_hardcode",
+    "domain_specific": true,
+    "proof": "The sub-assembly's mass is a typed number, not the sum of its effective children, and it is 3% above what they add up to."
+   },
+   {
+    "row": 213,
+    "cols": [
+     "Qty_Per"
+    ],
+    "kind": "impossible_value",
+    "domain_specific": true,
+    "proof": "NUT-M8 (Nyloc nut M8) is counted in EA: 16.5 pieces cannot be fitted; only length items (UoM M) take fractions."
+   }
+  ],
+  "traps": [
+   {
+    "row": 17,
+    "col": "Arm_X_mm",
+    "why": "The X datum is the front bumper face: the tow eye stands 38 mm ahead of it, so a negative arm and a negative moment are correct."
+   },
+   {
+    "row": 431,
+    "col": "Ext_Mass_kg",
+    "why": "An alternate source (Alt_Priority 2) is listed for purchasing but not built in, so its mass is rightly left out of the parent roll-up."
+   },
+   {
+    "row": 173,
+    "col": "Parent_PN",
+    "why": "The sheet holds three vehicle variants; this is the second top-level item (Level 0), so a blank Parent_PN is correct."
+   },
+   {
+    "row": 88,
+    "col": "Part_Number",
+    "why": "The pack stacks two identical cell modules; the second block repeats the first row for row, only 150 mm higher, which is correct."
+   },
+   {
+    "row": 159,
+    "col": "Effective_To",
+    "why": "A superseded part kept for history with an end date in the past: it is rightly out of the roll-up, and its replacement starts that day on the next row."
+   },
+   {
+    "row": 314,
+    "col": "Qty_Per",
+    "why": "Cable is bought by the metre (UoM M): a fractional quantity is correct."
+   }
+  ]
+ }
+}

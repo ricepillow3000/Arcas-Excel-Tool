@@ -1,0 +1,368 @@
+{
+ "trial_vitals": {
+  "domain": "Phase II trial vital signs and dosing by subject and visit (3 arms: Placebo, Low 200 mg, High 400 mg); BMI and dose per kg are formulas.",
+  "errors": [
+   {
+    "row": 19,
+    "cols": [
+     "Dose_mg_per_kg"
+    ],
+    "kind": "formula wrong reference",
+    "domain_specific": false,
+    "proof": "Dose_mg_per_kg is =ROUND(RC[-4]/R[-1]C[-3],2): it divides by the weight of the row above (Week 4, 68.4 kg) instead of this visit's 68.0 kg, giving 5.85 instead of 5.88."
+   },
+   {
+    "row": 74,
+    "cols": [
+     "BMI"
+    ],
+    "kind": "formula typed over",
+    "domain_specific": false,
+    "proof": "BMI is a typed 26.1 where every other row holds =ROUND(RC[-2]/(RC[-1]/100)^2,1); Weight 76.6 kg and Height 169.6 cm give 26.6. 26.1 is the previous visit's BMI, left behind when the formula was typed over."
+   },
+   {
+    "row": 129,
+    "cols": [
+     "VisitDate"
+    ],
+    "kind": "date out of order",
+    "domain_specific": true,
+    "proof": "S07-123's Week 2 VisitDate 2026-04-06 falls after its Week 4 visit (2026-03-23); StudyDay 15 with Baseline on 2026-02-20 (day 1) puts this visit on 2026-03-06: the month was typed one too high."
+   },
+   {
+    "row": 206,
+    "cols": [
+     "Weight_kg"
+    ],
+    "kind": "unit mismatch",
+    "domain_specific": true,
+    "proof": "S05-137 weighs 70.5-71.4 kg at every other visit; 155.6 at Week 8 is 70.6 kg x 2.2046, the weight written in pounds (Height unchanged, so its BMI becomes 54.2)."
+   },
+   {
+    "row": 214,
+    "cols": [
+     "Arm"
+    ],
+    "kind": "misspelt category",
+    "domain_specific": false,
+    "proof": "Arm 'Plaecbo' is a misspelling of Placebo; S07-139's other visits say Placebo and the trial has only Placebo, Low and High."
+   },
+   {
+    "row": 288,
+    "cols": [
+     "SBP_mmHg",
+     "DBP_mmHg"
+    ],
+    "kind": "swapped values",
+    "domain_specific": true,
+    "proof": "Systolic pressure always exceeds diastolic; S03-151 Week 8 has SBP 82 below DBP 132, while its other visits average 128/86: the two readings were entered in each other's columns."
+   },
+   {
+    "row": 292,
+    "cols": [
+     "Dose_mg"
+    ],
+    "kind": "cross-row contradiction",
+    "domain_specific": true,
+    "proof": "S04-152 is in the Low arm, whose dose is 200 mg on every Given visit (this subject's other visits included); 400 mg is the High arm's dose, so it contradicts the subject's Arm."
+   }
+  ],
+  "traps": [
+   {
+    "row": 82,
+    "col": "Dose_mg",
+    "why": "DoseStatus is Held: a dose interruption is recorded as 0 mg (and 0 mg/kg) on an active arm, as on the other Held rows; not a missing or wrong dose."
+   },
+   {
+    "row": 98,
+    "col": "Weight_kg",
+    "why": "This subject weighs 148.2-152.6 kg at every visit (BMI about 47 at 178.4 cm): an extreme but consistent, real body weight, not a unit slip."
+   },
+   {
+    "row": 175,
+    "col": "StudyDay",
+    "why": "StudyDay -28 is the first day of a 28-day screening window; days before Baseline (day 1) are negative and there is no day 0, and the VisitDate is exactly 28 days before Baseline."
+   },
+   {
+    "row": 183,
+    "col": "Temp_C",
+    "why": "39.2 C is a fever, a real clinical finding; in Fahrenheit it would be impossible, so it is not a unit slip."
+   }
+  ]
+ },
+ "gl_journal": {
+  "domain": "General ledger journal of three EUR entities (NL01, DE01, FR01), Jan-Apr 2026, with intercompany fees, VAT formulas and a Total row per entry.",
+  "errors": [
+   {
+    "row": 93,
+    "cols": [
+     "AccountName"
+    ],
+    "kind": "misspelt category",
+    "domain_specific": false,
+    "proof": "AccountName 'Intercompany recievable' for account 1150, which every other row names 'Intercompany receivable'."
+   },
+   {
+    "row": 269,
+    "cols": [
+     "Credit"
+    ],
+    "kind": "cross-row contradiction",
+    "domain_specific": true,
+    "proof": "Intercompany must eliminate: NL01 books IC-2026-02-DE01 to DE01 as 12,450.00 (1150 receivable, same reference), and DE01's payable to NL01 is 12,450.00 in every other month; here it is 12,540.00 (two digits swapped, with the 6500 debit typed to match), so the pair does not eliminate."
+   },
+   {
+    "row": 298,
+    "cols": [
+     "Debit"
+    ],
+    "kind": "digit slip",
+    "domain_specific": true,
+    "proof": "Receipt of INV-FR-0102: the invoice's gross (its revenue plus VAT) is 12,592.36 and the AR line here credits that amount, but Cash is debited 12,952.36 (two digits transposed), so the entry is off by 360.00."
+   },
+   {
+    "row": 409,
+    "cols": [
+     "Credit"
+    ],
+    "kind": "formula wrong range",
+    "domain_specific": false,
+    "proof": "JE-26-0115's total row sums Credit with =SUM(R[-4]C:R[-2]C), one line short of the entry's four lines: it leaves out line 4 (Payroll liabilities 15,914.49), so the total shows 25,333.27 and a Net of 15,914.49 for an entry whose lines balance."
+   },
+   {
+    "row": 527,
+    "cols": [
+     "Debit"
+    ],
+    "kind": "formula typed over",
+    "domain_specific": false,
+    "proof": "AR on invoice INV-NL-0109 is a typed 22,398.34 where every other invoice's AR line is =R[1]C[1]+R[2]C[1] (revenue + VAT); it leaves out the VAT 4,703.65, so the entry no longer balances."
+   },
+   {
+    "row": 532,
+    "cols": [
+     "Credit"
+    ],
+    "kind": "sign flip",
+    "domain_specific": true,
+    "proof": "Payment of BILL-FR-0109 (bill gross 6,031.81): AP is debited 6,031.81 but Cash is credited -6,031.81; a double-entry line carries a positive amount on one side, the entry is off by 12,063.62, and flipping the sign balances it exactly."
+   },
+   {
+    "row": 546,
+    "cols": [
+     "Credit"
+    ],
+    "kind": "formula wrong constant (rate)",
+    "domain_specific": true,
+    "proof": "DE01 charges VAT at 19% (every other DE01 VAT line, sales and purchase, uses *0.19); this line's formula multiplies by 0.21, the NL01 rate: 2,596.11 on a net of 12,362.41 instead of 2,348.86. The entry still balances because AR adds the wrong VAT."
+   }
+  ],
+  "traps": [
+   {
+    "row": 6,
+    "col": "Debit",
+    "why": "Office rent is a fixed contractual amount: 6,350.00 for FR01 every month is expected, not a duplicated entry."
+   },
+   {
+    "row": 189,
+    "col": "Debit",
+    "why": "Capital purchase of a packaging line, 1,184,000.00 net to Machinery and equipment with VAT and AP formulas like any bill and a balanced entry: a valid extreme, not a slip."
+   },
+   {
+    "row": 292,
+    "col": "Debit",
+    "why": "Accrual reversal posted on the 1st: the same accounts and amount as JE-26-0078 (posted the day before) with debit and credit swapped, as accrual accounting requires; not a duplicate or a sign error."
+   },
+   {
+    "row": 327,
+    "col": "Debit",
+    "why": "Intra-EU B2B sale under reverse charge: no VAT line, so the AR formula is =R[1]C[1] (revenue only) instead of the usual =R[1]C[1]+R[2]C[1]; the off-pattern formula and the two-line invoice are correct."
+   }
+  ]
+ },
+ "freight_invoices": {
+  "domain": "Carrier freight invoices in five currencies (air, road, ocean), Jan-Jun 2026, with fuel surcharge, totals and conversion to EUR as formulas.",
+  "errors": [
+   {
+    "row": 5,
+    "cols": [
+     "Carrier"
+    ],
+    "kind": "misspelt category",
+    "domain_specific": false,
+    "proof": "Carrier 'Kuehne+Nagle' is a misspelling of Kuehne+Nagel, which every other row (same invoice series KN-, mode, currency and lanes) names correctly."
+   },
+   {
+    "row": 42,
+    "cols": [
+     "BaseFreight"
+    ],
+    "kind": "digit slip (x10)",
+    "domain_specific": true,
+    "proof": "Every other DHL AMS-ORD row bills 3.25 EUR/kg (BaseFreight / weight); 3,461.25 for 106.5 kg is 32.50 EUR/kg, ten times the rate: a slipped digit."
+   },
+   {
+    "row": 127,
+    "cols": [
+     "DeliveryDate"
+    ],
+    "kind": "date out of order",
+    "domain_specific": false,
+    "proof": "DeliveryDate 2026-01-20 is before ShipDate 2026-02-16 on a delivered shipment; Road transit is 1-4 days elsewhere, and 2026-02-20 (one month later) fits it."
+   },
+   {
+    "row": 173,
+    "cols": [
+     "TotalLocal"
+    ],
+    "kind": "formula wrong range",
+    "domain_specific": false,
+    "proof": "TotalLocal is =RC[-5]+RC[-3] where every other row is =RC[-5]+RC[-3]+RC[-1]: it leaves out OtherSurcharges (THC 285.00), so the total and TotalEUR are short by that amount."
+   },
+   {
+    "row": 178,
+    "cols": [
+     "FXToEUR"
+    ],
+    "kind": "unit mismatch",
+    "domain_specific": true,
+    "proof": "FXToEUR converts to EUR; every other USD row shipped in 2026-03 uses 0.9242, and 1.082 is 1/0.9242, the EUR->USD rate, so TotalEUR 2,014.55 is overstated by 17%."
+   },
+   {
+    "row": 242,
+    "cols": [
+     "FuelPct"
+    ],
+    "kind": "digit slip",
+    "domain_specific": true,
+    "proof": "A carrier's fuel surcharge is one rate per month: every other DHL Global Forwarding row shipped in 2026-04 has FuelPct 0.192; 0.129 has its last two digits swapped, so FuelSurcharge is 61.84."
+   },
+   {
+    "row": 296,
+    "cols": [
+     "TotalEUR"
+    ],
+    "kind": "formula typed over",
+    "domain_specific": false,
+    "proof": "TotalEUR is a typed 3,314.31 where every other row has =ROUND(RC[-2]*RC[-1],2); 2,821.17 GBP x 1.1661 = 3,289.77. The typed value is the total at the previous month's rate (1.1748)."
+   }
+  ],
+  "traps": [
+   {
+    "row": 26,
+    "col": "BaseFreight",
+    "why": "18.5 kg x the lane's 2.85 EUR/kg is below DHL's 75.00 minimum charge, so BaseFreight is 75.00, as on every other small DHL shipment."
+   },
+   {
+    "row": 102,
+    "col": "FuelSurcharge",
+    "why": "The yen has no minor unit: every JPY row rounds its fuel surcharge to whole yen (=ROUND(RC[-2]*RC[-1],0)) while the other currencies round to cents; the off-pattern formula is right."
+   },
+   {
+    "row": 277,
+    "col": "BaseFreight",
+    "why": "Amounts are in JPY: 2,300 kg x 610 JPY/kg = 1,403,000 JPY (about 8,600 EUR after FX); huge only because of the currency, and on the lane's rate card."
+   },
+   {
+    "row": 416,
+    "col": "DeliveryDate",
+    "why": "Status In transit: shipped 2026-06-11 by ocean and not yet delivered at the data's cut-off (2026-06-30), so DeliveryDate is blank."
+   },
+   {
+    "row": 462,
+    "col": "OtherSurcharges",
+    "why": "OtherCode REBATE: Kuehne+Nagel's quarter-end volume rebate, credited as -150.00 on the quarter's last invoice; a valid negative surcharge."
+   }
+  ]
+ },
+ "costed_bom": {
+  "domain": "Indented costed bill of materials for four conveyor products sharing sub-assemblies; ExtQty and the cost roll-up are formulas.",
+  "errors": [
+   {
+    "row": 60,
+    "cols": [
+     "ExtQty"
+    ],
+    "kind": "formula wrong reference",
+    "domain_specific": true,
+    "proof": "ExtQty must be QtyPer x the parent's ExtQty; the parent is A-2400 (R[-5]C, ExtQty 2) but the formula reads R[-60]C, the product A-1000 (ExtQty 1), giving 2 instead of 4 and halving its ExtCost."
+   },
+   {
+    "row": 85,
+    "cols": [
+     "UnitCost"
+    ],
+    "kind": "digit slip (x10)",
+    "domain_specific": false,
+    "proof": "P-10222 (Washer M5 DIN 125) has a standard cost of 0.04 on its other 11 rows; 0.40 here is the same price x10, and its ExtCost 6.40 rolls up into its parent."
+   },
+   {
+    "row": 89,
+    "cols": [
+     "ExtCost"
+    ],
+    "kind": "formula wrong range",
+    "domain_specific": false,
+    "proof": "A-2600's roll-up is =RC[-2]*RC[-1]+SUM(R[1]C:R[5]C) but it has six children (ParentItem A-2600); the range leaves out the sixth, Threadlocker 243 (ExtCost 0.3600), so ExtCost 413.2800 is short by that amount; every other A-2600 sums R[1]C:R[6]C."
+   },
+   {
+    "row": 184,
+    "cols": [
+     "QtyPer"
+    ],
+    "kind": "unit mismatch",
+    "domain_specific": true,
+    "proof": "Sensor harness A-2310 lists P-10339 at QtyPer 0.85 (UoM M) in its other 8 occurrences, and an item's BOM is the same wherever it is used; here it is 850 with UoM M (850 metres of cable in one harness): the length was entered in millimetres."
+   },
+   {
+    "row": 226,
+    "cols": [
+     "ExtCost"
+    ],
+    "kind": "circular reference",
+    "domain_specific": false,
+    "proof": "A-2210's roll-up is =RC[-2]*RC[-1]+SUM(RC:R[5]C): the range starts at its own cell, a circular reference (every other A-2210 sums R[1]C:R[5]C); the value shown is stale."
+   },
+   {
+    "row": 266,
+    "cols": [
+     "Category"
+    ],
+    "kind": "misspelt category",
+    "domain_specific": false,
+    "proof": "Category 'Fastner' is a misspelling of Fastener, which P-10130 has on every other row."
+   },
+   {
+    "row": 290,
+    "cols": [
+     "UnitCost"
+    ],
+    "kind": "sign flip",
+    "domain_specific": true,
+    "proof": "P-10182 (Nut M6 DIN 985) costs 0.11 on its other 10 rows; a purchased part cannot cost -0.11, and the sign flip makes its ExtCost negative and lowers every roll-up above it."
+   }
+  ],
+  "traps": [
+   {
+    "row": 79,
+    "col": "ParentItem",
+    "why": "Level 0 is a top-level product (A-1100): it has no parent, so ParentItem is blank, as on every Level 0 row; its ExtQty formula =RC[-1] differs from the children's for the same reason."
+   },
+   {
+    "row": 138,
+    "col": "UnitCost",
+    "why": "The 2.2 kW servo motor costs 4,850.00 on every row: a valid extreme among parts that mostly cost cents to tens."
+   },
+   {
+    "row": 170,
+    "col": "UnitCost",
+    "why": "Customer-furnished HMI display (Supplier 'Customer supplied'): costed at 0.00 on every row by definition; a zero cost, not a missing one."
+   },
+   {
+    "row": 293,
+    "col": "QtyPer",
+    "why": "A riveted 600x400 guard panel takes 240 blind rivets; every A-2400 occurrence lists 240, an extreme but valid quantity for a fastener."
+   }
+  ]
+ }
+}
