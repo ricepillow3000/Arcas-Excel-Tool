@@ -2389,5 +2389,412 @@
    "backend/tests/test_fuzz_api.py::test_a_sheet_whose_number_columns_are_filled_only_on_a_skipped_row_scans_without_an_engine_error",
    "backend/tests/test_fuzz_api.py::test_the_decimals_of_a_column_with_no_number_are_zero_and_a_filled_column_reports_its_own"
   ]
+ },
+ {
+  "id": "formula-cells-loosen",
+  "guard": "A formula's cell is never judged or named by the limits; a typed cell among formulas still is (AH-198)",
+  "file": "backend/anomaly_hunter/engine/detectors.py",
+  "old": "if np.isnan(v) or formula[i]:",
+  "new": "if np.isnan(v):",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_formula_cells.py::test_a_slip_in_an_input_is_named_on_the_input_never_on_the_formula_it_feeds"
+  ]
+ },
+ {
+  "id": "formula-cells-tighten",
+  "guard": "A formula's cell is never judged or named by the limits; a typed cell among formulas still is (AH-198)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "computed = {c: np.array([row[j] is not None for row in grid])",
+  "new": "computed = {c: np.array([True for row in grid])",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_formula_cells.py::test_a_typed_cell_in_a_column_of_formulas_is_still_judged_by_its_limits"
+  ]
+ },
+ {
+  "id": "pinned-sum-loosen",
+  "guard": "Where the formula check pins a row's broken cell, a sum about that cell names it alone (AH-198)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if \" does not add up\" in r and r.cols[0] in pinned else r",
+  "new": "if False else r",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_formula_cells.py::test_a_sum_about_the_cell_the_formula_check_pins_names_that_cell_alone"
+  ]
+ },
+ {
+  "id": "pinned-sum-tighten",
+  "guard": "Where the formula check pins a row's broken cell, a sum about that cell names it alone (AH-198)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if \" does not add up\" in r and r.cols[0] in pinned else r",
+  "new": "if \" does not add up\" in r else r",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_formula_cells.py::test_a_sum_with_no_formula_to_pin_it_still_names_every_cell_it_reads"
+  ]
+ },
+ {
+  "id": "circular-loosen",
+  "guard": "A formula that names its own cell (RC, R[0]C[0]) is a circular reference; another row's or column's, or text, is not (AH-198)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "C(?:\\[0\\])?(?![\\w\\[])\")",
+  "new": "C(?:\\[0\\])?\")",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_formula_cells.py::test_a_reference_to_another_row_or_column_or_text_reading_rc_is_no_circular_reference"
+  ]
+ },
+ {
+  "id": "circular-tighten",
+  "guard": "A formula that names its own cell (RC, R[0]C[0]) is a circular reference; another row's or column's, or text, is not (AH-198)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "R(?:\\[0\\])?C(?:\\[0\\])?(?![",
+  "new": "R\\[0\\]C\\[0\\](?![",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_formula_cells.py::test_a_formula_that_names_its_own_cell_is_a_circular_reference"
+  ]
+ },
+ {
+  "id": "mirror-rows-loosen",
+  "guard": "A counter-entry: the same number, of 3+ significant digits, typed in another column within 3 rows, and odd there too, is no slip (AH-198)",
+  "file": "backend/anomaly_hunter/engine/detectors.py",
+  "old": "SIBLINGS = 3",
+  "new": "SIBLINGS = 4",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_counter_entries.py::test_a_twin_four_rows_away_or_one_of_two_significant_digits_proves_nothing"
+  ]
+ },
+ {
+  "id": "mirror-rows-tighten",
+  "guard": "A counter-entry: the same number, of 3+ significant digits, typed in another column within 3 rows, and odd there too, is no slip (AH-198)",
+  "file": "backend/anomaly_hunter/engine/detectors.py",
+  "old": "SIBLINGS = 3",
+  "new": "SIBLINGS = 2",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_counter_entries.py::test_a_twin_of_three_significant_digits_three_rows_away_is_the_limit"
+  ]
+ },
+ {
+  "id": "mirror-digits-loosen",
+  "guard": "A counter-entry: the same number, of 3+ significant digits, typed in another column within 3 rows, and odd there too, is no slip (AH-198)",
+  "file": "backend/anomaly_hunter/engine/detectors.py",
+  "old": ".strip(\"0\")) < 3:",
+  "new": ".strip(\"0\")) < 2:",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_counter_entries.py::test_a_twin_four_rows_away_or_one_of_two_significant_digits_proves_nothing"
+  ]
+ },
+ {
+  "id": "mirror-digits-tighten",
+  "guard": "A counter-entry: the same number, of 3+ significant digits, typed in another column within 3 rows, and odd there too, is no slip (AH-198)",
+  "file": "backend/anomaly_hunter/engine/detectors.py",
+  "old": ".strip(\"0\")) < 3:",
+  "new": ".strip(\"0\")) < 4:",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_counter_entries.py::test_a_twin_of_three_significant_digits_three_rows_away_is_the_limit"
+  ]
+ },
+ {
+  "id": "mirror-odd-loosen",
+  "guard": "A counter-entry: the same number, of 3+ significant digits, typed in another column within 3 rows, and odd there too, is no slip (AH-198)",
+  "file": "backend/anomaly_hunter/engine/detectors.py",
+  "old": "\n                   and limits.get(cols[k]) and _crossed(v, *limits[cols[k]][:2]) is not None for k",
+  "new": "\n                   for k",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_counter_entries.py::test_a_twin_that_is_ordinary_in_its_own_column_was_met_by_chance"
+  ]
+ },
+ {
+  "id": "company-count-loosen",
+  "guard": "A breach with no typo behind it and 2+ other breaches within 10% of its distance from the median, in a column whose spread is a quarter of its median, is the column's own amount (AH-198)",
+  "file": "backend/anomaly_hunter/engine/detectors.py",
+  "old": "company(v, weird) >= 2",
+  "new": "company(v, weird) >= 1",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_counter_entries.py::test_one_near_value_is_not_a_crowd_and_two_just_too_far_are_not_either"
+  ]
+ },
+ {
+  "id": "company-count-tighten",
+  "guard": "A breach with no typo behind it and 2+ other breaches within 10% of its distance from the median, in a column whose spread is a quarter of its median, is the column's own amount (AH-198)",
+  "file": "backend/anomaly_hunter/engine/detectors.py",
+  "old": "company(v, weird) >= 2",
+  "new": "company(v, weird) >= 3",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_counter_entries.py::test_a_value_past_its_limit_with_two_others_near_it_is_the_columns_own_amount"
+  ]
+ },
+ {
+  "id": "company-near-loosen",
+  "guard": "A breach with no typo behind it and 2+ other breaches within 10% of its distance from the median, in a column whose spread is a quarter of its median, is the column's own amount (AH-198)",
+  "file": "backend/anomaly_hunter/engine/detectors.py",
+  "old": "NEAR = 0.1  #",
+  "new": "NEAR = 0.102  #",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_counter_entries.py::test_one_near_value_is_not_a_crowd_and_two_just_too_far_are_not_either"
+  ]
+ },
+ {
+  "id": "company-near-tighten",
+  "guard": "A breach with no typo behind it and 2+ other breaches within 10% of its distance from the median, in a column whose spread is a quarter of its median, is the column's own amount (AH-198)",
+  "file": "backend/anomaly_hunter/engine/detectors.py",
+  "old": "NEAR = 0.1  #",
+  "new": "NEAR = 0.098  #",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_counter_entries.py::test_a_value_past_its_limit_with_two_others_near_it_is_the_columns_own_amount"
+  ]
+ },
+ {
+  "id": "company-scale-loosen",
+  "guard": "A breach with no typo behind it and 2+ other breaches within 10% of its distance from the median, in a column whose spread is a quarter of its median, is the column's own amount (AH-198)",
+  "file": "backend/anomaly_hunter/engine/detectors.py",
+  "old": "SCALED = 0.25  #",
+  "new": "SCALED = 0.0  #",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_counter_entries.py::test_a_cluster_far_off_a_column_that_barely_varies_is_never_a_crowd"
+  ]
+ },
+ {
+  "id": "company-scale-tighten",
+  "guard": "A breach with no typo behind it and 2+ other breaches within 10% of its distance from the median, in a column whose spread is a quarter of its median, is the column's own amount (AH-198)",
+  "file": "backend/anomaly_hunter/engine/detectors.py",
+  "old": "SCALED = 0.25  #",
+  "new": "SCALED = 1.0  #",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_counter_entries.py::test_a_value_past_its_limit_with_two_others_near_it_is_the_columns_own_amount"
+  ]
+ },
+ {
+  "id": "pointer-share-loosen",
+  "guard": "A pointer column (99% of its values name one row of another column) has roots, never blanks (AH-198)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "POINTS = 0.99  #",
+  "new": "POINTS = 0.98  #",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_hierarchy_roots.py::test_a_column_with_two_values_naming_no_one_row_is_no_pointer_and_its_blanks_are_slips"
+  ]
+ },
+ {
+  "id": "pointer-share-tighten",
+  "guard": "A pointer column (99% of its values name one row of another column) has roots, never blanks (AH-198)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "POINTS = 0.99  #",
+  "new": "POINTS = 1.0  #",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_hierarchy_roots.py::test_a_pointer_with_one_value_in_a_hundred_naming_no_one_row_is_still_a_pointer"
+  ]
+ },
+ {
+  "id": "pointer-one-row-loosen",
+  "guard": "A pointer column (99% of its values name one row of another column) has roots, never blanks (AH-198)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "index[n == 1])",
+  "new": "index[n >= 1])",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_hierarchy_roots.py::test_a_column_of_another_columns_values_on_many_rows_is_no_tree"
+  ]
+ },
+ {
+  "id": "date-rows-loosen",
+  "guard": "One date column on or after another on 50+ rows but one: that row is a contradiction, the sheet's own order never named (AH-198)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "DATE_ROWS = 50  #",
+  "new": "DATE_ROWS = 49  #",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_date_order.py::test_fifty_rows_are_enough_and_forty_nine_are_not"
+  ]
+ },
+ {
+  "id": "date-rows-tighten",
+  "guard": "One date column on or after another on 50+ rows but one: that row is a contradiction, the sheet's own order never named (AH-198)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "DATE_ROWS = 50  #",
+  "new": "DATE_ROWS = 51  #",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_date_order.py::test_a_delivery_before_its_shipment_names_the_delivery_when_the_sheet_runs_in_shipping_order"
+  ]
+ },
+ {
+  "id": "date-breaks-loosen",
+  "guard": "One date column on or after another on 50+ rows but one: that row is a contradiction, the sheet's own order never named (AH-198)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "<= max(1, 0.001 * both.sum())",
+  "new": "<= max(2, 0.001 * both.sum())",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_date_order.py::test_two_rows_against_the_order_are_how_the_dates_are_never_a_slip"
+  ]
+ },
+ {
+  "id": "date-breaks-tighten",
+  "guard": "One date column on or after another on 50+ rows but one: that row is a contradiction, the sheet's own order never named (AH-198)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "<= max(1, 0.001 * both.sum())",
+  "new": "<= max(0, 0.001 * both.sum())",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_date_order.py::test_a_delivery_before_its_shipment_names_the_delivery_when_the_sheet_runs_in_shipping_order"
+  ]
+ },
+ {
+  "id": "date-anchor-tighten",
+  "guard": "One date column on or after another on 50+ rows but one: that row is a contradiction, the sheet's own order never named (AH-198)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "named = [c for c in (b, a) if not _in_order(when[c], i, before.sum())] or [b, a]",
+  "new": "named = [b, a]",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_date_order.py::test_a_delivery_before_its_shipment_names_the_delivery_when_the_sheet_runs_in_shipping_order"
+  ]
+ },
+ {
+  "id": "records-count-loosen",
+  "guard": "A record of 20+ multi-line entries: the one line of 3+ that differs from its agreeing lines; one entry off by a digit swap names its cell (AH-198)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "RECORDS = 20  #",
+  "new": "RECORDS = 19  #",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_records.py::test_nineteen_entries_are_too_few_to_know_the_rule"
+  ]
+ },
+ {
+  "id": "records-count-tighten",
+  "guard": "A record of 20+ multi-line entries: the one line of 3+ that differs from its agreeing lines; one entry off by a digit swap names its cell (AH-198)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "RECORDS = 20  #",
+  "new": "RECORDS = 21  #",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_records.py::test_the_one_line_of_an_entry_posted_on_another_day_is_flagged"
+  ]
+ },
+ {
+  "id": "records-lines-loosen",
+  "guard": "A record of 20+ multi-line entries: the one line of 3+ that differs from its agreeing lines; one entry off by a digit swap names its cell (AH-198)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if len(rows) >= 3 and",
+  "new": "if len(rows) >= 2 and",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_records.py::test_in_an_entry_of_two_lines_which_one_differs_is_unknown"
+  ]
+ },
+ {
+  "id": "records-lines-tighten",
+  "guard": "A record of 20+ multi-line entries: the one line of 3+ that differs from its agreeing lines; one entry off by a digit swap names its cell (AH-198)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if len(rows) >= 3 and",
+  "new": "if len(rows) >= 4 and",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_records.py::test_the_one_line_of_an_entry_posted_on_another_day_is_flagged"
+  ]
+ },
+ {
+  "id": "balance-off-loosen",
+  "guard": "A record of 20+ multi-line entries: the one line of 3+ that differs from its agreeing lines; one entry off by a digit swap names its cell (AH-198)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if len(off) != 1 or",
+  "new": "if len(off) < 1 or",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_records.py::test_two_entries_off_are_how_the_sheet_is_never_one_slip"
+  ]
+ },
+ {
+  "id": "balance-off-tighten",
+  "guard": "A record of 20+ multi-line entries: the one line of 3+ that differs from its agreeing lines; one entry off by a digit swap names its cell (AH-198)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if len(off) != 1 or",
+  "new": "if True or",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_records.py::test_digits_swapped_in_one_line_put_its_entry_off_and_name_that_line"
+  ]
+ },
+ {
+  "id": "scale-group-loosen",
+  "guard": "A long sheet's label of 20+ values gets its own limits where the label sets the scale; only a slip of zeros votes (AH-198)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if len(v) < 20:",
+  "new": "if len(v) < 19:",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_long_format_scale.py::test_twenty_values_of_a_label_are_enough_and_nineteen_are_not"
+  ]
+ },
+ {
+  "id": "scale-group-tighten",
+  "guard": "A long sheet's label of 20+ values gets its own limits where the label sets the scale; only a slip of zeros votes (AH-198)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if len(v) < 20:",
+  "new": "if len(v) < 21:",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_long_format_scale.py::test_twenty_values_of_a_label_are_enough_and_nineteen_are_not"
+  ]
+ },
+ {
+  "id": "scale-slip-loosen",
+  "guard": "A long sheet's label of 20+ values gets its own limits where the label sets the scale; only a slip of zeros votes (AH-198)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if fix is not None and fix != -y:",
+  "new": "if True:\n                    fix = fix or y",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_long_format_scale.py::test_a_real_critical_value_with_no_slip_behind_it_is_left_alone"
+  ]
+ },
+ {
+  "id": "scale-fit-tighten",
+  "guard": "A long sheet's label of 20+ values gets its own limits where the label sets the scale; only a slip of zeros votes (AH-198)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "SCALE_FIT = 0.5  #",
+  "new": "SCALE_FIT = 0.999  #",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_long_format_scale.py::test_a_decimal_point_lost_in_one_test_of_a_long_sheet_is_found_among_its_own_test"
+  ]
+ },
+ {
+  "id": "coded-codes-loosen",
+  "guard": "A misspelling its row's code proves (10+ codes of 2+ rows) is Medium (AH-198)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "len(multi) >= 10 and",
+  "new": "len(multi) >= 9 and",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_coded_spellings.py::test_nine_codes_are_too_few_to_prove_it_and_it_stays_worth_a_check"
+  ]
+ },
+ {
+  "id": "coded-codes-tighten",
+  "guard": "A misspelling its row's code proves (10+ codes of 2+ rows) is Medium (AH-198)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "len(multi) >= 10 and",
+  "new": "len(multi) >= 11 and",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_coded_spellings.py::test_a_misspelling_its_rows_own_code_proves_is_a_slip_not_a_guess"
+  ]
  }
 ]

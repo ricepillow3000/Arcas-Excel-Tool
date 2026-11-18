@@ -207,21 +207,53 @@ FEW = (2, 0.0025)  # the level-7+ list: a value past its usual limit that at mos
 # and at most 2 others reach
 
 
-def limits_detector(df, column_types, limits, typos_only=False, listing=False, quiet=(), held=None):
+SIBLINGS = 3  # rows either side where a counter-entry is looked for: the other line of a journal entry, a transfer's twin
+SCALED = 0.25  # ...only in a column whose values vary on their own scale (spread a quarter of the median or more), as
+# amounts do: 14 street trees placed at a latitude of 47.27 among 37.70-37.81 are one bad default, not a crowd
+RARE = (2, 0.005)  # ...written at most max(2, 0.5% of rows) times in the column that mirrors it: a match, not a habit
+NEAR = 0.1  # within this share of a value's distance from the median, other values are its company: a payroll near
+# 55,000 each month (median 5,400)
+
+
+def limits_detector(df, column_types, limits, typos_only=False, listing=False, quiet=(), held=None, computed=None):
     """Weird-limit breach = vote. Baseline-only breach = noted, no vote. likely[i] = {col: probable typo fix}.
     typos_only (strength 0): only breaches with an obvious typo behind them, or negatives in a column that never goes
     below 0, vote. listing (strength 7+): alone_reasons[i] = breaches only noted that few other values share (FEW), said
     with their count; never for a `quiet` column (protected ones, and ones whose limits the user saved).
     held = {col: [(rows, rule)]}, pipeline.confirm: where a rule of the row's own arithmetic holds and pins the cell,
-    a breach is confirmed by the row, held_reasons[i] (worth a check), never a vote or a fix."""
+    a breach is confirmed by the row, held_reasons[i] (worth a check), never a vote or a fix.
+    computed = {col: rows whose cell holds a formula}: its value is its inputs', so it is never judged here (AH-198).
+    A value the same number in another column of a sibling row (SIBLINGS) is a counter-entry, and one with 2+ others
+    within NEAR of it and no typo behind it a recurring amount: either is noted, never a vote or a fix (AH-198)."""
     n = len(df)
+    computed = computed or {}
+    cols = numbers(column_types)
+    # the typed numbers of every number column: a formula's value repeats its inputs, so it corroborates nothing
+    typed = df[cols].to_numpy(dtype=float).copy() if cols else np.zeros((n, 0))
+    for j, c in enumerate(cols):
+        if c in computed:
+            typed[computed[c], j] = np.nan
+
+    def mirrored(i, j, v):
+        """A typo changes one cell: the same value typed in another column a few rows away is the entry's other side (a
+        storno's -18,400 debit and -18,400 credit, a 486,500 purchase and its payable), a real record twice over. Only a
+        number of 3+ significant digits that column seldom writes (RARE), and odd there too (past its usual limit): a
+        hotel's 26 adults beside a week number 26 two rows down, a share of 87.5 beside an ordinary 87.5, met by chance."""
+        if len(say(abs(v)).replace(".", "").strip("0")) < 3:
+            return False
+        near = np.delete(typed[max(0, i - SIBLINGS):i + SIBLINGS + 1], min(i, SIBLINGS), axis=0)
+        hit = np.isclose(near, v, rtol=1e-12, atol=0).any(axis=0)
+        return any(hit[k] and np.isclose(typed[:, k], v, rtol=1e-12, atol=0).sum() <= max(RARE[0], RARE[1] * n)
+                   and limits.get(cols[k]) and _crossed(v, *limits[cols[k]][:2]) is not None for k in range(len(cols)) if k != j)
+
     r = {**_result(n), "noted": np.zeros(n, bool), "noted_reasons": [[] for _ in range(n)], "likely": [{} for _ in range(n)],
          "maybe": [{} for _ in range(n)],
          "alone_reasons": [[] for _ in range(n)], "top_reasons": [[] for _ in range(n)], "held_reasons": [[] for _ in range(n)]}
-    for col in numbers(column_types):
+    for j, col in enumerate(cols):
         if not limits.get(col):
             continue
         b_lo, b_hi, w_lo, w_hi = limits[col]
+        formula = computed.get(col, np.zeros(n, bool))
         x = df[col].to_numpy(dtype=float)
         sd, st = spread(x) or 1.0, None  # st: column_stats, built on the first breach only
         # a value repeated in >= 0.1% of rows (and 5+ times) is a tariff/category (JFK rate code 2, the 5.76 toll),
@@ -250,14 +282,28 @@ def limits_detector(df, column_types, limits, typos_only=False, listing=False, q
             a, b = sorted((mid, v * v / mid if 0 < v < med else 2 * v - mid))
             return np.searchsorted(sv, b, "right") - np.searchsorted(sv, a, "left") - cnt[np.searchsorted(vals, v)] >= crowd
 
+        def company(v, lim):
+            """Other values past lim within NEAR of v's distance from the median, its own copies left out (common holds
+            those). Of the distance, never of v: 10% of a year 2084 is every year since 1876. Past the limit too: an age of
+            -1 has 0, 1 and 2 near it, inside the limits, and no company. Different values: an age of 936 beside two of 1024
+            is one more slip, not a crowd. Below the median of a positive column, on the ratio scale: room and board of 30
+            beside 76.4 (median 10,000) are two slips."""
+            d = NEAR * abs(v - med)
+            a, b = (v / (med / v) ** NEAR, v * (med / v) ** NEAR) if 0 < v < med else (v - d, v + d)  # a low positive one on the ratio scale, as in_tail
+            lo = np.searchsorted(sv, max(a, lim), "right") if v > lim else np.searchsorted(sv, a, "left")
+            hi = np.searchsorted(sv, min(b, lim), "left") if v < lim else np.searchsorted(sv, b, "right")
+            return len(np.unique(sv[lo:hi])) - 1
+
         for i, v in enumerate(x):
-            if np.isnan(v):
+            if np.isnan(v) or formula[i]:
                 continue
             weird, fix = _crossed(v, w_lo, w_hi), None
+            if weird is not None and mirrored(i, j, v):  # a counter-entry: past its limit, but no slip
+                weird = None
             said_before = len(r["reasons"][i]) + len(r["alone_reasons"][i]) + len(r["held_reasons"][i])
             # past the usual limit, alone, with an exact x10/x100 behind it: a typo, even under a skewed column's wide
             # weird limit (First Response 430 hrs for 4.3 by a median 4.9 - blind bench, 3 of 3 seeds only noted)
-            if weird is None and v not in common and _crossed(v, b_lo, b_hi) is not None and not in_tail(v):
+            if weird is None and v not in common and _crossed(v, b_lo, b_hi) is not None and not in_tail(v) and not mirrored(i, j, v):
                 if (fix := likely_value(v, st := st or column_stats(x), b_lo, b_hi)) is not None:
                     weird = _crossed(v, b_lo, b_hi)
             # the row adds up with this value in it (TotalComp = AnnualSalary + Bonus, Line Total = Qty x Unit Price): any
@@ -270,8 +316,11 @@ def limits_detector(df, column_types, limits, typos_only=False, listing=False, q
                 if not typos_only:
                     r["held_reasons"][i].append(Why(f"{col} {say(v)} is {'above' if v > weird else 'below'} its usual limit of {weird:g}, "
                                                     f"but the row adds up ({rule}): worth a check", col))
-            elif v not in common and (lim := weird) is not None and not in_tail(v):
-                fix = fix if fix is not None else likely_value(v, st := st or column_stats(x), b_lo, b_hi)
+            elif v not in common and (lim := weird) is not None and not in_tail(v) and not (
+                    (fix := fix if fix is not None else likely_value(v, st := st or column_stats(x), b_lo, b_hi)) is None
+                    and not (v < 0 and rare_minus) and sd >= SCALED * abs(med) and company(v, weird) >= 2):
+                # three payrolls near 55,000 past a limit of 30,000: the column's own amount
+                st = st or column_stats(x)
                 negative = v < 0 and st["nonneg"] >= 0.95 * (st["n"] - 1)  # a minus sign in a column that has none
                 if typos_only and fix is None and not negative:  # basics: an obvious typo or a stray minus sign
                     continue
