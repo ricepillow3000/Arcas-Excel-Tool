@@ -1216,8 +1216,11 @@ const done = async ({ ctx, problems, outside }, label, allowed = []) => {
   // AH-199: the loop above never opens a detail box, and rows 11 and 22's arithmetic (`.nb`, nowrap since AH-148) pushed
   // the page 131 px sideways at 320 px with text at 200%. Every box opened there leaves the page its width, cuts no word or
   // number in two ("15476.23" was "15476.2" over "3" beside the 112 px label) and starts no line with a comma; at 100% text
-  // (390 and 1280 px) each box keeps its two columns, so it is no taller. AH-148's part 5 keeps each sum on one line there
-  for (const [width, size] of [[320, "200%"], [390, "100%"], [1280, "100%"]]) {
+  // (390 and 1280 px) each box keeps its two columns, so it is no taller. AH-148's part 5 keeps each sum on one line there.
+  // AH-200: the box's head too: "Close" broke as "Clos" over "e" on any phone, and at 200% Accept, held to 44 px, spilled
+  // its word 27 px onto the title. No word in the box cut in two, no button's word outside its button, nothing in the
+  // head on top of anything else
+  for (const [width, size] of [[320, "200%"], [320, "100%"], [390, "100%"], [1280, "100%"]]) {
     const t = await open("index.html", { width, height: 800, motion: "reduce" });
     const p = t.page;
     await p.evaluate((size) => { document.documentElement.style.fontSize = size; }, size);
@@ -1226,18 +1229,23 @@ const done = async ({ ctx, problems, outside }, label, allowed = []) => {
       await p.click(`.rowbtn[aria-controls="${m}"]`);
       await p.waitForTimeout(100);
       const r = await p.evaluate((m) => {
-        const dl = document.querySelector(`#${m} dl`), cut = [], comma = [], walk = document.createTreeWalker(dl, NodeFilter.SHOW_TEXT);
+        const box = document.getElementById(m), dl = box.querySelector("dl"), cut = [], comma = [];
         const top = (n, a, b) => { const g = document.createRange(); g.setStart(n, a); g.setEnd(n, b); return [...g.getClientRects()].map((x) => Math.round(x.top)); };
-        for (let n, last = null; (n = walk.nextNode()); last = n) {
+        for (const root of [box.querySelector(".m-head"), dl]) for (let n, last = null, walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT); (n = walk.nextNode()); last = n) {
           for (const w of n.data.matchAll(/\S+/g)) if (new Set(top(n, w.index, w.index + w[0].length)).size > 1) cut.push(w[0]);
           if (/^[,.:;]/.test(n.data) && last && last.data.length && top(n, 0, 1)[0] > top(last, last.data.length - 1, last.data.length)[0]) comma.push(n.data);
         }
-        return { over: document.documentElement.scrollWidth - document.documentElement.clientWidth, cut, comma, columns: getComputedStyle(dl).gridTemplateColumns.split(" ").length };
+        const head = [...box.querySelector(".m-head").children].map((e) => e.getBoundingClientRect());
+        const spill = [...box.querySelectorAll(".m-head button")].filter((b) => { const g = document.createRange(), r = b.getBoundingClientRect(); g.selectNodeContents(b); const w = g.getBoundingClientRect(); return w.left < r.left - 1 || w.right > r.right + 1; }).map((b) => b.textContent);
+        const overlap = head.some((a, i) => head.some((b, j) => j > i && Math.min(a.right, b.right) - Math.max(a.left, b.left) > 1 && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 1));
+        return { over: document.documentElement.scrollWidth - document.documentElement.clientWidth, cut, comma, spill, overlap, columns: getComputedStyle(dl).gridTemplateColumns.split(" ").length };
       }, m);
       const at = `AH-199 index.html at ${width}px, text ${size}, ${m} open`;
       if (r.over > 0) short.push(`${at}: scrolls ${r.over} px sideways`);
       if (r.cut.length) short.push(`${at}: ${JSON.stringify(r.cut)} cut in two`);
       if (r.comma.length) short.push(`${at}: a line starts with ${JSON.stringify(r.comma)}`);
+      if (r.spill.length) short.push(`AH-200 ${at.slice(7)}: ${JSON.stringify(r.spill)} spills out of its button`);
+      if (r.overlap) short.push(`AH-200 ${at.slice(7)}: the head's title and buttons lie on each other`);
       if (size === "100%" && r.columns !== 2) short.push(`${at}: its labels sit over their values (${r.columns} column), a taller box`);
       await p.keyboard.press("Escape");
     }
