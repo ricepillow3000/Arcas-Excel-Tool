@@ -42,11 +42,12 @@
       email: "email", mailCut: "mail-cut",
       mail: (v) => mailto("[Support]: " + v("summary"), [`Topic: ${v("topic")}`, `Engine version: ${v("version")}`], v("details")) },
     { form: "note", missing: "c-missing", result: "c-result", ready: "c-ready", cut: "c-cut", open: "c-open", next: "thanks.html",
-      // AH-192: an issue's title is what GitHub's lists and search engines show, so it names the topic, never the person
-      needed: [["c-name", "a name"], ["c-message", "a message"], ["c-public", "the box that says your name and message will be public"]],
+      // AH-192: an issue's title is what GitHub's lists and search engines show, so it names the topic, never the person.
+      // AH-197: the name is optional, the one field that names a person in public (legal review item 7)
+      needed: [["c-message", "a message"], ["c-public", "the box that says what you type will be public"]],
       link: (v) => prefilled("contact.yml", [["title", `[Contact]: ${v("c-topic")}`], ["name", v("c-name")], ["topic", v("c-topic")]], ["message", v("c-message")]),
       email: "c-email", mailCut: "c-mail-cut",
-      mail: (v) => mailto(`[Contact]: ${v("c-topic")}`, [`Name: ${v("c-name")}`, `Topic: ${v("c-topic")}`], v("c-message")) },
+      mail: (v) => mailto(`[Contact]: ${v("c-topic")}`, [v("c-name") && `Name: ${v("c-name")}`, `Topic: ${v("c-topic")}`].filter(Boolean), v("c-message")) },
   ];
 
   function wire(root, F) {

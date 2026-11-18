@@ -417,10 +417,15 @@ for (const f of SCRIPTS) {
   const sjs = read("support.js");
   assert.ok(sjs.includes(`"${REPO}/issues/new?template="`) && sjs.includes('prefilled("contact.yml", [["title", ') && sjs.includes('["name", v("c-name")], ["topic", v("c-topic")]], ["message", v("c-message")])'), "support.js does not build the contact issue's link from its name, topic and message");
   // AH-192: a public issue's title is what search engines and GitHub's lists show, so it carries the topic, never the
-  // name; and the visitor ticks a box that says their name and message will be public before anything is built
+  // name; and the visitor ticks a box that says what they type will be public before anything is built
   assert.ok(sjs.includes('["title", `[Contact]: ${v("c-topic")}`]') && !/from \$\{v\("c-name"\)\}/.test(sjs), "support.js still puts the name in the contact issue's title");
-  assert.ok(sjs.includes('["c-public", "the box that says your name and message will be public"]'), "support.js does not require the contact form's public box");
-  assert.ok(/<label class="confirm"><input id="c-public" type="checkbox" required><span>I understand my name and message will be public on GitHub\.<\/span><\/label>\s*<div class="form-actions">/.test(card), "the contact form has no required box saying the name and message will be public");
+  // AH-197 (legal review item 7): the name is the one field that names a person in public and nothing needs it, so it is
+  // optional on the page, in support.js and in the issue form (GitHub refuses an issue missing a required field), and
+  // the box says what is typed will be public
+  assert.ok(card.includes('<label for="c-name">Name (optional)</label>\n            <input id="c-name" name="name" type="text" maxlength="80" autocomplete="name">'), "the contact form's name is not an optional field labelled Name (optional)");
+  assert.ok(sjs.includes('needed: [["c-message", "a message"], ["c-public", "the box that says what you type will be public"]],'), "support.js does not need exactly the contact form's message and public box");
+  assert.ok(/\n  - type: input\n    id: name\n    attributes:\n      label: Name\n    validations:\n      required: false\n/.test(yml.replace(/\r\n/g, "\n")), "contact.yml still requires a name");
+  assert.ok(/<label class="confirm"><input id="c-public" type="checkbox" required><span>I understand what I type here will be public on GitHub\.<\/span><\/label>\s*<div class="form-actions">/.test(card), "the contact form has no required box saying what is typed will be public");
   // the thank-you page: says where the message is, that it is public there, the reply time, and leads back
   const thanks = text((/<main[\s\S]*<\/main>/.exec(html["thanks.html"]) || [""])[0]);
   // AH-135: GitHub names its button Create, not Submit, and may first ask to sign in: the page says what a person meets
@@ -726,6 +731,13 @@ function woff2(file) {
   const heads = [...html["checks.html"].matchAll(/<tr class="reveal-item"><th scope="row"><span class="rule" aria-hidden="true"><\/span>([^<]+)<\/th>/g)].map((m) => m[1].replace(/&#39;|&apos;/g, "'"));
   for (const name of [...checks.matchAll(/<h3>([^<]+)<\/h3>/g)].map((m) => m[1])) assert.ok(heads.some((h) => h === name || h.startsWith(name + " ")), `checks.html has no row for the home page's "${name}": ${heads}`);
   assert.ok(/<h1 [^>]*id="checks-title"[^>]*>Every check Arcas runs<\/h1>/.test(html["checks.html"]) && !/<h2\b/.test((/<main[\s\S]*<\/main>/.exec(html["checks.html"]) || [""])[0]), "checks.html: the h1 is not the table's one heading");
+  // AH-196 (John, 2026-11-18): the Fairness note is one line under the table, word for word, never in a row: inside the
+  // Fairness row (#123) it took the table from 866 to 923 px, past the 1440 x 900 screen its nine rows fit
+  const FAIR_NOTE = "This is a data-quality signal, not a legal or compliance finding about discrimination: it says whether the numbers in this sheet look even, and nothing about whether anything is fair or lawful.";
+  const everyCheck = (/<section\b[^>]*\sid="every-check"[\s\S]*?<\/section>/.exec(html["checks.html"]) || [""])[0], end = everyCheck.indexOf("</table>");
+  const under = everyCheck.slice(end + 8).trimStart(), noteTag = /^<p [^>]*>/.exec(under); // compared as text: a RegExp built from a string is what Semgrep refuses
+  assert.ok(end > 0 && !everyCheck.slice(0, end).includes("data-quality signal") && !!noteTag && under.slice(noteTag[0].length).startsWith(FAIR_NOTE + "</p>") && html["checks.html"].split(FAIR_NOTE).length === 2,
+    "checks.html: the Fairness note is not one line right under the checks table, outside its rows");
   // every page's "Checks" goes to checks.html (the 404 page root-absolute)
   for (const p of PAGES) assert.ok(/<nav class="links"[^>]*>[\s\S]*?<a href="checks\.html"( aria-current="page")?>Checks<\/a>/.test(html[p]), `${p}: the bar's Checks is not checks.html`);
   assert.ok(read(MISSING).includes(`<a href="${ROOT_PATH}checks.html">Checks</a>`), "404.html: the bar's Checks is not checks.html");
@@ -1055,10 +1067,10 @@ const done = async ({ ctx, problems, outside }, label, allowed = []) => {
   const want = (ok, what) => { if (!ok) miss.push(what); };
   const { contrastProblems } = await import(pathToFileURL(path.join(SITE, "..", "e2e", "contrast.mjs")).href);
   const stub = (r) => r.fulfill({ status: 200, contentType: "text/html", body: "<!doctype html><title>GitHub stand-in</title><p>new issue</p>" });
-  const contact = async ({ width, motion, blocked = false, message = "It stops at row 3000.\nWhat now? & = + % # ?" }) => {
+  const contact = async ({ width, motion, blocked = false, message = "It stops at row 3000.\nWhat now? & = + % # ?", name = '"><img src=x onerror=alert(1)> Ana' }) => {
     const t = await open("index.html", { width, height: 844, motion, init: blocked ? () => { window.open = () => null; } : null,
       setup: (p) => p.context().route(/^https:\/\/github\.com\//, stub) });
-    const p = t.page, label = `AH-133 contact at ${width}px (${motion}${blocked ? ", tab blocked" : ""})`;
+    const p = t.page, label = `AH-133 contact at ${width}px (${motion}${blocked ? ", tab blocked" : ""}${name ? "" : ", no name"})`;
     const popups = [];
     t.ctx.on("page", (q) => popups.push(q));
     if (motion !== "reduce") await p.waitForTimeout(ENTERED);
@@ -1067,18 +1079,18 @@ const done = async ({ ctx, problems, outside }, label, allowed = []) => {
     await p.waitForFunction(() => { const r = document.getElementById("contact").getBoundingClientRect(); return r.top > -1 && r.top < innerHeight / 2 && !(window.AH && window.AH.gliding()); }, null, { timeout: 5000 })
       .catch(() => want(false, `${label}: Contact John did not bring the form to the screen`));
     await p.evaluate(() => { window.__kept = "same document"; });
-    // an empty send: focus on the first missing field, each missing field marked and described, the message beside it
+    // an empty send: focus on the first missing field, each missing field marked and described, the message beside it;
+    // the name is optional (AH-197), so it is never marked
     await p.click('#note button[type="submit"]');
     const look = () => p.evaluate(() => { const m = document.getElementById("c-missing"), r = m.getBoundingClientRect();
       return { focus: document.activeElement.id, text: m.hidden ? "" : m.textContent, shown: !m.hidden && r.top >= 0 && r.bottom <= innerHeight,
         invalid: ["c-name", "c-message", "c-public"].filter((id) => document.getElementById(id).getAttribute("aria-invalid") === "true").join(),
         described: ["c-name", "c-message", "c-public"].filter((id) => document.getElementById(id).getAttribute("aria-describedby") === "c-missing").join() }; });
     const e = await look();
-    want(JSON.stringify(e) === JSON.stringify({ focus: "c-name", text: "Please add a name, a message, the box that says your name and message will be public.", shown: true, invalid: "c-name,c-message,c-public", described: "c-name,c-message,c-public" }), `${label}: an empty send ${JSON.stringify(e)}`);
+    want(JSON.stringify(e) === JSON.stringify({ focus: "c-message", text: "Please add a message, the box that says what you type will be public.", shown: true, invalid: "c-message,c-public", described: "c-message,c-public" }), `${label}: an empty send ${JSON.stringify(e)}`);
     if (motion === "reduce") { const bad = await p.evaluate(contrastProblems); want(!bad.length, `${label}: contrast with the message shown ${JSON.stringify(bad)}`); }
     // typed with the keyboard, as a person types (a DOM0 handler once swallowed every key, CLAUDE.md)
-    const name = '"><img src=x onerror=alert(1)> Ana';
-    await p.keyboard.type(name);
+    if (name) { await p.focus("#c-name"); await p.keyboard.type(name); }
     await p.selectOption("#c-topic", "An idea");
     await p.focus("#c-message"); await p.fill("#c-message", message);
     await p.check("#c-public");
@@ -1118,6 +1130,7 @@ const done = async ({ ctx, problems, outside }, label, allowed = []) => {
   await contact({ width: 1280, motion: "no-preference" });
   await contact({ width: 1280, motion: "reduce", blocked: true });
   await contact({ width: 390, motion: "reduce", message: "😀🧾".repeat(500) }); // 2,000 characters of emoji: cut to fit
+  await contact({ width: 390, motion: "reduce", name: "" }); // AH-197: no name, still sent
   // the photo: not fetched at the top of the page; near the screen, the 240 px file on a 1x screen and the 480 px one on
   // a 2x screen, in the 240 x 300 box it had before it came (no layout shift)
   // (on a phone 400 px tall since AH-159: the shorter page brought the photo to 2,036 px on a computer and 3,700 px on a
@@ -1178,11 +1191,14 @@ const done = async ({ ctx, problems, outside }, label, allowed = []) => {
     if (a) { window.__mail.push(e.defaultPrevented ? "stopped" : a.href); e.preventDefault(); } }); };
   for (const [file, width, fill, id, missing, subject, body, cutId] of [
     ["index.html", 390, async (p, long) => { await p.fill("#c-name", "Ana & Bo"); await p.selectOption("#c-topic", "A problem"); await p.fill("#c-message", long ? "😀🧾".repeat(1500) : "It stops at row 3000.\nWhat now? & = + % # ?"); await p.check("#c-public"); },
-      "c-email", "Please add a name, a message, the box that says your name and message will be public.", "[Contact]: A problem", "Name: Ana & Bo\r\nTopic: A problem\r\n\r\nIt stops at row 3000.\r\nWhat now? & = + % # ?", "c-mail-cut"],
+      "c-email", "Please add a message, the box that says what you type will be public.", "[Contact]: A problem", "Name: Ana & Bo\r\nTopic: A problem\r\n\r\nIt stops at row 3000.\r\nWhat now? & = + % # ?", "c-mail-cut"],
+    // AH-197: the name is optional, and an email with none has no empty "Name:" line
+    ["index.html", 390, async (p, long) => { await p.selectOption("#c-topic", "A problem"); await p.fill("#c-message", long ? "😀🧾".repeat(1500) : "It stops at row 3000."); await p.check("#c-public"); },
+      "c-email", "Please add a message, the box that says what you type will be public.", "[Contact]: A problem", "Topic: A problem\r\n\r\nIt stops at row 3000.", "c-mail-cut"],
     ["support.html", 1280, async (p, long) => { await p.fill("#summary", "Scan stops"); await p.fill("#version", "v0.1.102"); await p.fill("#details", long ? "😀🧾".repeat(1500) : "Line 1\nline 2 & ?"); await p.check("#clean"); },
       "email", "Please add a short summary, what happened, the box that says it contains no key or private data.", "[Support]: Scan stops", "Topic: Something isn't working\r\nEngine version: v0.1.102\r\n\r\nLine 1\r\nline 2 & ?", "mail-cut"]]) {
     const t = await open(file, { width, motion: "reduce", init: catcher });
-    const p = t.page, label = `AH-135 Email John instead on ${file} at ${width}px`;
+    const p = t.page, label = `AH-135 Email John instead on ${file} at ${width}px${body.startsWith("Topic: A problem") ? ", no name" : ""}`;
     const look = () => p.evaluate(([m, c]) => ({ mail: window.__mail.slice(), at: location.pathname, focus: document.activeElement.id, missing: document.getElementById(m).hidden ? "" : document.getElementById(m).textContent,
       cut: !document.getElementById(c).hidden, result: !document.getElementById(m === "missing" ? "result" : "c-result").hidden }), [file === "index.html" ? "c-missing" : "missing", cutId]);
     await p.click("#" + id);
@@ -3387,7 +3403,7 @@ console.log(`page transitions: ${measured.moving} ms of motion on screen (${meas
   }
   // (d) the measure at 1440: no line of running text holds more than 75 letters (the questions' answers, the steps'
   // aside, the checks' second column, the privacy and terms pages' text and table), counted per rendered line
-  for (const [file, sel] of [["index.html", ".faq .a p, .faq .a li, .steps .aside, .check-file p, .check-list p, .maker-text p, .proof-note"], ["checks.html", ".checks-table tbody td:not(.in-sample)"], ["cases.html", ".case p, .case li"], ["privacy.html", ".prose p, .prose li, .card td"], ["terms.html", ".prose p, .prose li"], ["support.html", ".faq .a p, .faq .a li, #it dd"]]) {
+  for (const [file, sel] of [["index.html", ".faq .a p, .faq .a li, .steps .aside, .check-file p, .check-list p, .maker-text p, .proof-note"], ["checks.html", ".checks-table tbody td:not(.in-sample), #every-check .proof-note"], ["cases.html", ".case p, .case li"], ["privacy.html", ".prose p, .prose li, .card td"], ["terms.html", ".prose p, .prose li"], ["support.html", ".faq .a p, .faq .a li, #it dd"]]) {
     const t = await open(file, { width: 1440, height: 900, motion: "reduce" });
     const p = t.page;
     await p.evaluate(() => document.fonts.ready);

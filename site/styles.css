@@ -236,7 +236,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .band-dark { background: var(--grain-dark), var(--grid-dark), var(--dark); color: var(--on-dark-2); border-top-color: var(--dark); overflow-x: clip; } /* a heading lying face down (.lift) reaches past the screen's edge in perspective: never a sideways scroll */
 .band-dark h2, .band-dark h3 { color: var(--on-dark); }
 .band-dark .label, .band-dark .fact { color: var(--gold-hi); }
-.band-dark .sec-lede { color: var(--on-dark-2); }
+.band-dark :is(.sec-lede, .proof-note) { color: var(--on-dark-2); }
 /* AH-193: checks.html opened on its heading, a lede and an empty navy field (the lede alone on row 1, the fact alone on
    row 2, the table at 846 px of 800): fact and lede share a row and the band starts closer, so a check is on the first screen */
 @media (min-width: 761px) { #every-check { padding-top: var(--s5); } #every-check .fact { grid-row: 1; } }
