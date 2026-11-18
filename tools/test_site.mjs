@@ -528,7 +528,7 @@ for (const f of SCRIPTS) {
   // the home page's questions: how to tell which Excel you have, and what leaves the PC, in plain words
   const faq = sections["faq"] || "";
   assert.ok(text(faq).includes("To check, open Excel and click File > Account. If it says Microsoft 365 under Product information, you have the right Excel. Click About Excel: the first line ends with 64-bit or 32-bit."), "the FAQ does not say how to check which Excel you have");
-  assert.ok(text(faq).includes("No, not when it checks your sheet. Arcas does all its checking on your own computer and sends nothing. Part of your sheet leaves your computer only when you click Ask AI or Check words with AI. Then it goes to Google, through John's own server first unless you saved your own Google key. The privacy page lists exactly what goes."), "the FAQ's data answer");
+  assert.ok(text(faq).includes("No, not when it checks your sheet. Arcas does all its checking on your own computer and sends nothing. Part of your sheet leaves your computer only when you click Ask AI, Check words with AI or Check subject rules with AI. Then it goes to Google, through John's own server first unless you saved your own Google key. The privacy page lists exactly what goes."), "the FAQ's data answer");
   // a phone can't install it: said under the hero's download, on narrow screens only
   // ... with the same email to oneself (AH-171): a shared link mostly opens on a phone, where it was a dead end
   const phoneLine = /<div class="hero-cta">[\s\S]*?<\/div>\s*<p class="phone-only">Arcas runs on a Windows computer\. Open this page on that computer to download it, or <a href="([^"]+)">email yourself the link<\/a>\.<\/p>/.exec(home);

@@ -28,6 +28,7 @@ from werkzeug.serving import WSGIRequestHandler
 from anomaly_hunter import powerbi, sealed
 from anomaly_hunter.agents import checker, scan_agent
 from anomaly_hunter.ai import care, client
+from anomaly_hunter.engine import rules
 from anomaly_hunter.engine.load import load_from_records
 from anomaly_hunter.engine.pipeline import knobs
 from anomaly_hunter.engine.profile import profile
@@ -357,6 +358,24 @@ def create_app(scan_csv=None):
             hits, partial = client.odd_text(values)
             return {"odd": [{"row": int(i), "col": list(df.columns).index(h["column"]), **h}
                             for h in hits for i in df.index[cells[h["column"]] == h["value"]]], "partial": partial}
+        return ai(found)
+
+    @app.post("/rules")
+    def rules_route():
+        """AH-202: optional AI subject rules. Only the sheet's own headers and each column's kind (number, date, text,
+        id) go to the AI, never a cell; every rule it names is checked here on every row (engine/rules.py)."""
+        body = request.get_json(silent=True)
+        if err := _bad(body):
+            return {"error": err}, 400
+        df, types, _ = load_from_records(body["columns"], body["rows"])
+        heads = rules.headers(body["columns"])
+        if not heads:
+            return {"rules": [], "rows": [], "sent": 0, "headers": 0}
+
+        def found():
+            asked, sent = client.subject_rules([(h, types[df.columns[j]]) for h, j in heads.items()])
+            checked, rows = rules.check(df, types, heads, asked)
+            return {"rules": checked, "rows": rows, "sent": sent, "headers": len(heads)}
         return ai(found)
 
     @app.post("/check")

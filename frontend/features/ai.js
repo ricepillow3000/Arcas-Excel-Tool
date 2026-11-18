@@ -21,6 +21,7 @@ export function setAi(on, provider = state.aiProvider) {
   show("ai-fold", state.aiAvailable);
   show("ai-off", !state.aiAvailable);
   show("odd-box", state.aiAvailable);
+  show("rules-box", state.aiAvailable);
   $("fix-ask").disabled = !state.aiAvailable || !!state.fix?.asking;
   keySaid(!state.aiAvailable ? "AI help is off. It's optional; fixes work without it."
     : state.aiProvider === "free" ? FREE_ON : "AI help is on.");
@@ -160,4 +161,36 @@ export function oddLines(odd, columns, startRow, startCol) {
     return `${where}. The AI says: ${w.why}`;
   });
   return lines.length > CAP ? [...lines.slice(0, CAP), `+ ${n(lines.length - CAP)} more words the AI found out of place.`] : lines;
+}
+
+// AH-202: Check subject rules with AI. The engine sends the AI only the sheet's headers and each column's kind, never a
+// cell; the AI names rules its subject makes true (Net = Debit − Credit) and the engine checks each on every row
+export async function checkRules() {
+  const { columns, rows, startRow, startCol } = state.lastScan;
+  const item = (text) => Object.assign(document.createElement("li"), { textContent: text }); // AI text is never HTML
+  busy("Asking the AI about your headers…");
+  counting();
+  try {
+    $("rules-list").replaceChildren(...rulesLines(await post("/rules", { columns, rows }, 300), columns, startRow, startCol).map(item));
+  } catch (e) {
+    $("rules-list").replaceChildren(Object.assign(item(plainError(e, "AI could not check")), { className: "notice" }));
+  }
+}
+
+// Pure: what /rules found, as lines. Each rule once, with what the sheet showed of it and the AI's why; after a rule
+// that holds, the rows against it, each by its sheet row and its cells' column letters and headers (never "Units.1"),
+// as oddLines names them. At most CAP lines
+export function rulesLines(out, columns, startRow, startCol) {
+  const col = (j) => `${colLetter(startCol + j)}${String(columns[j] ?? "").trim() ? ` (${columns[j]})` : ""}`;
+  const cells = (js) => (js.length === 1 ? `column ${col(js[0])}` : `columns ${js.slice(0, -1).map(col).join(", ")} and ${col(js.at(-1))}`);
+  const lines = out.sent < out.headers ? [`Only the first ${n(out.sent)} of ${n(out.headers)} column headers were sent.`] : [];
+  out.rules.forEach((r, k) => {
+    const why = ` The AI says: ${r.why}`;
+    if (r.total < 10) lines.push(`Too few rows to check: ${r.said} (${n(r.total)} rows).${why}`);
+    else if (!r.holds) lines.push(`Did not hold, so nothing was flagged: ${r.said} (true on ${n(r.held)} of ${n(r.total)} rows).${why}`);
+    else lines.push(`${r.held === r.total ? `True on all ${n(r.total)} rows` : `True on ${n(r.held)} of ${n(r.total)} rows`}: ${r.said}.${why}`);
+    for (const x of out.rows.filter((x) => x.rule === k)) lines.push(`Row ${n(startRow + x.row + 2)}, ${cells(x.cells)}: ${x.reason}`);
+  });
+  if (!out.rules.length) lines.push("The AI found no rules to check in your headers.");
+  return lines.length > CAP ? [...lines.slice(0, CAP), `+ ${n(lines.length - CAP)} more lines.`] : lines;
 }

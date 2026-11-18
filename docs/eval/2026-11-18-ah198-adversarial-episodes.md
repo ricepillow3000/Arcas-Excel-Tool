@@ -105,3 +105,30 @@ These are the general reasoning rules the engine now follows, in addition to the
 
 The episodes, keys, scanner and judge are in `backend/bench/adversarial/` so any later build can be scored the
 same way.
+
+## AH-202: John's choice 3, the AI checks subject rules (2026-11-18)
+John picked choice 3: send the AI only the column headers and whether each holds numbers, dates or text, never a
+cell. The AI proposes subject rules (a sum, a product, an order, a value that is 0 after a date, a parent that is
+the sum of its children). Arcas checks each one on every row on the PC, and only believes a rule that holds on 95% of
+10+ rows (an order on all but max(1, 0.1%), the bar of the scan's own date order). It is an opt-in button, Check
+subject rules with AI, and Find problems never calls it.
+
+Measured with John's own Google key, two runs each, the judge unchanged. A rule row counts as a flag only where the
+scan did not already flag that row. Episodes 4 and 5 are new and were never used to tune anything.
+
+| Episode | Without the rules step | With it (run 1, run 2) | What changed |
+|---|---|---|---|
+| 1 (training) | 69.0 | 69.0, 69.0 | nothing |
+| 2 (training) | 67.2 | 70.0, 70.0 | systolic and diastolic swapped, caught by "DBP is at most SBP" |
+| 3 (training) | -111.5 | -135.2, -135.2 | 1 more caught, 1 more valid cell flagged |
+| 4 (held out) | -2,523.0 | -2,523.0, -2,523.0 | every row a rule flagged, the scan had already flagged |
+| 5 (held out) | -5,934.5 | -5,957.2, -5,957.2 | 1 more caught (more tablets returned than dispensed), 1 more valid cell flagged |
+
+Result: on the held-out episodes the rules step adds 1 catch and 1 false cell, so it does not move the score toward
+98. The rules the AI proposes are mostly right (Net = Debit − Credit, payroll gross to net, Tablets taken =
+Dispensed − Returned), but the scan already catches most rows that break them. The misses that remain need rules
+across rows that the five shapes cannot say. The two runs gave the same rules.
+
+What hurts the held-out score is false alarms on new subjects (102 and 238 valid cells flagged), and the AI step
+cannot take a flag away. Episodes 4 and 5 are in `backend/bench/adversarial/` now, so they are no longer held out
+either.

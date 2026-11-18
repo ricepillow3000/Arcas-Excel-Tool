@@ -1,0 +1,431 @@
+{
+ "ae_listing": {
+  "domain": "Oncology phase II adverse-event listing: one row per adverse event per subject, MedDRA-coded (PT and SOC) and CTCAE-graded, with derived duration.",
+  "errors": [
+   {
+    "row": 150,
+    "cols": [
+     "Onset Date",
+     "Resolution Date"
+    ],
+    "kind": "resolution date before onset",
+    "domain_specific": true,
+    "proof": "Resolution Date 2026-02-03 is 6 days before Onset Date 2026-02-09; an event cannot end before it starts (Duration computes to -5)."
+   },
+   {
+    "row": 105,
+    "cols": [
+     "CTCAE Grade",
+     "Outcome"
+    ],
+    "kind": "grade 5 without a fatal outcome",
+    "domain_specific": true,
+    "proof": "CTCAE grade 5 means death related to the event, yet Outcome is Recovered/resolved."
+   },
+   {
+    "row": 395,
+    "cols": [
+     "System Organ Class (SOC)"
+    ],
+    "kind": "term coded to the wrong SOC",
+    "domain_specific": true,
+    "proof": "Febrile neutropenia is a Blood and lymphatic system disorders term (every other row with this term says so); it is coded to Cardiac disorders here."
+   },
+   {
+    "row": 57,
+    "cols": [
+     "System Organ Class (SOC)"
+    ],
+    "kind": "misspelt category",
+    "domain_specific": false,
+    "proof": "\"Gastrointestinal disoders\" is a misspelling of the SOC \"Gastrointestinal disorders\" used on every other row."
+   },
+   {
+    "row": 218,
+    "cols": [
+     "Duration (days)"
+    ],
+    "kind": "broken formula (wrong row)",
+    "domain_specific": false,
+    "proof": "Duration reads the row above (R[-1]) instead of its own Onset and Resolution dates, unlike every other row; its value does not match its own dates."
+   },
+   {
+    "row": 87,
+    "cols": [
+     "Ongoing (Y/N)"
+    ],
+    "kind": "ongoing flag contradicts resolution",
+    "domain_specific": true,
+    "proof": "Ongoing is Y but the event has a Resolution Date and Outcome Recovered/resolved."
+   },
+   {
+    "row": 295,
+    "cols": [
+     "Treatment-Emergent (Y/N)"
+    ],
+    "kind": "treatment-emergent flag wrong",
+    "domain_specific": true,
+    "proof": "Onset 2026-07-13 is after the First Dose Date 2026-01-21, so the event is treatment-emergent, yet the flag says N."
+   },
+   {
+    "row": 403,
+    "cols": [
+     "Site No"
+    ],
+    "kind": "digit slip",
+    "domain_specific": false,
+    "proof": "Subject 101-0090 belongs to site 101 (its ID prefix and all its other rows), but Site No reads 110 (digits transposed)."
+   }
+  ],
+  "traps": [
+   {
+    "row": 301,
+    "col": "Treatment-Emergent (Y/N)",
+    "why": "Onset is before the first dose, so the event is pre-treatment: Treatment-Emergent N and a negative Days Since First Dose are both correct."
+   },
+   {
+    "row": 63,
+    "col": "Resolution Date",
+    "why": "The event is ongoing at the data cut: a blank Resolution Date and a blank Duration are what an ongoing event must have."
+   },
+   {
+    "row": 50,
+    "col": "CTCAE Grade",
+    "why": "A grade 5 event is death: Outcome Fatal, Serious Y and a resolution date (the date of death) are all consistent, and \"Not related\" is a valid causality."
+   },
+   {
+    "row": 462,
+    "col": "Serious (Y/N)",
+    "why": "Seriousness (e.g. hospitalisation) is independent of CTCAE severity: a grade 1 event can be serious."
+   },
+   {
+    "row": 111,
+    "col": "AE Term (MedDRA PT)",
+    "why": "Same subject and same term as the row above, but a different onset date: a recurrent episode is recorded as a new adverse event, not a duplicate."
+   },
+   {
+    "row": 349,
+    "col": "Duration (days)",
+    "why": "Chemotherapy-induced neuropathy often lasts more than a year: a 420-day duration with sequelae is a valid extreme."
+   }
+  ]
+ },
+ "payroll_register": {
+  "domain": "US biweekly payroll register for pay periods 17-24 of 2026: one row per employee per pay period, gross-to-net with FICA wage-base rules.",
+  "errors": [
+   {
+    "row": 495,
+    "cols": [
+     "Net Pay"
+    ],
+    "kind": "net pay not gross minus deductions",
+    "domain_specific": true,
+    "proof": "Net Pay is a typed number (no formula) that differs from Gross Pay minus Total Deductions on the same row."
+   },
+   {
+    "row": 241,
+    "cols": [
+     "Social Security (6.2% up to $184,500 YTD)"
+    ],
+    "kind": "social security past the wage base",
+    "domain_specific": true,
+    "proof": "YTD gross before the period is 188,846.11, over the $184,500 wage base named in the header, yet 6.2% of the full gross is withheld; it should be 0."
+   },
+   {
+    "row": 125,
+    "cols": [
+     "Overtime Pay (1.5x)"
+    ],
+    "kind": "broken formula (overtime at straight time)",
+    "domain_specific": true,
+    "proof": "Overtime Pay (1.5x) is computed as hours x rate without the 1.5 factor every other row uses."
+   },
+   {
+    "row": 499,
+    "cols": [
+     "Medicare (1.45% + 0.9% over $200,000 YTD)"
+    ],
+    "kind": "digit slip",
+    "domain_specific": false,
+    "proof": "Medicare is not 1.45% of Gross Pay (YTD is under $200,000): two digits are transposed."
+   },
+   {
+    "row": 511,
+    "cols": [
+     "Total Deductions"
+    ],
+    "kind": "circular reference",
+    "domain_specific": false,
+    "proof": "Total Deductions sums RC[-6]:RC, a range that includes its own cell; the value shows 0 and Net Pay equals Gross Pay."
+   },
+   {
+    "row": 297,
+    "cols": [
+     "Department"
+    ],
+    "kind": "misspelt category",
+    "domain_specific": false,
+    "proof": "\"Engineerng\" is a misspelling of Engineering, the department on all the employee's other rows."
+   },
+   {
+    "row": 114,
+    "cols": [
+     "Regular Hours"
+    ],
+    "kind": "digit slip (extra zero)",
+    "domain_specific": true,
+    "proof": "Regular Hours 800 in a two-week period: a biweekly period has only 336 hours and every other row is at most 80."
+   },
+   {
+    "row": 185,
+    "cols": [
+     "Hourly Rate"
+    ],
+    "kind": "digit slip",
+    "domain_specific": false,
+    "proof": "Hourly Rate 20.05 in one period while the same employee is paid 20.50 in every other period (digits transposed)."
+   }
+  ],
+  "traps": [
+   {
+    "row": 506,
+    "col": "Social Security (6.2% up to $184,500 YTD)",
+    "why": "YTD gross before the period (227,692.24) is already over the $184,500 Social Security wage base, so no Social Security is withheld: 0 is correct."
+   },
+   {
+    "row": 207,
+    "col": "Social Security (6.2% up to $184,500 YTD)",
+    "why": "The employee crosses the $184,500 wage base in this period, so Social Security is 6.2% of only the part of gross below the base, less than 6.2% of gross."
+   },
+   {
+    "row": 346,
+    "col": "Medicare (1.45% + 0.9% over $200,000 YTD)",
+    "why": "Year-to-date wages pass $200,000, so the 0.9% Additional Medicare Tax applies on top of 1.45%: Medicare above 1.45% of gross is correct."
+   },
+   {
+    "row": 590,
+    "col": "Bonus / Adjustment",
+    "why": "A negative adjustment is a recovery of an earlier overpayment; gross pay still equals regular + overtime + adjustment."
+   },
+   {
+    "row": 531,
+    "col": "Regular Pay",
+    "why": "Salaried employees are paid annual salary / 26 per biweekly period: a different formula from hourly rows, used by every salaried row."
+   },
+   {
+    "row": 280,
+    "col": "Federal Income Tax",
+    "why": "This employee claims exemption from federal withholding (every period is 0); zero federal tax is valid."
+   }
+  ]
+ },
+ "import_entries": {
+  "domain": "UK import customs entries, Sep-Nov 2026: one row per entry line, multi-currency invoices converted at the month's customs rate, UK Global Tariff duty, preferences and import VAT.",
+  "errors": [
+   {
+    "row": 187,
+    "cols": [
+     "Customs Duty (GBP)"
+    ],
+    "kind": "duty not value x rate",
+    "domain_specific": true,
+    "proof": "Customs Duty is a typed number one tenth of Customs Value x 12% (no formula, unlike every other line)."
+   },
+   {
+    "row": 285,
+    "cols": [
+     "Exchange Rate (currency units per GBP)"
+    ],
+    "kind": "exchange rate inverted",
+    "domain_specific": true,
+    "proof": "USD rate 0.7469 is GBP per USD; every other USD line that month uses 1.3388 USD per GBP, as the header asks, so the customs value is inflated."
+   },
+   {
+    "row": 222,
+    "cols": [
+     "Import VAT (GBP)"
+    ],
+    "kind": "import VAT base excludes duty",
+    "domain_specific": true,
+    "proof": "Import VAT is charged on customs value + duty; this line's formula leaves the duty out (=ROUND(RC[-4]*RC[-1]/100,2)) unlike every other line."
+   },
+   {
+    "row": 335,
+    "cols": [
+     "Preference Claimed (Y/N)",
+     "Duty Rate (%)"
+    ],
+    "kind": "preference claimed without a trade agreement",
+    "domain_specific": true,
+    "proof": "The UK has no preferential trade agreement with China, so no preference can be claimed and the full tariff rate is due."
+   },
+   {
+    "row": 417,
+    "cols": [
+     "Country of Origin"
+    ],
+    "kind": "misspelt category",
+    "domain_specific": false,
+    "proof": "\"Germnay\" is a misspelling of Germany."
+   },
+   {
+    "row": 376,
+    "cols": [
+     "Duty Rate (%)"
+    ],
+    "kind": "wrong tariff rate for the commodity code",
+    "domain_specific": true,
+    "proof": "Commodity code 6109100010 is charged 12% on every other non-preferential line; this line says 2% (a dropped digit)."
+   },
+   {
+    "row": 258,
+    "cols": [
+     "Total Payable (GBP)"
+    ],
+    "kind": "circular reference",
+    "domain_specific": false,
+    "proof": "Total Payable adds its own cell (=RC[-3]+RC[-1]+RC); it shows 0 instead of duty + VAT."
+   },
+   {
+    "row": 395,
+    "cols": [
+     "VAT Rate (%)"
+    ],
+    "kind": "standard VAT on a zero-rated good",
+    "domain_specific": true,
+    "proof": "Printed books (4901) are zero-rated for UK VAT, as every other book line shows; this one charges 20%."
+   }
+  ],
+  "traps": [
+   {
+    "row": 275,
+    "col": "Duty Rate (%)",
+    "why": "Italy has a UK trade agreement, but no preference is claimed on this line (no proof of origin), so the full tariff rate is due: valid."
+   },
+   {
+    "row": 422,
+    "col": "Exchange Rate (currency units per GBP)",
+    "why": "The invoice is in sterling, so the exchange rate is exactly 1."
+   },
+   {
+    "row": 312,
+    "col": "Import VAT (GBP)",
+    "why": "Printed books are zero-rated for UK VAT and duty-free: 0 import VAT is correct."
+   },
+   {
+    "row": 367,
+    "col": "Invoice Value",
+    "why": "Same goods, value and freight as the line above in the same entry: the invoice lists two identical consignment lines, which customs declares line by line."
+   },
+   {
+    "row": 32,
+    "col": "Invoice Value",
+    "why": "A rack-server consignment of USD 1.6 million is a valid extreme; the line's arithmetic holds and servers are duty-free."
+   }
+  ]
+ },
+ "costed_routing": {
+  "domain": "Machine-shop costed routings: one row per operation, setup + run time x work-center rate (or outside-processing price), rolled up to a cumulative cost per piece per part.",
+  "errors": [
+   {
+    "row": 337,
+    "cols": [
+     "Labour & Overhead Rate ($/h)"
+    ],
+    "kind": "wrong work-center rate",
+    "domain_specific": true,
+    "proof": "CNC Lathe costs $96/h on every other operation; this one uses $112/h (the 3-axis mill's rate)."
+   },
+   {
+    "row": 55,
+    "cols": [
+     "Run Time (h/pc)"
+    ],
+    "kind": "quantity in another unit",
+    "domain_specific": true,
+    "proof": "Run Time 2.8333 is the cycle time in minutes (170 s / 60), not hours (170 s / 3600 = 0.04722 h)."
+   },
+   {
+    "row": 190,
+    "cols": [
+     "Cumulative Cost per Piece ($)"
+    ],
+    "kind": "broken formula (wrong row)",
+    "domain_specific": false,
+    "proof": "Cumulative cost adds the row two above (=R[-2]C+RC[-1]) instead of the row above, skipping an operation's cost."
+   },
+   {
+    "row": 209,
+    "cols": [
+     "Operation Cost ($)"
+    ],
+    "kind": "circular reference",
+    "domain_specific": false,
+    "proof": "Operation Cost adds its own cell (=RC[-2]+RC[-1]+RC) and shows 0 instead of setup + run cost."
+   },
+   {
+    "row": 202,
+    "cols": [
+     "Op No"
+    ],
+    "kind": "operation number out of sequence",
+    "domain_specific": true,
+    "proof": "Operations run 10, 20, 30...; this row repeats Op No 50 of the row above instead of 60."
+   },
+   {
+    "row": 344,
+    "cols": [
+     "Work Center"
+    ],
+    "kind": "misspelt category",
+    "domain_specific": false,
+    "proof": "\"CNC Lahte\" is a misspelling of the work center CNC Lathe."
+   },
+   {
+    "row": 132,
+    "cols": [
+     "Lot Size (pcs)"
+    ],
+    "kind": "lot size differs within one routing",
+    "domain_specific": true,
+    "proof": "Every other operation of PLT-9284 runs a lot of 25; this one says 250, so its cost per piece is spread over pieces that are never made."
+   },
+   {
+    "row": 47,
+    "cols": [
+     "Cost per Piece ($)"
+    ],
+    "kind": "typed value over a formula (digit slip)",
+    "domain_specific": false,
+    "proof": "Cost per Piece is a typed number (no formula) that is not Operation Cost / Lot Size."
+   }
+  ],
+  "traps": [
+   {
+    "row": 112,
+    "col": "Run Cost ($)",
+    "why": "Outside-processing operations are bought per piece: Run Cost = vendor price x lot size, a second formula every outside-processing row uses, with no rate or cycle time."
+   },
+   {
+    "row": 206,
+    "col": "Setup Cost ($)",
+    "why": "The CMM program and fixture are already set up for this part, so setup time and setup cost are validly zero."
+   },
+   {
+    "row": 158,
+    "col": "Cost per Piece ($)",
+    "why": "A prototype built in a lot of 1 carries the whole setup cost on one piece: a very high cost per piece is correct."
+   },
+   {
+    "row": 89,
+    "col": "Cumulative Cost per Piece ($)",
+    "why": "The first operation of a part starts the running total: =RC[-1] instead of =R[-1]C+RC[-1], as on every part's first row."
+   },
+   {
+    "row": 193,
+    "col": "Cycle Time (s/pc)",
+    "why": "A 90-minute 5-axis cycle on a large housing is a valid extreme; Run Time is exactly 5400 s / 3600 = 1.5 h."
+   }
+  ]
+ }
+}

@@ -29,6 +29,15 @@ def test_the_spec_lists_every_route():
     assert spec == real
 
 
+def stub_rules(h):
+    """One rule of each kind over the headers h, as the AI's answer comes back (every field there)."""
+    empty = dict.fromkeys(("target", "first", "then", "value", "when", "after", "id", "parent")) | {"plus": [], "minus": [], "factors": []}
+    rule = lambda kind, **named: {**empty, "kind": kind, "why": "stub", **named}
+    return [rule("sum", target=h[0], plus=h[1:3], minus=h[3:4]), rule("product", target=h[0], factors=h[1:3]),
+            rule("order", first=h[0], then=h[-1]), rule("zero_after", value=h[0], when=h[-1], after=h[len(h) // 2]),
+            rule("rollup", value=h[0], id=h[-1], parent=h[len(h) // 2])]
+
+
 @schema.parametrize()
 @pytest.mark.filterwarnings("error::RuntimeWarning")  # odd maths (mean of nothing, overflow) surfaces as a 500 the fuzzer reports
 @settings(max_examples=int(os.environ.get("FUZZ_EXAMPLES", 40)), deadline=None, suppress_health_check=list(HealthCheck))
@@ -38,6 +47,8 @@ def test_no_input_breaks_the_engine(case, monkeypatch):
     monkeypatch.setattr(client, "api_key_configured", lambda: True)
     monkeypatch.setattr(client, "suggest_fix", lambda *a, **k: {"explanation": "stub", "changes": []})
     monkeypatch.setattr(client, "odd_text", lambda values: ([{"column": c, "value": v[0], "why": "stub"} for c, v in values.items()], False))
+    # AH-202: a rule of each kind over the headers sent, so the engine's own check of them is attacked too
+    monkeypatch.setattr(client, "subject_rules", lambda heads: (stub_rules([h for h, _ in heads]), len(heads)))
     response = case.call()
     assert response.status_code != 403, "the origin gate refused the attack - it would test nothing"
     case.validate_response(response, checks=[not_a_server_error, status_code_conformance, content_type_conformance,
