@@ -402,6 +402,7 @@ table.grid { width: 100%; border-collapse: collapse; font: 400 var(--fs--1)/1.3 
 /* each of the pane's reasons on its own line, as the pane shows them (AH-149: it joins them with a line break, under
    white-space: pre-line); index.html writes the break as a newline in the quote */
 .m-said { padding: 8px 12px; border-top: 1px solid var(--ink); background: var(--paper-2); color: var(--ink-2); white-space: pre-line; }
+.iso-date { white-space: nowrap; } /* AH-201: a date in the pane's words never breaks at its hyphen, as in the pane (AH-170): "2026-01-" over "09" at 390 px */
 .m-accept { margin-left: auto; min-height: 28px; padding: 6px 10px; } /* AH-171: the sample's Accept, beside Close in the box's head: under its words it made row 22's box too tall for a phone's sheet, and it lay on the row's cells */
 /* the scanning state, in the pane's own words; the after-fixes state is the sheet itself, corrected */
 .busy { min-height: 440px; display: grid; align-content: center; justify-items: start; gap: var(--s2); padding: var(--s5); }
