@@ -266,3 +266,6 @@ Adding or removing a check: update this table in the same commit.
   A class name on a new site element is grepped across `site/` first: the skip link's `.skip` was already the
   sample's separator rows' class and pulled all five out of the table (AH-87 fix round 1; `tools/test_site.mjs` checks
   those rows stay in place in every filter state).
+- Line endings are input too: `.gitattributes` named only `*.bat`, so a Windows checkout (core.autocrlf) wrote every
+  other file CRLF and `test_site.mjs` found none of contact.yml's field ids. Every text file checks out LF, install.bat
+  CRLF, the Chaos Dataset as its bytes (AH-186, `test_line_endings.py`).
