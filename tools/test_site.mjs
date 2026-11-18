@@ -420,6 +420,11 @@ for (const f of SCRIPTS) {
   // name; and the visitor ticks a box that says their name and message will be public before anything is built
   assert.ok(sjs.includes('["title", `[Contact]: ${v("c-topic")}`]') && !/from \$\{v\("c-name"\)\}/.test(sjs), "support.js still puts the name in the contact issue's title");
   assert.ok(sjs.includes('["c-public", "the box that says your name and message will be public"]'), "support.js does not require the contact form's public box");
+  // AH-188 (John, 2026-11-18): the name is the one field that publicly names a person and the message needs none of it,
+  // so it is optional everywhere: the form, its check, and GitHub's issue form (which would refuse a blank one)
+  assert.ok(card.includes('<label for="c-name">Name (optional)</label>') && /<input id="c-name"[^>]*>/.test(card) && !/<input id="c-name"[^>]*\srequired/.test(card), "the contact form's name is not optional");
+  assert.ok(!/\["c-name", /.test(sjs), "support.js still asks for a name before it builds the contact link");
+  assert.ok(/\n {2}- type: input\n {4}id: name\n {4}attributes:\n {6}label: Name \(optional\)\n {4}validations:\n {6}required: false\n/.test(yml), "contact.yml still requires a name");
   assert.ok(/<label class="confirm"><input id="c-public" type="checkbox" required><span>I understand my name and message will be public on GitHub\.<\/span><\/label>\s*<div class="form-actions">/.test(card), "the contact form has no required box saying the name and message will be public");
   // the thank-you page: says where the message is, that it is public there, the reply time, and leads back
   const thanks = text((/<main[\s\S]*<\/main>/.exec(html["thanks.html"]) || [""])[0]);
@@ -1039,11 +1044,11 @@ const done = async ({ ctx, problems, outside }, label, allowed = []) => {
         invalid: ["c-name", "c-message", "c-public"].filter((id) => document.getElementById(id).getAttribute("aria-invalid") === "true").join(),
         described: ["c-name", "c-message", "c-public"].filter((id) => document.getElementById(id).getAttribute("aria-describedby") === "c-missing").join() }; });
     const e = await look();
-    want(JSON.stringify(e) === JSON.stringify({ focus: "c-name", text: "Please add a name, a message, the box that says your name and message will be public.", shown: true, invalid: "c-name,c-message,c-public", described: "c-name,c-message,c-public" }), `${label}: an empty send ${JSON.stringify(e)}`);
+    want(JSON.stringify(e) === JSON.stringify({ focus: "c-message", text: "Please add a message, the box that says your name and message will be public.", shown: true, invalid: "c-message,c-public", described: "c-message,c-public" }), `${label}: an empty send ${JSON.stringify(e)}`);
     if (motion === "reduce") { const bad = await p.evaluate(contrastProblems); want(!bad.length, `${label}: contrast with the message shown ${JSON.stringify(bad)}`); }
     // typed with the keyboard, as a person types (a DOM0 handler once swallowed every key, CLAUDE.md)
     const name = '"><img src=x onerror=alert(1)> Ana';
-    await p.keyboard.type(name);
+    await p.focus("#c-name"); await p.keyboard.type(name); // AH-188: focus went to the message, the name being optional
     await p.selectOption("#c-topic", "An idea");
     await p.focus("#c-message"); await p.fill("#c-message", message);
     await p.check("#c-public");
@@ -1143,7 +1148,10 @@ const done = async ({ ctx, problems, outside }, label, allowed = []) => {
     if (a) { window.__mail.push(e.defaultPrevented ? "stopped" : a.href); e.preventDefault(); } }); };
   for (const [file, width, fill, id, missing, subject, body, cutId] of [
     ["index.html", 390, async (p, long) => { await p.fill("#c-name", "Ana & Bo"); await p.selectOption("#c-topic", "A problem"); await p.fill("#c-message", long ? "😀🧾".repeat(1500) : "It stops at row 3000.\nWhat now? & = + % # ?"); await p.check("#c-public"); },
-      "c-email", "Please add a name, a message, the box that says your name and message will be public.", "[Contact]: A problem", "Name: Ana & Bo\r\nTopic: A problem\r\n\r\nIt stops at row 3000.\r\nWhat now? & = + % # ?", "c-mail-cut"],
+      "c-email", "Please add a message, the box that says your name and message will be public.", "[Contact]: A problem", "Name: Ana & Bo\r\nTopic: A problem\r\n\r\nIt stops at row 3000.\r\nWhat now? & = + % # ?", "c-mail-cut"],
+    // AH-188, John 2026-11-18: no name given, so no "Name:" line at all
+    ["index.html", 390, async (p, long) => { await p.selectOption("#c-topic", "A problem"); await p.fill("#c-message", long ? "😀🧾".repeat(1500) : "It stops at row 3000."); await p.check("#c-public"); },
+      "c-email", "Please add a message, the box that says your name and message will be public.", "[Contact]: A problem", "Topic: A problem\r\n\r\nIt stops at row 3000.", "c-mail-cut"],
     ["support.html", 1280, async (p, long) => { await p.fill("#summary", "Scan stops"); await p.fill("#version", "v0.1.102"); await p.fill("#details", long ? "😀🧾".repeat(1500) : "Line 1\nline 2 & ?"); await p.check("#clean"); },
       "email", "Please add a short summary, what happened, the box that says it contains no key or private data.", "[Support]: Scan stops", "Topic: Something isn't working\r\nEngine version: v0.1.102\r\n\r\nLine 1\r\nline 2 & ?", "mail-cut"]]) {
     const t = await open(file, { width, motion: "reduce", init: catcher });
