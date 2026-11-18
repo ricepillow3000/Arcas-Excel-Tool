@@ -64,11 +64,13 @@ html, body { margin: 0; padding: 0; }
    units wide, its tabular ones 600). The font shorthand resets it, so every rule below that sets font sets it again */
 body { font: 400 var(--fs-0)/1.5 var(--sans); color: var(--ink); background: var(--tex), var(--paper); font-variant-numeric: tabular-nums;
   font-kerning: normal; }
-::selection { background: color-mix(in oklch, var(--gold) 25%, var(--paper)); }
+/* AH-193: navy on the paper a quarter of the way to the dark gold, the website's pair: with only the tint, the header's
+   cream name selected sat on it at 1.1:1 */
+::selection { background: color-mix(in oklch, var(--gold) 25%, var(--paper)); color: var(--navy); }
 /* Chromium's own placeholder grey is 4.2:1 on paper: the small print's colour, at full strength (AH-87) */
 ::placeholder { color: var(--muted); opacity: 1; }
 /* a long link or code breaks anywhere rather than run past a 160 px pane (a 320 px pane at 200% zoom, AH-112) */
-a { color: var(--navy); text-decoration-color: var(--wine); text-underline-offset: 3px; text-decoration-thickness: 1px; overflow-wrap: anywhere; }
+a { color: var(--navy); text-decoration-color: var(--gold); text-underline-offset: 3px; text-decoration-thickness: 1px; overflow-wrap: anywhere; }
 a:hover { text-decoration-thickness: 2px; }
 a:active { text-decoration-thickness: 3px; } /* pressed (AH-157): a link shows the press too */
 :focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
@@ -85,12 +87,20 @@ header .brand { display: flex; align-items: center; gap: var(--s3); }
 h1 { margin: 0; font: 800 var(--fs-1)/1 var(--sans); color: var(--on-navy); }
 .sheet-name { margin: var(--s3) 0 0; padding-top: var(--s2); border-top: 1px solid var(--rule-navy); font: 700 var(--fs--1)/1.4 var(--sans);
   color: var(--gold-hi); overflow-wrap: anywhere; }
-.sheet-name:empty { display: none; }
+/* held at its line while Excel names the sheet (AH-193): it took its place under the start-up skeleton, which moved 38 px */
+.sheet-name:empty::before { content: "\00a0"; }
+/* AH-193: the pane opens on this header and the start-up skeleton, before Office is ready, so the brand waits at its
+   entrance's start pose until the entrance (components/motion.js) takes it from there, and shows by itself after 1.4 s
+   if that never comes (M7: nothing stays hidden for want of a script) */
+@media (prefers-reduced-motion: no-preference) {
+  #app-body:not([data-ready]) header [data-enter] { animation: held 1.4s step-end both; }
+}
+@keyframes held { from { opacity: 0; transform: translate3d(-40px, 0, 0); } }
 h2 { position: relative; margin: var(--s5) 0 var(--s2); padding-top: var(--s3); font: 800 var(--fs-1)/1.2 var(--sans); color: var(--navy);
   font-variant-numeric: tabular-nums; text-wrap: balance; }
 /* the hairline over each heading; where the browser has scroll timelines it draws across as the heading scrolls in,
    1:1 with the scroll bar (no easing, no script): scroll back and it undraws */
-h2::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 1px; background: var(--navy); transform-origin: left; }
+h2::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 1px; background: var(--gold); transform-origin: left; }
 @supports (animation-timeline: view()) {
   @media (prefers-reduced-motion: no-preference) {
     h2::before { animation: draw linear both; animation-timeline: view(); animation-range: entry 0% cover 22%; }
@@ -114,19 +124,14 @@ button { font: inherit; cursor: pointer; border-radius: 0; }
 /* a disabled control is drawn in its own colours at part strength (AH-149), never faded as a whole: a fade of every
    button took the whole list down with the one being acted on */
 button:disabled { cursor: default; }
-/* a button disabled under the pointer (Check words with AI while it runs) shows its plain frame at once, never a
-   half-faded navy fill that read as a third button style (AH-98) */
-.primary:disabled, .secondary:disabled { transition: none; }
 .primary:disabled { background: var(--off-wine); }
 .secondary:disabled, .link-btn:disabled { color: var(--off-navy); border-color: var(--off-navy); }
-.primary, .secondary { display: block; width: 100%; border-radius: 0;
-  transition: background-color .3s var(--ease), color .3s var(--ease), border-color .3s var(--ease); }
-/* a hover eases over .3s; under reduced motion it changes at once, as every other state there does. A button turned back
-   on shows its colours at once (utils/dom.js turnOn, AH-149 review r2): faded back in, Find problems read as still off */
-@media (prefers-reduced-motion: reduce) { .primary, .secondary { transition: none; } }
-:root[data-turning-on] button { transition: none; }
+.primary, .secondary { display: block; width: 100%; border-radius: 0; }
+/* a button turned back on shows its colours at once (utils/dom.js turnOn, AH-149 review r2): faded back in, Find problems
+   read as still off */
+:root[data-turning-on] button, :root[data-turning-on] button::before { transition: none; }
 .primary { margin: var(--s3) 0; min-height: 48px; padding: 0 var(--s4); background: var(--wine); color: var(--on-wine); border: 0;
-  font: 700 var(--fs-0)/1.2 var(--sans); font-variant-numeric: tabular-nums; letter-spacing: .02em; text-align: left; }
+  font: 700 var(--fs-0)/1.2 var(--sans); font-variant-numeric: tabular-nums; text-align: left; }
 /* hovered, a main button stays wine, a shade darker (AH-166): navy read as another button once a scan ended under the
    pointer. A press is still navy with its ring */
 .primary:hover:not(:disabled) { background: var(--wine-deep); }
@@ -134,12 +139,32 @@ button:disabled { cursor: default; }
 .secondary { margin: var(--s2) 0; min-height: 44px; padding: var(--s2) var(--s3); background: transparent; color: var(--navy); border: 1px solid var(--navy);
   font: 700 13px/1.3 var(--sans); font-variant-numeric: tabular-nums; text-align: left; }
 .secondary:hover:not(:disabled) { background: var(--navy); color: var(--paper); }
+/* AH-193, the website's buttons (M1, M44: only transform and opacity move, "masks for reveals and colour changes"): with
+   motion, a hover's colour is drawn across from the left by a layer growing by scaleX, and taken back 20% faster, where
+   the colours crossfaded. The main button's darker wine lies under its white label (z-index -1 in its own stacking
+   context). An outlined button's label would turn paper on paper half way, so its layer is the site's difference fill:
+   #EBDCB8 less the paper is the navy exactly, and less the navy label a light gold, over whatever ground it sits on.
+   A button disabled under the pointer (Check words with AI while it runs) drops its layer at once, never a half fill
+   that read as a third button style (AH-98); a press drops it too, for its navy and ring. Under reduced motion and
+   forced colours: the instant swap above, and no layer */
+@media (prefers-reduced-motion: no-preference) and (forced-colors: none) {
+  .primary, .secondary { position: relative; }
+  .primary { isolation: isolate; }
+  .primary::before, .secondary::before { content: ""; position: absolute; inset: 0; pointer-events: none; transform: scaleX(0); transform-origin: 0 50%;
+    transition: transform .28s var(--ease); }
+  .primary::before { z-index: -1; background: var(--wine-deep); }
+  .secondary::before { z-index: 1; background: #EBDCB8; mix-blend-mode: difference; }
+  .primary:hover:not(:disabled) { background: var(--wine); }
+  .secondary:hover:not(:disabled) { background: transparent; color: var(--navy); }
+  :is(.primary, .secondary):hover:not(:disabled)::before { transform: scaleX(1); transition-duration: .35s; }
+  :is(.primary, .secondary):is(:disabled, :active:not(:disabled))::before { transform: scaleX(0); transition: none; }
+}
 .row-buttons { display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); gap: var(--s2) var(--gutter); margin-top: var(--s2); }
 .row-buttons > * { grid-column: span 2; min-width: 0; margin: 0; }
-.row-buttons > .primary { min-height: 44px; font-size: 13px; letter-spacing: 0; } /* "Accept" beside "Dismiss": one size, one case */
+.row-buttons > .primary { min-height: 44px; font-size: 13px; } /* "Accept" beside "Dismiss": one size, one case */
 /* a finger's height (AH-149: 44 px, where the 24 px floor of WCAG 2.5.8 is a minimum, not a target) */
 .link-btn { min-height: 44px; border: 0; background: none; color: var(--navy); padding: var(--s4) 0 0; font: 700 13px/1.4 var(--sans);
-  text-decoration: underline; text-decoration-color: var(--wine); text-underline-offset: 4px; }
+  text-decoration: underline; text-decoration-color: var(--gold); text-underline-offset: 4px; }
 /* pressed (AH-120): only the slider's thumb answered a press, so a click on a slow Accept looked missed. A press is the
    hover's fill with a ring inset in it, at once and with no movement */
 .primary:active:not(:disabled), .secondary:active:not(:disabled) { background: var(--navy); color: var(--paper); box-shadow: inset 0 0 0 2px var(--gold-hi); transition: none; }
@@ -181,7 +206,7 @@ button:disabled { cursor: default; }
 #pane-footer .pf-tag { margin: var(--s4) 0; padding-top: var(--s3); border-top: 1px solid var(--rule-navy); font-size: var(--fs--1); color: var(--on-navy-2); line-height: 1.5; }
 #pane-footer .pf-links { display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); column-gap: var(--gutter); }
 #pane-footer .pf-links a { grid-column: span 2; display: flex; align-items: center; min-height: 44px; color: var(--on-navy); border: 1px solid var(--on-navy-2);
-  padding: var(--s2) var(--s3); text-decoration: none; font: 700 13px/1.3 var(--sans); transition: background-color .3s var(--ease), color .3s var(--ease); }
+  padding: var(--s2) var(--s3); text-decoration: none; font: 700 13px/1.3 var(--sans); }
 #pane-footer .pf-links a:hover { background: var(--on-navy); color: var(--navy); }
 #pane-footer .pf-links a:active { background: var(--on-navy-2); color: var(--navy); transition: none; }
 #pane-footer .pf-links a:focus-visible { outline: 2px solid var(--gold-hi); outline-offset: 2px; }

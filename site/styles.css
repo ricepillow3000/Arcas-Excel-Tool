@@ -80,6 +80,7 @@
   --tint-flag-hover: #551623;  /* ... and its flagged cells: the wine 15% darker, its hue kept (white on it 14:1) */
   --tint-bar: #DED5C2;         /* a skeleton bar: the panel a fifth of the way to the dark gold */
   --shade-from: rgba(12, 25, 56, .08); --shade-to: rgba(12, 25, 56, .45); /* the turning page's shade, the navy */
+  --tint-select: #DFD6C2;     /* a text selection: the paper a quarter of the way to the dark gold, under navy text (AH-193) */
   /* the measure of running text (AH-148, John: "line length"): this font's zero is 0.732 em wide and its average letter
      0.464 em (fontTools, over the pages' own text), so 1ch holds 1.58 letters: 68ch would be ~107 letters a line. 40ch is
      about 63 on average, and no line over 75 (tools/test_site.mjs counts them) */
@@ -88,7 +89,8 @@
 @supports (color: color-mix(in oklch, red, blue)) {
   :root { --tint-hover: color-mix(in oklch, var(--paper) 90%, var(--gold-hi)); --tint-flag-hover: color-mix(in oklch, var(--wine) 85%, black);
     --tint-bar: color-mix(in oklch, var(--paper-2) 80%, var(--gold));
-    --shade-from: color-mix(in oklch, var(--ink) 8%, transparent); --shade-to: color-mix(in oklch, var(--ink) 45%, transparent); }
+    --shade-from: color-mix(in oklch, var(--ink) 8%, transparent); --shade-to: color-mix(in oklch, var(--ink) 45%, transparent);
+    --tint-select: color-mix(in oklch, var(--gold) 25%, var(--paper)); }
 }
 * { box-sizing: border-box; }
 /* the hidden attribute always wins (AH-132): .result's display: grid outranked the browser's own [hidden] rule, and
@@ -106,6 +108,9 @@ body { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: col
 main { flex: 1 0 auto; }
 a { color: var(--ink); text-decoration-color: var(--gold); text-underline-offset: 3px; text-decoration-thickness: 1px; }
 a:is(:hover, :focus-visible) { text-decoration-thickness: 2px; }
+/* AH-193: a selection was the browser's blue, the one colour outside the brand; navy on a gold tint reads on paper and on
+   the navy band alike, the pane's pair */
+::selection { background: var(--tint-select); color: var(--ink); }
 a:active { text-decoration-thickness: 3px; } /* pressed (AH-157): a link shows the press too, the footer's with it */
 /* Chromium's own placeholder grey is 4.2:1 on paper: the notes' colour, at full strength (AH-87) */
 ::placeholder { color: var(--muted); opacity: 1; }
@@ -232,6 +237,12 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .band-dark h2, .band-dark h3 { color: var(--on-dark); }
 .band-dark .label, .band-dark .fact { color: var(--gold-hi); }
 .band-dark :is(.sec-lede, .proof-note) { color: var(--on-dark-2); }
+/* AH-193: checks.html opened on its heading, a lede and an empty navy field (the lede alone on row 1, the fact alone on
+   row 2, the table at 846 px of 800): fact and lede share a row and the band starts closer, so a check is on the first screen */
+@media (min-width: 761px) { #every-check { padding-top: var(--s5); } #every-check .fact { grid-row: 1; } }
+/* AH-193: the block after the band (#maker) lays its still paper (.calm) 96 px past its top, 47 px of it over the band's
+   foot at 1280 and 1440, a grey fog (R1, R2); clipped at its own top, the band ends on its own edge */
+.band-dark + .section { overflow-y: clip; }
 
 /* hero: a huge headline over ten columns, the text from column 7, then the sample sheet as the picture */
 .hero { padding-block: var(--s7) var(--s6); background: var(--grain), var(--grid), var(--paper); }
@@ -247,6 +258,15 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .hero .phone-only { font-size: var(--fs--1); color: var(--ink-2); }
 /* the hero's two buttons: the download first, in the first screen at 375 x 667 and 1280 x 720 (AH-126) */
 .hero-cta { display: flex; flex-wrap: wrap; gap: var(--s2); }
+/* AH-193: above a phone the download stands alone on its row and the two quieter buttons share the next (Contact John
+   wrapped alone under the other two at 1280 and 1440, an orphan). A zero-height line break after the download, and the
+   row gap as the quieter buttons' own margin, so the break adds no height and a narrow column still wraps them (a grid of
+   two columns scrolled sideways at 761 px). A phone keeps its flow */
+@media (min-width: 761px) {
+  .hero-cta { row-gap: 0; }
+  .hero-cta::after { content: ""; flex-basis: 100%; order: 1; }
+  .hero-cta > :not(.btn-primary) { order: 2; margin-top: var(--s2); }
+}
 
 /* the sample workspace: an ink frame, an ink title bar, the filters over three columns, the sheet beside them */
 .ws { grid-column: 1 / -1; position: relative; margin: var(--s6) 0 0; background: var(--grain), var(--paper-2); border: 1px solid var(--ink); text-align: left; color: var(--ink-2); }
@@ -307,7 +327,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
    the caption (AH-148 final pass), and a phone's tab brings its panel on screen instead (home.js) */
 @media (min-width: 761px) { .ws-main > .panel { min-height: var(--panel-h, 0); } }
 .scroll { overflow-x: auto; }
-table.grid { width: 100%; border-collapse: collapse; font: 500 var(--fs--1)/1.3 var(--sans); font-variant-numeric: tabular-nums; min-width: 640px; color: var(--ink); }
+table.grid { width: 100%; border-collapse: collapse; font: 400 var(--fs--1)/1.3 var(--sans); font-variant-numeric: tabular-nums; min-width: 640px; color: var(--ink); }
 .grid th, .grid td { position: relative; padding: 9px 12px; border-bottom: 1px solid var(--rule); border-right: 1px solid var(--rule); text-align: right; white-space: nowrap; }
 .grid th:last-child, .grid td:last-child { border-right: 0; }
 .grid thead th { background: var(--paper); color: var(--ink); font: 700 var(--fs--2)/1 var(--sans); letter-spacing: .1em; text-transform: uppercase; border-bottom-color: var(--ink); }
@@ -350,7 +370,7 @@ table.grid { width: 100%; border-collapse: collapse; font: 500 var(--fs--1)/1.3 
    still look flagged (AH-138 review: under "Totals that don't add up" all 7 rows still looked flagged). Its values stay */
 :is(.ws[data-filter="recon"] .grid tbody tr:not([data-kind~="recon"]), .ws[data-filter="keying"] .grid tbody tr:not([data-kind~="keying"]),
   .ws[data-filter="label"] .grid tbody tr:not([data-kind~="label"]), .ws[data-filter="time"] .grid tbody tr:not([data-kind~="time"])) :is(td.flag, td.q, td.mended) {
-  background: transparent; color: var(--ink); font-weight: 500; box-shadow: none; outline: none; border-bottom-color: var(--rule); --mended-line: 0; }
+  background: transparent; color: var(--ink); font-weight: 400; box-shadow: none; outline: none; border-bottom-color: var(--rule); --mended-line: 0; }
 :is(.ws[data-filter="recon"] .grid tbody tr:not([data-kind~="recon"]), .ws[data-filter="keying"] .grid tbody tr:not([data-kind~="keying"]),
   .ws[data-filter="label"] .grid tbody tr:not([data-kind~="label"]), .ws[data-filter="time"] .grid tbody tr:not([data-kind~="time"])) td.why i { visibility: hidden; }
 /* the detail box under its row */
@@ -369,6 +389,7 @@ table.grid { width: 100%; border-collapse: collapse; font: 500 var(--fs--1)/1.3 
 .matrix, [data-pop-copy] { position: absolute; left: var(--s2); z-index: 2; width: min(440px, calc(100% - 32px)); background: var(--paper); border: 1px solid var(--ink); font-size: var(--fs--1); color: var(--ink); }
 .m-head { display: flex; justify-content: space-between; align-items: center; gap: var(--s2); padding: 8px 12px; background: var(--ink); color: var(--paper); }
 .m-head b { font: 700 var(--fs--1)/1.3 var(--sans); }
+.m-head button { flex: none; white-space: nowrap; } /* AH-200: a button keeps its word whole and its width: squeezed by the title, "Close" broke as "Clos" over "e" on any phone, and Accept, held to 44 px at 200% text, laid its word on the title */
 .m-close { min-height: 28px; font: 700 var(--fs--1)/1 var(--sans); color: var(--paper); background: none; border: 1px solid var(--paper); border-radius: 0; padding: 6px 8px; cursor: pointer; } /* 28 px: its height before the trim (AH-148) */
 .m-close:hover { background: var(--paper); color: var(--ink); }
 [data-pop-copy] { pointer-events: none; }
@@ -519,6 +540,8 @@ dl.anchor { position: relative; margin: 0; display: grid; grid-template-columns:
 @container (width < 16em) {
   :is(.matrix, [data-pop-copy]) dl { grid-template-columns: minmax(0, 1fr); }
   :is(.matrix, [data-pop-copy]) dt { border-right: 0; border-bottom: 0; padding-bottom: 0; }
+  .m-head { flex-wrap: wrap; column-gap: var(--s1); } /* AH-200: the title on its own line, Accept and Close under it (232 px apart by 16, in 228) */
+  .m-head b { flex-basis: 100%; }
 }
 /* the hash may break anywhere, the release page link's words never ("pag / e" on a phone, AH-138 review) */
 #sha a { word-break: normal; overflow-wrap: normal; }
@@ -811,7 +834,7 @@ table.card { grid-column: 1 / -1; margin-top: var(--s7); width: 100%; border-col
 @media print { .reveal-item, [data-enter] { opacity: 1 !important; transform: none !important; } }
 /* a hairline item rule, drawn across by the scroll; without JS it is simply the item's top rule. --col staggers a row's
    hairlines left to right, like a sentence */
-.rule { position: absolute; top: 0; left: 0; right: 0; height: 1px; background: var(--ink); transform-origin: 0 50%; }
+.rule { position: absolute; top: 0; left: 0; right: 0; height: 1px; background: var(--gold); transform-origin: 0 50%; } /* B3, gold is for lines (AH-193): navy is kept for frames */
 .checks-table .rule { top: -1px; background: var(--gold-hi); } /* drawn over the row's own top hairline */
 .steps li:nth-child(2) .rule, .it-ledger > div:nth-child(4n + 2) .rule { --col: 1; }
 .steps li:nth-child(3) .rule, .it-ledger > div:nth-child(4n + 3) .rule { --col: 2; }
@@ -932,7 +955,9 @@ html[data-moving] #field { z-index: 2; }
   .tabs { margin-left: 0; width: 100%; min-height: 44px; }
   /* the tabs' row is kept from the first paint where home.js will show them (AH-159: with the hero shorter the sample is in
      a phone's first screen, and their arrival moved it 22 px) */
-  html[data-js] .ws-top { min-height: calc(44px + var(--s1) + 1.3 * var(--fs-0)); }
+  /* ... with the title's row at the top of that room from the first paint, where it lands once the tabs show: centred in
+     it, the row rose 26 px at load, inside a 375 x 667 first screen since AH-193 left out the hero's note */
+  html[data-js] .ws-top { min-height: calc(44px + var(--s1) + 1.3 * var(--fs-0)); align-content: flex-start; }
   /* at 320 px the three tabs did not fit beside 24 px of padding, and "After fixes" wrapped onto a line of its own, each
      tab 22 px tall (AH-132): 16 px, the filters' own, and 12 px between the tabs leave them room on one line */
   .ws-top { padding-inline: var(--s2); }
@@ -975,6 +1000,7 @@ html[data-moving] #field { z-index: 2; }
      the picture's own 4:5 from the start (CLS 0) */
   .maker img { width: min(33%, 240px); height: auto; aspect-ratio: 4 / 5; }
   .phone-only { display: block; }
+  .hero .note { display: none; } /* AH-193: the notice bar and the phone line already say Windows; a third time was noise */
   .ask { margin-top: var(--s5); }
   /* the home form's gaps on a phone (AH-192: its public-post box and every footer's trademark line put the page 51 px past
      ten screens; John chose tightening over a bigger budget). Its two buttons stay stacked: at 390 px they need 428 of 308 */

@@ -8,14 +8,15 @@
   <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
   <link href="assets/crest2-16.png" rel="icon" sizes="16x16" />
   <link href="assets/crest2-32.png" rel="icon" sizes="32x32" />
+  <link rel="preload" href="assets/plus-jakarta-sans.woff2" as="font" type="font/woff2" crossorigin>
   <link href="styles/global.css" rel="stylesheet" />
   <link href="styles/components.css" rel="stylesheet" />
   <script type="module" src="app.js"></script>
 </head>
 <body>
-  <p id="sideload-msg" class="pad">Open this inside Excel.</p>
+  <p id="sideload-msg" class="pad" hidden>Open this inside Excel.</p>
 
-  <main id="app-body" hidden>
+  <main id="app-body">
     <header>
       <div class="brand" data-enter="left"><span class="mark"><img src="assets/crest2-32.png" srcset="assets/crest2-64.png 2x" width="32" height="32" alt=""></span><h1>Arcas</h1></div>
       <p class="sheet-name" id="sheet-name" data-enter="left"></p>

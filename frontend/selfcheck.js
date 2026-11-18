@@ -758,6 +758,28 @@ for (const f of readdirSync(new URL(".", import.meta.url)).filter((f) => f.endsW
     assert.ok([...src.matchAll(/[^{}]*:active[^{}]*\{/g)].some((m) => m[0].includes("summary")), `${f}: no :active rule for summary`);
 }
 
+// AH-193, the unslop pass (the website's rules on the pane): only transform and opacity ever move (M1): the progress
+// bar grew by its width and a button's hover crossfaded its colours, where the site draws a hover across by a scaleX
+// layer (M44); decorative hairlines are gold, frames navy (B3); a link is underlined in gold and the main button has no
+// tracking of its own, as on the site (P21); the pane opens on its own header and skeleton, its font preloaded (B12)
+{
+  for (const [f, src] of sheetsCss.filter(([f]) => f.startsWith("styles/")))
+    for (const [, v] of src.matchAll(/(?<![-\w])transition\s*:\s*([^;}]+)/g))
+      for (const part of v.split(","))
+        assert.ok(/^(transform|opacity|none)\b/.test(part.trim()), `${f}: "transition: ${v.trim()}" moves something other than transform or opacity`);
+  const g = sheetsCss.find(([f]) => f === "styles/global.css")[1];
+  assert.ok(/^h2::before \{[^}]*background: var\(--gold\);/m.test(g), "the hairline over a heading is drawn in gold");
+  assert.ok(/\.primary::before, \.secondary::before \{[^}]*transform: scaleX\(0\)/.test(g) && /\.secondary::before \{[^}]*mix-blend-mode: difference/.test(g),
+    "a button's hover is a layer drawn across by scaleX, as the website's");
+  for (const [f, src] of sheetsCss) {
+    for (const [rule] of src.matchAll(/[^{}]*\{[^}]*text-decoration-color\s*:\s*var\(--wine\)/g)) // a fix's new value keeps the wine (B2)
+      assert.ok(rule.trim().startsWith(".fix-changes .new {"), `${f}: a link underlined in wine (the site's are gold) - ${rule.trim().slice(0, 60)}`);
+    for (const [m] of src.matchAll(/letter-spacing\s*:\s*[^;}]+/g)) assert.ok(/var\(--track\)/.test(m), `${f}: "${m}" - only a table's column heads are tracked`);
+  }
+  assert.ok(/<link rel="preload" href="assets\/plus-jakarta-sans\.woff2" as="font" type="font\/woff2" crossorigin>/.test(html), "the pane's font is preloaded");
+  assert.ok(/<p id="sideload-msg" class="pad" hidden>/.test(html) && /<main id="app-body">/.test(html), "the pane opens on its header and skeleton, never on \"Open this inside Excel.\"");
+}
+
 // AH-135, a usability review for a person with few computer skills: the pane's words say what to do in plain steps. The
 // engine down names where the file most people have is; the list says its colours change no value and how they go;
 // AI help says first that no one needs it; a fix card says what "the source" is
