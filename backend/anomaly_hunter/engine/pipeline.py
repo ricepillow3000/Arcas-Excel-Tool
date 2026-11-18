@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 
 from anomaly_hunter.engine import fairness
-from anomaly_hunter.engine.detectors import Why, _result, ecod_detector, far_off, limits_detector, say, sequence_detector
+from anomaly_hunter.engine.detectors import Why, _result, ecod_detector, far_off, limits_detector, say, sequence_detector, unexplained
 from anomaly_hunter.engine.load import EXCEL_ERROR, NO_VALUE_WORD, PLACEHOLDER, _blank, _dates, _orders, numbers
 from anomaly_hunter.powerbi import FORMULA_START
 
@@ -78,6 +78,11 @@ def duplicates(df, errors_log=(), column_types=None, skip=None):
         if unknown.any() and v[known[c]].nunique() >= 0.5 * filled.sum():
             for i in np.flatnonzero(unknown.to_numpy() & ~named):
                 cells[i, at[c]] = f"unknown:{i}"
+    # AH-198 fix round 2: in a tree a row is also where it hangs: a shared sub-assembly listed again under another product
+    # is the layout, never a copy (1,700 cells of one costed bill were "Duplicate of row N"); the same row twice under one
+    # parent still is
+    for parent in itertools.islice(_tree(df, column_types or {}, np.zeros(len(df), bool) if skip is None else skip).values(), 1):
+        cells = np.column_stack([cells, parent.astype(str)])
     seen, out = {}, []
     # a totals row is no record: its numbers left out, 150 subtotal rows reading only "Total" were "many repeats", and the
     # one note on a skipped row hid a real copy (blind round 2, AH-178)
@@ -323,6 +328,47 @@ def _survey(cols):
 
 
 POINTS = 0.99  # a column whose filled cells name this share of values another column holds points at that column's rows
+DEPTH = 64  # levels of a tree, at most: a bill of materials or an org chart is a dozen deep
+
+
+def _tree(df, column_types, skip):
+    """AH-198 fix round 2: an indented list (a bill of materials, a chart of accounts, an org chart printed as a tree) is
+    written depth first: each row's pointer names a row on the path above it (its parent, or an ancestor's sibling's
+    parent). A shared sub-assembly is listed again under every product that uses it, so the part numbers repeat and no
+    one row is named, and 1,700 cells of one costed bill were "Duplicate of row N". Read by walking the rows with the path
+    so far: a pointer found on it is a child of that row; POINTS of a column's 20+ filled pointers (5+ different values,
+    never a copy of its id column on 90% of rows) must be found. A country of asylum among countries of origin is found on
+    no path. -> {pointer column: parent row per row, -1 for a root or none}. The first 64 text or id columns."""
+    cols = [c for c, t in column_types.items() if t in ("text", "id")][:64]
+    said = {c: df[c].astype(str).str.strip().where(~skip & ~_blank(df[c])).to_numpy(object) for c in cols}
+    out, values = {}, {c: set(v[~pd.isna(v)]) for c, v in said.items()}
+    for p in cols:
+        has = ~pd.isna(said[p])
+        if has.sum() < MANY or len(values[p]) < 5:
+            continue
+        for k in cols:  # a pointer's values are its id column's: anything else is never walked
+            if k == p or pd.Series(said[p][has]).isin(values[k]).mean() < POINTS or (said[p][has] == said[k][has]).mean() > 0.1:
+                continue
+            parent, path, missed = np.full(len(df), -1), [], 0
+            for i in range(len(df)):
+                if skip[i] or pd.isna(said[k][i]):
+                    continue
+                if pd.isna(said[p][i]):
+                    path = [i]
+                    continue
+                at = next((d for d in range(len(path) - 1, -1, -1) if said[k][path[d]] == said[p][i]), None)
+                if at is None:
+                    missed += 1
+                    if missed > (1 - POINTS) * has.sum():
+                        break
+                    continue
+                parent[i], path = path[at], path[:at + 1] + [i]
+                if len(path) > DEPTH:  # a chain (each row the next one's parent) is no tree, and would walk forever
+                    break
+            else:
+                out[p] = parent
+                break
+    return out
 
 
 def _pointers(df, column_types, skip, blank):
@@ -336,8 +382,8 @@ def _pointers(df, column_types, skip, blank):
     said = {c: df[c][~skip & ~_blank(df[c])].astype(str).str.strip()
             for c in [c for c, t in column_types.items() if t in ("text", "id")][:64]}
     held = {c: set((n := v.value_counts()).index[n == 1]) for c, v in said.items()}  # each names one row
-    out = set()
-    for c in (c for c in said if c in blank):
+    out = {c for c in _tree(df, column_types, skip) if c in blank}
+    for c in (c for c in said if c in blank and c not in out):
         counts = said[c].value_counts()
         if len(counts) >= 5 and any(k != c and counts[counts.index.isin(held[k])].sum() >= POINTS * len(said[c]) and
                                     (said[c] != df[k][said[c].index].astype(str).str.strip()).mean() >= 0.9 for k in said):
@@ -1430,6 +1476,104 @@ def same_in_record(df, column_types, skip, records, computed=()):
     return out
 
 
+KEY_GROUPS = 10  # groups of 2+ rows a key must hold before a column is read as one value for each of them
+KEY_OFF = 0.05  # ...and at most max(1, this share) of its groups of 2+ rows with more than one value
+KEY_CAP = 2  # ...and never more than 2: an id whose 1,526 items kept 5 second names, a player id 173 positions, an
+# album id 122 featured artists, is how those tables are, never 173 slips (public tables, AH-198 fix round 2)
+KEYS = 8  # key columns read, in sheet order, each against the first 64 columns: a crafted wide sheet stays fast
+
+
+def same_by_key(df, column_types, skip, computed=None):
+    """AH-198 fix round 2: a column one value for each value of a key column (a part's unit cost, an account's name, a
+    child's level under its parent) in all but max(1, KEY_OFF), at most KEY_CAP, of the key's KEY_GROUPS+ groups of 2+
+    rows: in a group with one other value, written once against 2+ rows that agree, that cell is wrong (a part costed
+    0.4 on one line of its 12, 0.04 on the rest). The key a code; never a blank or a word for no value, a formula's
+    cell, a column of 2 values (a flag), a key whose values each sit in one run (a record's lines: same_in_record
+    reads those, from 20 records) nor a protected key."""
+    out = [[] for _ in range(len(df))]
+    computed, prot = computed or {}, set(fairness.protected(column_types))
+    cols = [c for c in column_types][:64]
+    said = {c: df[c].astype(str).str.strip().where(~skip & ~_blank(df[c])) for c in cols}
+    # a key is a code (P-10222, 2000, S01-101: 90% of its values with a digit and no space): a name is no key, two people
+    # or two carousels share one, nor a date, which two presidents' nominations shared (public tables, AH-198 fix round 2)
+    code = lambda v: v.str.contains(r"\d").mean() >= 0.9 and not v.str.contains(r"\s").mean() > 0.1 \
+        and not v.str.fullmatch(r"\d{1,4}[-/.]\d{1,2}[-/.]\d{1,4}").mean() > 0.1
+    keys = [k for k, t in column_types.items() if t in ("text", "id") and k not in prot and k in said
+            and said[k].notna().any() and code(said[k].dropna())]
+    said = {c: v.where(~v.fillna("").str.fullmatch(NO_VALUE_WORD)) for c, v in said.items()}  # "NA", "-", Unknown: no value
+    found = 0
+    for k in keys:
+        if found == KEYS:
+            break
+        kc = pd.factorize(said[k])[0]
+        size = np.bincount(kc[kc >= 0]) if (kc >= 0).any() else np.zeros(0, int)
+        at = kc[kc >= 0]
+        runs = np.bincount(at[np.r_[True, at[1:] != at[:-1]]], minlength=len(size))  # each value's runs down the sheet
+        if (size >= 2).sum() < KEY_GROUPS or (runs == 1).all():  # one run each: a record's lines, same_in_record's
+            continue
+        found += 1
+        for a in cols:
+            if a == k or said[a].nunique() < 3:
+                continue
+            ac = pd.factorize(said[a])[0]
+            both = (kc >= 0) & (ac >= 0) & ~computed.get(a, np.zeros(len(df), bool))
+            pair = pd.DataFrame({"k": kc[both], "a": ac[both], "i": np.flatnonzero(both)})
+            n = pair.groupby("k")["a"].agg(["size", "nunique"])
+            multi = n[n["size"] >= 2]
+            off = multi.index[multi["nunique"] > 1]
+            if len(multi) < KEY_GROUPS or len(off) > min(KEY_CAP, max(1, KEY_OFF * len(multi))):
+                continue
+            for g in off:
+                rows = pair[pair["k"] == g]
+                counts = rows["a"].value_counts()
+                if len(counts) != 2 or counts.iloc[1] != 1 or counts.iloc[0] < 2:
+                    continue
+                i = int(rows["i"][rows["a"] == counts.index[1]].iloc[0])
+                usual = df[a].iat[int(rows["i"][rows["a"] == counts.index[0]].iloc[0])]
+                out[i].append(Why(f"{a} {_shown(df[a].iat[i])} differs from the other {counts.iloc[0]} rows of {k} "
+                                  f"{_short(df[k].iat[i])}, which all have {_shown(usual)} ({a} is one value for each {k} "
+                                  f"in {(multi['nunique'] == 1).sum()} of {len(multi)})", a))
+    return out
+
+
+STEADY = 1.2  # a record's values this close (largest over smallest) are one entity's own size: a subject's weight
+READ_BACK = 1.05  # a value one slip reads back inside its record's range, give or take 5%
+# a decimal point or zeros, or a minus sign: a unit read back too (pounds, miles, inches...) met a county's honest
+# populations of other years 1.6 or 2.2 times apart by chance (public tables, AH-198 fix round 2)
+SCALES = (lambda v: v * 10, lambda v: v / 10, lambda v: v * 100, lambda v: v / 100, lambda v: v * 1000, lambda v: v / 1000,
+          lambda v: -v)
+
+
+def own_scale(df, column_types, skip, records, computed=None):
+    """AH-198 fix round 2: a number column steady inside each record (its 3+ values within STEADY of each other in 90% of
+    RECORDS+ records: a subject's weight, a part's price) holds one entity's own size. A value off its record's other
+    values, which agree, and read back among them by a slip of the decimal point or a minus sign (SCALES), is that slip
+    (an income of 576,510 on a line of its record whose others read 57,651). Never a formula's cell; never a fix: which
+    of the entity's values it was is unknown. In sheet order: the first 50 number columns."""
+    out = [[] for _ in range(len(df))]
+    computed = computed or {}
+    for g, run in records.items():
+        for c in [c for c, t in column_types.items() if t == "number" and 2 * computed.get(c, np.zeros(1)).sum() <= len(df)][:50]:
+            x = pd.to_numeric(df[c], errors="coerce").where(~skip & (run >= 0) & ~computed.get(c, np.zeros(len(df), bool)))
+            have = x.notna().to_numpy() & (x != 0).to_numpy()
+            per = pd.Series(x[have].abs().to_numpy()).groupby(run[have])
+            size = per.size()
+            ratio = (per.max() / per.min())[size >= 3]
+            if len(ratio) < RECORDS or (ratio <= STEADY).mean() < 0.9:
+                continue
+            for r in ratio.index[ratio > STEADY]:
+                rows = np.flatnonzero((run == r) & have)
+                for i in rows:
+                    rest = x.iloc[[k for k in rows if k != i]].to_numpy(dtype=float)
+                    lo, hi, v = rest.min(), rest.max(), float(x.iat[i])
+                    if len(rest) < 2 or lo <= 0 or hi / lo > STEADY:
+                        continue
+                    if any(lo / READ_BACK <= f(v) <= hi * READ_BACK for f in SCALES):
+                        out[i].append(Why(f"{c} {say(v)} is {abs(v) / np.median(rest):.1f} times the other {c} values of {g} "
+                                          f"{_short(df[g].iat[i])} ({say(lo)} to {say(hi)}): a slip of the decimal point or the sign", c))
+    return out
+
+
 def coded_spellings(df, column_types, skip, maybe):
     """AH-198: a possible misspelling (spellings' guess, maybe = {column: usual spelling} per row) its row's own code
     proves: another column whose every value names one label of this column (Account 2000 is "Accounts Payable" on its
@@ -1521,34 +1665,56 @@ def _swaps(v):
             if t[k].isdigit() and t[k + 1].isdigit() and t[k] != t[k + 1]}
 
 
-def balances(df, column_types, skip, records, computed=()):
-    """AH-198: two number columns whose sums agree in every record of 2+ lines but one (an entry's debits and credits):
-    that record is off, and where swapping two neighbouring digits of one of its cells, and only one, makes it agree, that
-    cell is the slip ("likely" the swapped value: the record's own sums prove it). RECORDS+ records, never a formula's
-    column, never two columns equal on their rows (that is a pair, `pairs`). A record off with no such cell says nothing:
-    which line is wrong is unknown. -> (reasons, likely)."""
-    out, likely = [[] for _ in range(len(df))], [{} for _ in range(len(df))]
-    cols = [c for c in numbers(column_types) if c not in computed][:BALANCE_COLS]
+BALANCE_OFF = 0.02  # records of a pair that may be off, at most max(1, this share): 3 slips in a 181-entry journal
+
+
+def _balanced(df, column_types, skip, records, computed=None):
+    """Two number columns whose sums agree in every record of 2+ lines but max(1, BALANCE_OFF) (an entry's debits and
+    credits): RECORDS+ records with amounts, the two seldom filled on one line (never a pair, `pairs`), neither column
+    mostly formulas (a journal's VAT and payable lines are formulas, its total rows SUMs: their values still add).
+    -> [(record column, run per row, a, b, x, the records' sums of a and b)]."""
+    computed = computed or {}
+    cols = [c for c in numbers(column_types) if 2 * computed.get(c, np.zeros(1)).sum() <= len(df)][:BALANCE_COLS]
     x = {c: pd.to_numeric(df[c], errors="coerce").where(~skip) for c in cols}
+    out = []
     for g, run in records.items():
         keep = run >= 0
         total = {c: x[c][keep].groupby(run[keep]).sum() for c in cols}
         for a, b in itertools.combinations(cols, 2):
             both = (x[a].notna() & x[b].notna())[keep]
-            if both.mean() > 0.5 or len(total[a]) < RECORDS:
+            if both.mean() > 0.5 or len(total[a]) < RECORDS or (total[a] != 0).sum() < RECORDS:  # never all 0
                 continue
             diff = (total[a] - total[b]).round(6)
-            off = diff.index[diff.abs() >= 0.005]
-            if len(off) != 1 or (total[a] != 0).sum() < RECORDS:  # records with amounts, never all 0
-                continue
-            r, d = off[0], diff[off[0]]
-            rows = np.flatnonzero(run == r)
-            found = [(i, c, w) for c, sign in ((a, -1), (b, 1)) for i in rows if pd.notna(x[c].iat[i])
+            if (diff.abs() >= 0.005).sum() <= max(1, BALANCE_OFF * len(diff)):
+                out.append((g, run, a, b, x, total[a], total[b]))
+    return out
+
+
+def balances(df, column_types, skip, records, computed=None):
+    """AH-198: two number columns whose sums agree in every record but a few (`_balanced`: an entry's debits and
+    credits): a record off is one slip, and where swapping two neighbouring digits of one of its typed cells makes it
+    agree, that cell is the slip ("likely" the swapped value: the record's own sums prove it). Where two cells could be
+    swapped (a receipt's 12,952.36 debit against its 12,592.36 credit), the one whose value the sheet writes again outside
+    the record (the invoice's 12,592.36) is corroborated, and the other is the slip (AH-198 fix round 2). A record off
+    with no one such cell says nothing: which line is wrong is unknown. -> (reasons, likely)."""
+    out, likely = [[] for _ in range(len(df))], [{} for _ in range(len(df))]
+    computed = computed or {}
+    typed = lambda c, i: not computed.get(c, np.zeros(len(df), bool))[i]
+    for g, run, a, b, x, ta, tb in _balanced(df, column_types, skip, records, computed):
+        diff = (ta - tb).round(6)
+        allx = np.concatenate([x[c].to_numpy(dtype=float) for c in x])
+        for r in diff.index[diff.abs() >= 0.005]:
+            d, rows = diff[r], np.flatnonzero(run == r)
+            found = [(i, c, w) for c, sign in ((a, -1), (b, 1)) for i in rows if pd.notna(x[c].iat[i]) and typed(c, i)
                      for w in _swaps(x[c].iat[i]) if abs(x[c].iat[i] + sign * d - w) < 0.005]
+            if len(found) > 1:  # written again outside the record: the other side's real amount
+                mine = np.concatenate([rows + k * len(df) for k in range(len(x))])
+                elsewhere = lambda v: np.isclose(np.delete(allx, mine), v, rtol=0, atol=0.005).any()
+                found = [f for f in found if not elsewhere(x[f[1]].iat[f[0]])]
             if len(found) == 1:
                 i, c, w = found[0]
                 out[i].append(Why(f"{c} {say(x[c].iat[i])} leaves {g} {_short(df[g].iat[i])} off by {abs(d):.10g} ({a} "
-                                  f"{total[a][r]:.10g}, {b} {total[b][r]:.10g}), where every other {g} agrees: two digits "
+                                  f"{ta[r]:.10g}, {b} {tb[r]:.10g}), where every other {g} agrees: two digits "
                                   f"swapped (likely {say(w)})", c))
                 likely[i][c] = w
     return out, likely
@@ -1622,6 +1788,44 @@ OWN_CELL = re.compile(r"(?<![\w\]!.$'])R(?:\[0\])?C(?:\[0\])?(?![\w\[])")  # RC,
 SAME_FORMULA = 0.8  # Excel's own "inconsistent formula" check, read down a column: this share of its filled cells
 
 
+VARIANT = 5  # rows a second formula of a column is written on before it is the column's own
+
+
+def _role(df, column_types, skip, filled, off):
+    """The rows of `off` (rows whose formula is not the column's usual one) that are every row of one label of a text
+    column (5+ rows, never those of a label off writes partly): the label's own formula, a role, never a break."""
+    out = set()
+    for g in [c for c, t in column_types.items() if t == "text"][:64]:  # the first 64: a crafted wide sheet stays fast
+        lab = df[g].astype(str).str.strip().where(~skip & ~_blank(df[g])).to_numpy(object)
+        rows = collections.defaultdict(set)
+        for i in filled:
+            if not pd.isna(lab[i]):
+                rows[lab[i]].add(i)
+        out |= set().union(*(r for r in rows.values() if len(r) >= VARIANT and r <= off))
+    return out
+
+
+ROLE_ROWS = 10  # rows of a label that all hold a formula in a column but one typed: the label's own formula, typed over
+
+
+def _typed_in_role(df, column_types, skip, filled, f):
+    """-> (row, label column, label) for each typed cell of `filled` that is the only typed one among ROLE_ROWS+ filled
+    rows of its label, in the first text column that shows it (the first 64 text columns)."""
+    out, seen = [], set()
+    for g in [c for c, t in column_types.items() if t == "text"][:64]:
+        lab = df[g].astype(str).str.strip().where(~skip & ~_blank(df[g])).to_numpy(object)
+        rows = collections.defaultdict(list)
+        for i in filled:
+            if not pd.isna(lab[i]):
+                rows[lab[i]].append(i)
+        for name, idx in rows.items():
+            typed = [i for i in idx if f[i] is None]
+            if len(idx) >= ROLE_ROWS and len(typed) == 1 and typed[0] not in seen:
+                seen.add(typed[0])
+                out.append((typed[0], g, name))
+    return out
+
+
 def formulas(df, column_types, skip, grid=None):
     """AH-152: a column worked out by one formula (Total =RC[-2]*RC[-1] in R1C1, the same text on every row) where a row
     holds a typed value, or another formula (=RC[-2]*R[1]C[-1], one row off). The values alone never show it: a typed
@@ -1639,10 +1843,24 @@ def formulas(df, column_types, skip, grid=None):
         own = {i for i in filled if f[i] is not None and OWN_CELL.search(re.sub(r'"[^"]*"', "", f[i]))}  # never in a string
         for i in own:
             out[i].append(Why(f"{col} refers to its own cell (a circular reference)", col))
-        top = collections.Counter(f[i] for i in filled if f[i] is not None).most_common(1)
+        counts = collections.Counter(f[i] for i in filled if f[i] is not None)
+        top = counts.most_common(1)
         if not top or top[0][1] < 5 or top[0][1] < SAME_FORMULA * len(filled):
+            # AH-198 fix round 2, by role: where no one formula holds the column (a journal's Debit is typed, summed on its
+            # total lines, worked out on its receivable lines), a typed value on the one row of a label of ROLE_ROWS+ rows
+            # whose others all use a formula there (the receivable debited by hand) is that label's formula typed over
+            for i, g, lab in _typed_in_role(df, column_types, skip, filled, f):
+                v = df[col].iat[i]
+                out[i].append(Why(f"{col} {_shown(v)} is typed where the other rows of {g} {_short(lab)} use a formula", col))
             continue
+        # AH-198 fix round 2: a second formula the column writes on VARIANT+ rows is its own, as a spelling written 5+
+        # times is the source's (62 yen invoices rounded to whole yen among 406 to the cent), and so is any formula on
+        # every row of a label, those rows only (each assembly's roll-up, never a part's)
+        variant = {i for i in filled if f[i] is not None and counts[f[i]] >= VARIANT} | _role(df, column_types, skip, filled, {
+            i for i in filled if f[i] is not None and f[i] != top[0][0]})
         for i in filled:
+            if i in variant - own:
+                continue
             if f[i] is None:
                 v = df[col].iat[i]
                 said = f"{say(v)} is a typed number" if pd.api.types.is_number(v) and not isinstance(v, (bool, np.bool_)) \
@@ -1747,6 +1965,12 @@ def score(df, column_types, errors_log, limits, order_by, strength=5, saved=(), 
     # =Debit-Credit said every big debit twice), and a column of formulas adds nothing to a mix of values (AH-198)
     computed = {c: np.array([row[j] is not None for row in grid]) for j, c in enumerate(df.columns)
                 if grid and any(row[j] is not None for row in grid)}
+    records = _records(df, column_types, skip)  # AH-198: a journal entry's lines, an order's items
+    # ...and a record's own arithmetic: an amount in an entry whose debits equal its credits is no lone slip, which would
+    # break the balance (a 1,184,000 machine bought, "likely 11840", AH-198 fix round 2)
+    for g, run, a, b, _, ta, tb in _balanced(df, column_types, skip, records, computed):
+        agree = (ta - tb).round(6).abs() < 0.005
+        confirm(held, len(df), np.flatnonzero(np.isin(run, agree.index[agree])), f"{g}'s {a} and {b} agree", (a, b))
     # saved: the columns whose limits the user set - their limits win, so nothing is listed past the data's own band
     lim = limits_detector(df, column_types, limits, typos_only=s < 1, listing=s >= ALONE,
                           quiet=set(fairness.protected(column_types)) | set(saved), held=held, computed=computed)
@@ -1779,7 +2003,6 @@ def score(df, column_types, errors_log, limits, order_by, strength=5, saved=(), 
     zeros = lost_zeros(df, column_types, skip)
     above = order(df, column_types, skip)  # AH-178: a 10th percentile above its 90th, a Low above its High
     before = date_order(df, column_types, skip, far)  # AH-198: delivered before it shipped
-    records = _records(df, column_types, skip)  # AH-198: a journal entry's lines, an order's items
     same = same_in_record(df, column_types, skip, records, computed)
     owed, owed_fix = balances(df, column_types, skip, records, computed)
     scaled = by_scale(df, column_types, skip, k, computed, [{c for r in said for c in r.cols} for said in lim["reasons"]])
@@ -1793,6 +2016,8 @@ def score(df, column_types, errors_log, limits, order_by, strength=5, saved=(), 
     code, coded_top = codes(df, column_types, skip)
     spell, spell_fix, missed, spell_maybe, spell_exact = spellings(df, column_types, skip)
     proven = coded_spellings(df, column_types, skip, spell_maybe)  # AH-198: "Acounts Payable" on Account 2000
+    keyed = same_by_key(df, column_types, skip, computed)  # AH-198 fix round 2: a part's one unit cost
+    keyed = [k + o for k, o in zip(keyed, own_scale(df, column_types, skip, records, computed), strict=True)]  # ...a x10 in one entity
     missed = [m + s + f + w + b + g for m, s, f, w, b, g in zip(missed, shifted(df, column_types, skip), fractions(df, column_types, skip),
                                                                  whole_numbers(df, column_types, skip), named_bounds(df, column_types, skip),
                                                                  spread, strict=True)]  # all "worth a check" (Low)
@@ -1824,13 +2049,23 @@ def score(df, column_types, errors_log, limits, order_by, strength=5, saved=(), 
         named = {c for r in said for c in getattr(r, "cols", ())}
         return [c for c in df.columns if c in named]
 
+    def lone(i, v):
+        """AH-198 fix round 2, weak evidence: the limits' one vote, one cell past its weird limit with no other reason on
+        the row and no slip that reads it back inside its usual limits (`unexplained`): a trial's fever of 39.2 C among
+        35.8-37.6 was Medium, "probably wrong". Worth a check (Low): one real extreme looks the same. On both benches
+        no planted mistake and no clean row moved: each planted slip has a decimal point, a sign or a unit behind it."""
+        if v != 1 or len(lim["reasons"][i]) != 1 or lim["likely"][i] or lim["maybe"][i] or solved[i] or missed[i]:
+            return False
+        col = lim["reasons"][i][0].cols[0]
+        return bool(limits.get(col)) and unexplained(float(df[col].iat[i]), *limits[col][:4])
+
     for i in range(n):
         if skip[i]:
             rows.append({"severity": None, "bucket": None, "reason": "" if empty[i] else "Totals/summary row - not checked",
                          "magnitude": 0.0})
             continue
         voted = [d for d in ran if d["votes"][i]]
-        hygiene = dup[i] + typ[i] + blank[i] + hole[i] + code[i] + far[i] + add[i] + spell[i] + zeros[i] + forms[i] + calc[i] + above[i] + genes[i] + before[i] + same[i] + owed[i] + scaled[i] + proven[i]
+        hygiene = dup[i] + typ[i] + blank[i] + hole[i] + code[i] + far[i] + add[i] + spell[i] + zeros[i] + forms[i] + calc[i] + above[i] + genes[i] + before[i] + same[i] + owed[i] + scaled[i] + proven[i] + keyed[i]
         if not voted and not hygiene and not missed[i]:
             noted = as_typed(lim["noted_reasons"][i], i)
             rows.append({"severity": "Noted" if noted else None, "bucket": None,
@@ -1839,7 +2074,7 @@ def score(df, column_types, errors_log, limits, order_by, strength=5, saved=(), 
         v, weird = len(voted), bool(lim["votes"][i])
         said = as_typed(list(dict.fromkeys(hygiene + missed[i] + [r for d in voted for r in d["reasons"][i]])), i)  # dedupe, keep order
         rows.append({  # a possible misspelling alone is "worth a check" (Low): it may be a real name
-            "severity": "High" if v >= 3 else "Medium" if v == 2 or weird or hygiene else "Low",
+            "severity": "High" if v >= 3 else "Medium" if v == 2 or weird and not lone(i, v) or hygiene else "Low",
             "bucket": "Duplicates" if dup[i] else "Irregularities" if weird or hygiene or missed[i] else "Behavioral",
             "reason": (f"Flagged by {v} of {len(ran)}: " if v else "") + "; ".join(said),
             "cells": cells(said),

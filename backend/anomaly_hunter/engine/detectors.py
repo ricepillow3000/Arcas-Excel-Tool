@@ -71,6 +71,28 @@ def _crossed(v, lo, hi):
     return None
 
 
+# AH-198 fix round 2: the slips a breach can be read back through: a decimal point or zeros, a minus sign, and the units
+# typed for one another (Celsius for Fahrenheit, pounds for kilos, inches for centimetres, feet for metres, miles for
+# kilometres, a glucose in mmol/L for mg/dL)
+UNDO = (lambda v: v * 10, lambda v: v / 10, lambda v: v * 100, lambda v: v / 100, lambda v: v * 1000, lambda v: v / 1000,
+        lambda v: -v, lambda v: v * 1.8 + 32, lambda v: (v - 32) / 1.8, lambda v: v * 2.20462, lambda v: v / 2.20462,
+        lambda v: v * 2.54, lambda v: v / 2.54, lambda v: v * 0.3048, lambda v: v / 0.3048, lambda v: v * 1.60934,
+        lambda v: v / 1.60934, lambda v: v * 18, lambda v: v / 18)
+
+
+REACH = 2  # a breach within this many widths of the weird limits from their middle is the column's own extreme, at most
+
+
+def unexplained(v, lo, hi, w_lo, w_hi):
+    """No slip of UNDO reads v back inside its column's usual limits [lo, hi] (a fever of 39.2 C among usual 36.2-37.2 is
+    no 3.92, 392, -39.2 nor 102.6 F), and v lies within REACH widths of its weird limits [w_lo, w_hi] from their middle:
+    an extreme of the column's own kind, its breach weak evidence of a mistake (AH-198 fix round 2). Street trees at 47.27
+    among latitudes of 37.70-37.80 are 17 widths out: no tree of that street. A minus sign where the column never goes
+    below 0 is a slip on its own (a rainfall of -291 among 310-740, whose 291 no slip reads back either)."""
+    return (w_lo is not None and w_hi is not None and abs(v - (w_lo + w_hi) / 2) <= REACH * (w_hi - w_lo)
+            and not (v < 0 and lo is not None and lo >= 0) and all(_crossed(f(v), lo, hi) is not None for f in UNDO))
+
+
 BEYOND = 4  # a typo sits this many times past every other value in the column
 
 
@@ -215,6 +237,22 @@ NEAR = 0.1  # within this share of a value's distance from the median, other val
 # 55,000 each month (median 5,400)
 
 
+def _labelled_minus(df, column_types, x):
+    """AH-198 fix round 2: the minus signs of a column, when they are exactly the rows of one label of a text column (2+
+    rows, every row it labels, no other): the label's meaning, never a stray minus. A carrier's volume rebate, coded
+    REBATE, credited as -150 on the 2 invoices that carry it. -> bool per row."""
+    neg = x < 0
+    if neg.sum() < 2:
+        return np.zeros(len(x), bool)
+    rows = set(np.flatnonzero(neg))
+    for g in [c for c, t in column_types.items() if t == "text"][:64]:  # the first 64: a crafted wide sheet stays fast
+        lab = df[g].astype(str).str.strip().where(df[g].notna() & ~np.isnan(x)).to_numpy(object)
+        named = {lab[i] for i in rows}
+        if len(named) == 1 and not pd.isna(next(iter(named))) and set(np.flatnonzero(lab == next(iter(named)))) == rows:
+            return neg
+    return np.zeros(len(x), bool)
+
+
 def limits_detector(df, column_types, limits, typos_only=False, listing=False, quiet=(), held=None, computed=None):
     """Weird-limit breach = vote. Baseline-only breach = noted, no vote. likely[i] = {col: probable typo fix}.
     typos_only (strength 0): only breaches with an obvious typo behind them, or negatives in a column that never goes
@@ -268,6 +306,7 @@ def limits_detector(df, column_types, limits, typos_only=False, listing=False, q
         top = None if typos_only else _alone_top(sv)
         rules = (held or {}).get(col, ())
         ruled = lambda i: next((t for m, t in rules if m[i]), None)  # the rule this row's arithmetic holds to
+        meant = _labelled_minus(df, column_types, x) if (x < 0).any() else np.zeros(n, bool)
 
         def in_tail(v):
             """Other values crowd the way back to the median (hours 1-99 around a usual 40, survey weights up to 8x
@@ -295,7 +334,7 @@ def limits_detector(df, column_types, limits, typos_only=False, listing=False, q
             return len(np.unique(sv[lo:hi])) - 1
 
         for i, v in enumerate(x):
-            if np.isnan(v) or formula[i]:
+            if np.isnan(v) or formula[i] or meant[i]:
                 continue
             weird, fix = _crossed(v, w_lo, w_hi), None
             if weird is not None and mirrored(i, j, v):  # a counter-entry: past its limit, but no slip
