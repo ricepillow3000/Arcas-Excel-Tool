@@ -118,7 +118,7 @@
                 <dl>
                   <dt>Checks</dt><dd>Totals that don't add up, typing slips</dd>
                   <dt>Rule</dt><dd><span class="nb">Total = Units × UnitCost</span></dd>
-                  <dt>Found</dt><dd><span class="nb">-5 × 2.99 = -14.95</span>, but Total is 170.43</dd>
+                  <dt>Found</dt><dd><span class="nb">-5 × 2.99 = -14.95,</span> but Total is 170.43</dd>
                   <dt>Usual limit</dt><dd>Units 0 or more</dd>
                   <dt>Proposed fix</dt><dd>Units 57, from the row's own numbers: <span class="nb">170.43 ÷ 2.99</span></dd>
                 </dl>
@@ -130,7 +130,7 @@ Units is -5, below its usual limit of 0"</p>
                 <dl>
                   <dt>Checks</dt><dd>Totals that don't add up, typing slips, odd jumps over time</dd>
                   <dt>Rule</dt><dd><span class="nb">Total = Units × UnitCost</span></dd>
-                  <dt>Found</dt><dd><span class="nb">7777 × 1.99 = 15476.23</span>, but Total is 83.58</dd>
+                  <dt>Found</dt><dd><span class="nb">7777 × 1.99 = 15476.23,</span> but Total is 83.58</dd>
                   <dt>Usual limit</dt><dd>Units 105 or less</dd>
                   <dt>Proposed fix</dt><dd>Units 42, from the row's own numbers: <span class="nb">83.58 ÷ 1.99</span></dd>
                 </dl>
@@ -392,8 +392,8 @@ Units jumped sharply near 2026-01-26"</p>
           <p class="notice">This is public: GitHub gets what you typed as soon as its tab opens; nothing is posted until you press Submit there. You need a free GitHub account. Never paste client data, your AI key or your invite code.</p>
           <p class="form-note">GitHub is a free website where John keeps Arcas and answers questions. No account? Use Email John instead.</p>
           <div class="field">
-            <label for="c-name">Name</label>
-            <input id="c-name" name="name" type="text" maxlength="80" autocomplete="name" required>
+            <label for="c-name">Name (optional)</label>
+            <input id="c-name" name="name" type="text" maxlength="80" autocomplete="name">
           </div>
           <div class="field">
             <label for="c-topic">What is it about?</label>
@@ -407,7 +407,7 @@ Units jumped sharply near 2026-01-26"</p>
             <label for="c-message">Message</label>
             <textarea id="c-message" name="message" maxlength="2000" required></textarea>
           </div>
-          <label class="confirm"><input id="c-public" type="checkbox" required><span>I understand my name and message will be public on GitHub.</span></label>
+          <label class="confirm"><input id="c-public" type="checkbox" required><span>I understand what I type here will be public on GitHub.</span></label>
           <div class="form-actions">
             <button class="btn btn-primary" type="submit">Open my message on GitHub</button>
             <a class="btn btn-plain" id="c-email" href="mailto:john4000.nguyen@gmail.com">Email John instead</a>

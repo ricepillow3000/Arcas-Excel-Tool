@@ -231,7 +231,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .band-dark { background: var(--grain-dark), var(--grid-dark), var(--dark); color: var(--on-dark-2); border-top-color: var(--dark); overflow-x: clip; } /* a heading lying face down (.lift) reaches past the screen's edge in perspective: never a sideways scroll */
 .band-dark h2, .band-dark h3 { color: var(--on-dark); }
 .band-dark .label, .band-dark .fact { color: var(--gold-hi); }
-.band-dark .sec-lede { color: var(--on-dark-2); }
+.band-dark :is(.sec-lede, .proof-note) { color: var(--on-dark-2); }
 
 /* hero: a huge headline over ten columns, the text from column 7, then the sample sheet as the picture */
 .hero { padding-block: var(--s7) var(--s6); background: var(--grain), var(--grid), var(--paper); }
@@ -369,6 +369,7 @@ table.grid { width: 100%; border-collapse: collapse; font: 500 var(--fs--1)/1.3 
 .matrix, [data-pop-copy] { position: absolute; left: var(--s2); z-index: 2; width: min(440px, calc(100% - 32px)); background: var(--paper); border: 1px solid var(--ink); font-size: var(--fs--1); color: var(--ink); }
 .m-head { display: flex; justify-content: space-between; align-items: center; gap: var(--s2); padding: 8px 12px; background: var(--ink); color: var(--paper); }
 .m-head b { font: 700 var(--fs--1)/1.3 var(--sans); }
+.m-head button { flex: none; white-space: nowrap; } /* AH-200: a button keeps its word whole and its width: squeezed by the title, "Close" broke as "Clos" over "e" on any phone, and Accept, held to 44 px at 200% text, laid its word on the title */
 .m-close { min-height: 28px; font: 700 var(--fs--1)/1 var(--sans); color: var(--paper); background: none; border: 1px solid var(--paper); border-radius: 0; padding: 6px 8px; cursor: pointer; } /* 28 px: its height before the trim (AH-148) */
 .m-close:hover { background: var(--paper); color: var(--ink); }
 [data-pop-copy] { pointer-events: none; }
@@ -507,6 +508,20 @@ dl.anchor { position: relative; margin: 0; display: grid; grid-template-columns:
 #sha { display: flow-root; width: calc(32ch + 18px); max-width: 100%; }
 @container sha (width < calc(32ch + 18px)) { #sha { width: calc(16ch + 18px); } }
 .nb { white-space: nowrap; } /* a word or a sum that must stay whole: SHA-256, a sample's date, a detail box's arithmetic (AH-148 final pass: "170.43 ÷" ended one line, "2.99" began the next) */
+/* a detail box's arithmetic is one piece that moves to the next line whole, and breaks at its own spaces only when it is
+   wider than the box: nowrap pushed rows 11 and 22's boxes 131 px past a 320 px screen at 200% text, and 19 px past
+   their own border at 100% */
+:is(.matrix, [data-pop-copy]) .nb { display: inline-block; max-width: 100%; white-space: normal; }
+/* where the box is under 16 of its own ems (a 320 px phone with text at 200%), each label sits over its value: beside a
+   112 px label the value had 115 px, and "15476.23" broke as "15476.2" over "3", "Checks" as "Check" over "s" (AH-199).
+   At 100% text the box is 21 ems or more, two columns as before */
+:is(.matrix, [data-pop-copy]) { container-type: inline-size; }
+@container (width < 16em) {
+  :is(.matrix, [data-pop-copy]) dl { grid-template-columns: minmax(0, 1fr); }
+  :is(.matrix, [data-pop-copy]) dt { border-right: 0; border-bottom: 0; padding-bottom: 0; }
+  .m-head { flex-wrap: wrap; column-gap: var(--s1); } /* AH-200: the title on its own line, Accept and Close under it (232 px apart by 16, in 228) */
+  .m-head b { flex-basis: 100%; }
+}
 /* the hash may break anywhere, the release page link's words never ("pag / e" on a phone, AH-138 review) */
 #sha a { word-break: normal; overflow-wrap: normal; }
 #sha::before { content: "0000000000000000000000000000000000000000000000000000000000000000"; float: left; width: 100%; margin-right: -100%; visibility: hidden; }
