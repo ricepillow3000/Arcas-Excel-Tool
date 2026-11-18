@@ -1,0 +1,420 @@
+{
+ "drug_accountability": {
+  "domain": "Phase III oral study drug accountability log: one row per kit dispensed (60 tablets), returned at the next visit, with tablets taken, expected and compliance.",
+  "errors": [
+   {
+    "row": 339,
+    "cols": [
+     "Tablets Returned"
+    ],
+    "kind": "returned more than dispensed",
+    "domain_specific": true,
+    "proof": "99 tablets returned from a kit of 60 dispensed: more than were given out (Tablets Taken goes negative; a digit typed twice, 9 -> 99)."
+   },
+   {
+    "row": 405,
+    "cols": [
+     "Return Date"
+    ],
+    "kind": "return date before dispense date",
+    "domain_specific": true,
+    "proof": "Return Date 2026-08-22 is before Dispense Date 2026-09-19: a bottle cannot come back before it was given out (Days Between Visits is negative)."
+   },
+   {
+    "row": 86,
+    "cols": [
+     "Kit No"
+    ],
+    "kind": "duplicate kit number",
+    "domain_specific": true,
+    "proof": "Kit 957103 was already dispensed to subject 201-013 on 2026-04-09; a kit number identifies one bottle and is dispensed once."
+   },
+   {
+    "row": 328,
+    "cols": [
+     "Compliance (%)"
+    ],
+    "kind": "broken formula",
+    "domain_specific": false,
+    "proof": "Compliance divides Tablets Taken by Days Between Visits (RC[-2]) instead of Expected Tablets (RC[-1]) like every other row."
+   },
+   {
+    "row": 46,
+    "cols": [
+     "Tablets Taken"
+    ],
+    "kind": "taken is not dispensed minus returned",
+    "domain_specific": true,
+    "proof": "Tablets Taken is a typed number (no formula) that is not Tablets Dispensed minus Tablets Returned (digits transposed)."
+   },
+   {
+    "row": 192,
+    "cols": [
+     "Visit Dispensed"
+    ],
+    "kind": "misspelt category",
+    "domain_specific": false,
+    "proof": "\"Wek 12\" is a misspelling of the visit Week 12."
+   },
+   {
+    "row": 292,
+    "cols": [
+     "Expected Tablets"
+    ],
+    "kind": "circular reference",
+    "domain_specific": false,
+    "proof": "Expected Tablets multiplies by its own cell (=RC[-1]*RC) instead of the dose; it shows 0 and Compliance shows #DIV/0!."
+   },
+   {
+    "row": 233,
+    "cols": [
+     "Prescribed Dose (tablets/day)"
+    ],
+    "kind": "quantity in another unit",
+    "domain_specific": true,
+    "proof": "Prescribed Dose 20 is the daily dose in mg (2 x 10 mg tablets), not tablets/day; the subject's other rows say 2, and 20 tablets a day would empty the 60-tablet kit in 3 days."
+   }
+  ],
+  "traps": [
+   {
+    "row": 208,
+    "col": "Tablets Returned",
+    "why": "The subject did not bring the bottle back: Tablets Returned, Tablets Taken and Compliance are validly blank (unknown), not zero."
+   },
+   {
+    "row": 201,
+    "col": "Compliance (%)",
+    "why": "Compliance above 100% is possible: the subject took a few more tablets than the days between visits require (the bottle holds 60), and taken never exceeds dispensed."
+   },
+   {
+    "row": 94,
+    "col": "Tablets Taken",
+    "why": "Treatment was interrupted for the whole interval: every tablet came back, so 0 taken and 0% compliance are correct."
+   },
+   {
+    "row": 296,
+    "col": "Prescribed Dose (tablets/day)",
+    "why": "This subject was dose-reduced to 1 tablet a day from Week 8, as all their later rows show: expected tablets halve with it."
+   },
+   {
+    "row": 54,
+    "col": "Days Between Visits",
+    "why": "The next visit was delayed beyond the 60 tablets in the bottle: a long gap with low compliance is valid (the subject ran out), and the arithmetic holds."
+   }
+  ]
+ },
+ "bank_reconciliation": {
+  "domain": "Operating bank account reconciliation register, Sep-Oct 2026, statement date 2026-10-31: book items matched to the bank statement, with outstanding and bank-only items.",
+  "errors": [
+   {
+    "row": 181,
+    "cols": [
+     "Book Amount",
+     "Bank Amount"
+    ],
+    "kind": "cleared amount differs from book",
+    "domain_specific": true,
+    "proof": "Status Cleared, but the bank amount -8,745.59 differs from the book amount -7,845.59 (digits transposed); a cleared item matches to the cent."
+   },
+   {
+    "row": 414,
+    "cols": [
+     "Book Date",
+     "Bank Date"
+    ],
+    "kind": "check cleared before it was written",
+    "domain_specific": true,
+    "proof": "Check 20551 clears on 2026-10-12, before its book date 2026-10-16: a check cannot clear before it is issued."
+   },
+   {
+    "row": 103,
+    "cols": [
+     "Book Amount"
+    ],
+    "kind": "sign error",
+    "domain_specific": true,
+    "proof": "A customer deposit booked as a negative amount; the bank credited it as positive."
+   },
+   {
+    "row": 418,
+    "cols": [
+     "Running Book Balance"
+    ],
+    "kind": "broken formula (wrong row)",
+    "domain_specific": false,
+    "proof": "Running Book Balance adds to the balance two rows up (=R[-2]C+RC[-5]), dropping the row above, unlike every other row."
+   },
+   {
+    "row": 274,
+    "cols": [
+     "Check No"
+    ],
+    "kind": "duplicate check number",
+    "domain_specific": true,
+    "proof": "Check No 20501 is already used by JE-2610-0011; check numbers are unique."
+   },
+   {
+    "row": 145,
+    "cols": [
+     "Transaction Type"
+    ],
+    "kind": "misspelt category",
+    "domain_specific": false,
+    "proof": "\"Customer Deposti\" is a misspelling of Customer Deposit."
+   },
+   {
+    "row": 196,
+    "cols": [
+     "Status"
+    ],
+    "kind": "status contradicts bank fields",
+    "domain_specific": true,
+    "proof": "Status Outstanding, yet the item has a bank date and a bank amount equal to the book: it has cleared."
+   },
+   {
+    "row": 255,
+    "cols": [
+     "Difference (Bank - Book)"
+    ],
+    "kind": "circular reference",
+    "domain_specific": false,
+    "proof": "Difference subtracts its own cell (=RC[-2]-RC) instead of the book amount; it shows 0."
+   }
+  ],
+  "traps": [
+   {
+    "row": 527,
+    "col": "Book Amount",
+    "why": "A bank charge not yet recorded in the books: Book Date and Book Amount are validly blank and it is a reconciling item."
+   },
+   {
+    "row": 117,
+    "col": "Bank Amount",
+    "why": "A customer's deposit of 84,840.32 bounced: the bank reverses it (negative, bank only) until the books record the returned item."
+   },
+   {
+    "row": 323,
+    "col": "Book Amount",
+    "why": "A voided check keeps its number in the sequence with a zero amount and never reaches the bank."
+   },
+   {
+    "row": 484,
+    "col": "Bank Date",
+    "why": "An incoming customer wire reached the bank the day before it was booked: a deposit can clear before its book date (only a check cannot)."
+   },
+   {
+    "row": 427,
+    "col": "Book Amount",
+    "why": "A quarterly estimated tax payment of $1.85 million is a valid extreme; it cleared for the same amount."
+   }
+  ]
+ },
+ "demurrage_charges": {
+  "domain": "Import container demurrage at six ports, Aug-Oct 2026 discharges: free days by line and box type, tiered daily tariff in the port's currency, converted to USD at the gate-out month's rate.",
+  "errors": [
+   {
+    "row": 372,
+    "cols": [
+     "Container No"
+    ],
+    "kind": "invalid container check digit",
+    "domain_specific": true,
+    "proof": "CAIU0250237 fails the ISO 6346 check digit (the first ten characters give 3)."
+   },
+   {
+    "row": 427,
+    "cols": [
+     "Gate-Out Date"
+    ],
+    "kind": "gate-out before discharge",
+    "domain_specific": true,
+    "proof": "Gate-Out 2026-10-17 is before Discharge 2026-10-21: a container cannot leave the terminal before it is unloaded there."
+   },
+   {
+    "row": 249,
+    "cols": [
+     "Free Days"
+    ],
+    "kind": "dry free days on a reefer",
+    "domain_specific": true,
+    "proof": "Meridian Container Line gives reefers 3 free days on every other row; this reefer gets the dry-box allowance of 7."
+   },
+   {
+    "row": 63,
+    "cols": [
+     "Demurrage (Tariff Currency)"
+    ],
+    "kind": "broken formula (tiers ignored)",
+    "domain_specific": false,
+    "proof": "Demurrage charges every chargeable day at the tier 1 rate (=RC[-4]*RC[-3]) instead of the tiered formula every other row uses."
+   },
+   {
+    "row": 456,
+    "cols": [
+     "FX Rate to USD"
+    ],
+    "kind": "exchange rate inverted",
+    "domain_specific": true,
+    "proof": "The EUR rate is EUR per USD, the inverse of the USD per EUR every other EUR row uses that month."
+   },
+   {
+    "row": 368,
+    "cols": [
+     "Shipping Line"
+    ],
+    "kind": "misspelt category",
+    "domain_specific": false,
+    "proof": "\"Meridian Containr Line\" is a misspelling of Meridian Container Line."
+   },
+   {
+    "row": 289,
+    "cols": [
+     "Chargeable Days"
+    ],
+    "kind": "typed value over a formula (digit slip)",
+    "domain_specific": false,
+    "proof": "Chargeable Days is a typed number (no formula) that is not Days at Terminal minus Free Days (digits transposed)."
+   },
+   {
+    "row": 460,
+    "cols": [
+     "Demurrage (USD)"
+    ],
+    "kind": "circular reference",
+    "domain_specific": false,
+    "proof": "Demurrage (USD) multiplies by its own cell (=ROUND(RC[-2]*RC,2)) instead of the FX rate; it shows 0."
+   }
+  ],
+  "traps": [
+   {
+    "row": 453,
+    "col": "Gate-Out Date",
+    "why": "The container is still on the terminal: no gate-out date yet, so days and charges are validly blank until it leaves."
+   },
+   {
+    "row": 390,
+    "col": "Demurrage (Tariff Currency)",
+    "why": "Collected within the free days: zero chargeable days and zero demurrage are correct."
+   },
+   {
+    "row": 107,
+    "col": "Free Days",
+    "why": "Reefer containers get fewer free days than dry boxes from the same line (power and monitoring cost): every reefer of this line has this allowance."
+   },
+   {
+    "row": 74,
+    "col": "Demurrage (Tariff Currency)",
+    "why": "A 67-day dwell (cargo held for inspection) is a valid extreme: most days fall in tier 3 and the tiered arithmetic holds."
+   },
+   {
+    "row": 364,
+    "col": "Container No",
+    "why": "The same container came back on a later voyage: its first visit ended on 2026-08-16, before this discharge, so the two rows are separate visits."
+   }
+  ]
+ },
+ "weight_rollup": {
+  "domain": "Indented multi-level engineering BOM mass roll-up for six machines: parts weighed as CAD volume x material density, assemblies as the sum of their children's extended masses.",
+  "errors": [
+   {
+    "row": 67,
+    "cols": [
+     "Unit Mass (kg)"
+    ],
+    "kind": "quantity in another unit",
+    "domain_specific": true,
+    "proof": "Unit Mass (kg) holds the mass in grams: volume x density / 1000 is a thousandth of it."
+   },
+   {
+    "row": 356,
+    "cols": [
+     "Density (g/cm³)"
+    ],
+    "kind": "wrong density for the material",
+    "domain_specific": true,
+    "proof": "Aluminium 6061-T6 is 2.70 g/cm³ (every other aluminium row); 7.85 is steel's density, so the part is about three times too heavy."
+   },
+   {
+    "row": 411,
+    "cols": [
+     "Unit Mass (kg)"
+    ],
+    "kind": "broken formula (range misses a child)",
+    "domain_specific": false,
+    "proof": "The subassembly's SUM stops one row early and leaves its last child out of the mass."
+   },
+   {
+    "row": 289,
+    "cols": [
+     "Extended Mass (kg)"
+    ],
+    "kind": "circular reference",
+    "domain_specific": false,
+    "proof": "Extended Mass multiplies by its own cell (=RC[-1]*RC) instead of the quantity; it shows 0."
+   },
+   {
+    "row": 320,
+    "cols": [
+     "Qty per Parent"
+    ],
+    "kind": "fractional count of a discrete part",
+    "domain_specific": true,
+    "proof": "Qty 2.5 of a machined part counted in EA (each): a whole part cannot be half used."
+   },
+   {
+    "row": 477,
+    "cols": [
+     "Material"
+    ],
+    "kind": "misspelt category",
+    "domain_specific": false,
+    "proof": "\"Alumnium 6061-T6\" is a misspelling of Aluminium 6061-T6."
+   },
+   {
+    "row": 277,
+    "cols": [
+     "Volume per Unit (cm³)"
+    ],
+    "kind": "digit slip",
+    "domain_specific": false,
+    "proof": "Volume per Unit has two digits transposed: Unit Mass no longer equals volume x density / 1000."
+   },
+   {
+    "row": 368,
+    "cols": [
+     "Parent Item No"
+    ],
+    "kind": "child under the wrong parent",
+    "domain_specific": true,
+    "proof": "The row sits inside a different subassembly's block (BOM order and levels), but names SA-87981, the previous subassembly, as its parent."
+   }
+  ],
+  "traps": [
+   {
+    "row": 141,
+    "col": "Qty per Parent",
+    "why": "Cable is bought by the metre (UoM M), so a fractional quantity is valid; mass per unit is per metre."
+   },
+   {
+    "row": 447,
+    "col": "Item No",
+    "why": "The same standard bolt is used in several subassemblies: a BOM repeats a shared part under each parent that uses it, with identical data."
+   },
+   {
+    "row": 437,
+    "col": "Unit Mass (kg)",
+    "why": "A grey cast-iron pump casing of about 6,000 cm³ really weighs over 30 kg (volume x 7.2 g/cm³): a valid extreme."
+   },
+   {
+    "row": 247,
+    "col": "Unit Mass (kg)",
+    "why": "An assembly's unit mass is the SUM of its children's extended masses: a formula, unlike the typed masses of parts, used by every assembly row."
+   },
+   {
+    "row": 474,
+    "col": "Volume per Unit (cm³)",
+    "why": "A catalogue part is weighed from the supplier's datasheet: no CAD volume or density, so those cells are validly blank."
+   }
+  ]
+ }
+}
