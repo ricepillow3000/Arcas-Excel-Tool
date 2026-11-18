@@ -1219,7 +1219,8 @@ const done = async ({ ctx, problems, outside }, label, allowed = []) => {
   // (390 and 1280 px) each box keeps its two columns, so it is no taller. AH-148's part 5 keeps each sum on one line there.
   // AH-200: the box's head too: "Close" broke as "Clos" over "e" on any phone, and at 200% Accept, held to 44 px, spilled
   // its word 27 px onto the title. No word in the box cut in two, no button's word outside its button, nothing in the
-  // head on top of anything else
+  // head on top of anything else. AH-201: the quote of the pane's words too: its dates broke at a hyphen ("2026-01-" over
+  // "09") at 390 px, where the pane keeps each date whole (`.iso-date`)
   for (const [width, size] of [[320, "200%"], [320, "100%"], [390, "100%"], [1280, "100%"]]) {
     const t = await open("index.html", { width, height: 800, motion: "reduce" });
     const p = t.page;
@@ -1231,7 +1232,7 @@ const done = async ({ ctx, problems, outside }, label, allowed = []) => {
       const r = await p.evaluate((m) => {
         const box = document.getElementById(m), dl = box.querySelector("dl"), cut = [], comma = [];
         const top = (n, a, b) => { const g = document.createRange(); g.setStart(n, a); g.setEnd(n, b); return [...g.getClientRects()].map((x) => Math.round(x.top)); };
-        for (const root of [box.querySelector(".m-head"), dl]) for (let n, last = null, walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT); (n = walk.nextNode()); last = n) {
+        for (const root of [box.querySelector(".m-head"), dl, box.querySelector(".m-said")]) for (let n, last = null, walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT); (n = walk.nextNode()); last = n) {
           for (const w of n.data.matchAll(/\S+/g)) if (new Set(top(n, w.index, w.index + w[0].length)).size > 1) cut.push(w[0]);
           if (/^[,.:;]/.test(n.data) && last && last.data.length && top(n, 0, 1)[0] > top(last, last.data.length - 1, last.data.length)[0]) comma.push(n.data);
         }
