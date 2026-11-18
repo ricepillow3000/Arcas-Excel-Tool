@@ -1075,8 +1075,8 @@
   "id": "relay-invite-loosen",
   "guard": "invite hash check",
   "file": "relay/worker.js",
-  "old": "if (!who) return json(401",
-  "new": "if (!who && false) return json(401",
+  "old": "if (!who) return refuse(json(401",
+  "new": "if (!who && false) return refuse(json(401",
   "kind": "loosen",
   "tests": [
    "node relay/test.mjs"
@@ -1141,8 +1141,8 @@
   "id": "relay-noip-loosen",
   "guard": "public tier needs a network to count",
   "file": "relay/worker.js",
-  "old": "if (pub && !ip) return json(400",
-  "new": "if (false) return json(400",
+  "old": "if (pub && !ip) return refuse(json(400",
+  "new": "if (false) return refuse(json(400",
   "kind": "loosen",
   "tests": [
    "node relay/test.mjs"
@@ -1512,7 +1512,7 @@
   "id": "relay-body-declared-loosen",
   "guard": "a declared body over 8 KB is refused unread (AH-158)",
   "file": "relay/worker.js",
-  "old": "if (+req.headers.get(\"Content-Length\") > MAX_BODY) return big();",
+  "old": "if (+req.headers.get(\"Content-Length\") > MAX_BODY) return refuse(big());",
   "new": "",
   "kind": "loosen",
   "tests": [
@@ -2332,6 +2332,62 @@
   "kind": "tighten",
   "tests": [
    "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "relay-nosniff-refusal-loosen",
+  "guard": "relay: every refusal says nosniff (AH-189)",
+  "file": "relay/worker.js",
+  "old": "{ status, headers: { \"Content-Type\": \"application/json\", \"X-Content-Type-Options\": \"nosniff\" } });",
+  "new": "{ status, headers: { \"Content-Type\": \"application/json\" } });",
+  "kind": "loosen",
+  "tests": [
+   "node relay/test.mjs"
+  ]
+ },
+ {
+  "id": "relay-nosniff-answer-loosen",
+  "guard": "relay: Google's answer, passed through, says nosniff (AH-189)",
+  "file": "relay/worker.js",
+  "old": "headers: { \"Content-Type\": \"application/json\", \"X-Content-Type-Options\": \"nosniff\", ...(m ?",
+  "new": "headers: { \"Content-Type\": \"application/json\", ...(m ?",
+  "kind": "loosen",
+  "tests": [
+   "node relay/test.mjs"
+  ]
+ },
+ {
+  "id": "relay-burst-preauth-loosen",
+  "guard": "relay: a cheap refusal is metered too, so a garbage flood is not free (AH-189)",
+  "file": "relay/worker.js",
+  "old": "      if (!env.BURST) return resp; // a deploy from before BURST: go on, exactly as the counted path does",
+  "new": "      return resp;",
+  "kind": "loosen",
+  "tests": [
+   "node relay/test.mjs"
+  ]
+ },
+ {
+  "id": "relay-burst-bucket-tighten",
+  "guard": "relay: refusals spend their own bucket, never a real caller's minute (AH-189)",
+  "file": "relay/worker.js",
+  "old": "refusals ??= \"no:\" + await hmac(env.GEMINI_KEY,",
+  "new": "refusals ??= \"\" + await hmac(env.GEMINI_KEY,",
+  "kind": "tighten",
+  "tests": [
+   "node relay/test.mjs"
+  ]
+ },
+ {
+  "id": "decimals-empty-loosen",
+  "guard": "a column with no number does not take the mean of nothing (main's fix, mutant from AH-189)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "    if not len(x):  # no number on the rows read (all on a skipped row): the mean of nothing was an HTTP 500 (fuzz, 2026-11-16)\n        return 0\n",
+  "new": "",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_fuzz_api.py::test_a_sheet_whose_number_columns_are_filled_only_on_a_skipped_row_scans_without_an_engine_error",
+   "backend/tests/test_fuzz_api.py::test_the_decimals_of_a_column_with_no_number_are_zero_and_a_filled_column_reports_its_own"
   ]
  }
 ]

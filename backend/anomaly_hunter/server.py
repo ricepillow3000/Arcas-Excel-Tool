@@ -68,6 +68,9 @@ MAX_CELLS = 2_000_000  # same as the pane's maxCells (frontend/utils/sheet.js): 
 EXCEL_ROWS = 1_048_576  # a sheet's rows: the header can't sit lower
 EXCEL_FORMULA = 8_192  # Excel's longest formula: a cell's formula sent with /scan is at most this long (AH-152)
 EXCEL_COLUMNS = 16_384  # a sheet's columns. AH-140: rows [] made the cell cap 0, and 500,000 names held a thread for hours
+# an invite code to John's relay, the shape relay/new-invite.mjs writes: one check for a pasted code (/key) and for an
+# invite kit's own invite-code.txt (app.keep_invite, AH-185), so the two can never drift apart
+INVITE_CODE = re.compile(r"inv_[A-Za-z0-9_\-]{20,64}")
 # two workbooks scanning at once shared one temp file: a replace found it gone and a file could mix both (2026-10-16)
 _CSV_LOCK = threading.Lock()
 
@@ -289,7 +292,7 @@ def create_app(scan_csv=None):
             client.INVITE_FILE.unlink(missing_ok=True)
             return {"ai_available": client.api_key_configured(), "ai_provider": client.provider()}
         if key.startswith("inv_"):  # an invite code to John's relay: kept here, checked by the relay on use
-            if not re.fullmatch(r"inv_[A-Za-z0-9_\-]{20,64}", key):
+            if not INVITE_CODE.fullmatch(key):
                 return {"error": "That doesn't look like a whole invite code. Copy it again."}, 400
             sealed.save(client.INVITE_FILE, key)
             on = client.provider() == "relay"
@@ -308,7 +311,8 @@ def create_app(scan_csv=None):
             return {"error": err}, 400
         nat = lambda k, hi=None: type(body.get(k)) is int and 0 <= body[k] and (hi is None or body[k] < hi)
         # Excel's last column is XFD (16384): further right is no sheet address
-        if not (nat("row_index", len(body["rows"])) and nat("start_row") and nat("start_col", 16384 - len(body["columns"]) + 1)):
+        # start_row is bounded like /scan's (AH-185: it had no upper bound here, so any whole number went through)
+        if not (nat("row_index", len(body["rows"])) and nat("start_row", EXCEL_ROWS) and nat("start_col", 16384 - len(body["columns"]) + 1)):
             return {"error": "'row_index', 'start_row', 'start_col' must be whole numbers inside the sheet"}, 400
         intent = body.get("intent") or ""
         if not isinstance(intent, str) or len(intent) > 2000:

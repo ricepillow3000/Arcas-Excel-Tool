@@ -96,10 +96,10 @@
 
       <section class="form-card" data-enter="bottom" aria-labelledby="contact-title">
         <h2 id="contact-title">Ask a question</h2>
-        <p class="reply">John replies within 2 business days.</p>
+        <p class="reply">John usually replies within 2 business days.</p>
         <p class="talk">Rather talk? Call John at <a href="tel:+17702659930">(770) 265-9930</a> or email <a href="mailto:john4000.nguyen@gmail.com">john4000.nguyen@gmail.com</a>.</p>
         <form id="ticket" data-reveal-group novalidate>
-          <p class="notice reveal-item">This is public: it fills in a question on GitHub for you; nothing is posted until you press Submit there. You need a free GitHub account. Never paste client data, account numbers, your AI key or your invite code. John will never ask for them.</p>
+          <p class="notice reveal-item">This is public: it fills in a question on GitHub for you. GitHub gets what you typed as soon as its tab opens; nothing is posted until you press Submit there. You need a free GitHub account. Never paste client data, account numbers, your AI key or your invite code. John will never ask for them.</p>
           <p class="form-note reveal-item">GitHub is a free website where John keeps Arcas and answers questions. No account? Use Email John instead.</p>
           <div class="field reveal-item">
             <label for="topic">What is this about?</label>
@@ -133,7 +133,7 @@
           <div class="result" id="result" hidden>
             <span id="ready">Ready. Open it on GitHub, check it, and press Submit there.</span>
             <span id="cut" hidden>What happened is too long for one link, so the link holds only its start. Copy the rest from the box above and paste it on GitHub.</span>
-            <a class="btn btn-plain" id="open" href="https://github.com/ricepillow3000/excel-anomaly-hunter/issues/new?template=support_request.yml" target="_blank" rel="noopener" aria-describedby="ready">Open on GitHub</a>
+            <a class="btn btn-plain" id="open" href="https://github.com/ricepillow3000/excel-anomaly-hunter/issues/new?template=support_request.yml" target="_blank" rel="noopener" aria-describedby="ready">Open on GitHub (opens a new tab)</a>
             <p id="thanks" role="status" hidden>Thanks. Your question is open on GitHub in a new tab. Once you press Submit there, John will see it, and any answer shows on that same page.</p>
           </div>
           <p class="error" id="missing" hidden role="alert"></p>
@@ -160,11 +160,26 @@
       </dl>
     </div>
   </section>
+
+  <section class="section" id="accessibility" aria-labelledby="a11y-title">
+    <div class="wrap cols" data-reveal-group>
+      <h2 class="sec-title reveal-item" data-depth="0.03" id="a11y-title">Accessibility</h2>
+      <p class="sec-lede calm reveal-item">Arcas aims at WCAG 2.2 level AA, on this website and in the pane. What is written below is what is checked automatically on every change, not a promise that nothing is ever missed. If something here blocks you, that is a fault worth reporting, and the form above reaches John.</p>
+      <dl class="it-ledger calm" data-reveal-group="rows">
+        <div class="reveal-item"><span class="rule" aria-hidden="true"></span><dt>Keyboard</dt><dd>Every control can be reached and used with the keyboard alone. Each page starts with a Skip to content link, focus is always visible, Escape closes the menu and puts focus back on the button that opened it, and a form error moves focus to the first field that needs you.</dd></div>
+        <div class="reveal-item"><span class="rule" aria-hidden="true"></span><dt>Screen readers</dt><dd>Every field has a label, every picture has words describing it, and decorative shapes are hidden from screen readers so they are not read out as noise.</dd></div>
+        <div class="reveal-item"><span class="rule" aria-hidden="true"></span><dt>Contrast and size</dt><dd>Text contrast is measured against its real background on 47 page states, and must reach 4.5 to 1, or 3 to 1 for large text. Nothing you tap is smaller than 24 by 24 pixels, and no text is under 12 pixels. The pages work at 200% text size with no sideways scrolling.</dd></div>
+        <div class="reveal-item"><span class="rule" aria-hidden="true"></span><dt>Motion</dt><dd>If your system is set to reduce motion, the movement on these pages stops. Nothing flashes, and nothing moves on its own.</dd></div>
+        <div class="reveal-item"><span class="rule" aria-hidden="true"></span><dt>Without JavaScript</dt><dd>Every page can be read, and the menu and both forms still work, with JavaScript turned off.</dd></div>
+        <div class="reveal-item"><span class="rule" aria-hidden="true"></span><dt>Known limits</dt><dd>The pane lives inside Excel, so some of how it behaves is Excel's and not ours. Arcas has not been tested with every screen reader. Telling John which one you use, and what happened, is the fastest way to get it fixed.</dd></div>
+      </dl>
+    </div>
+  </section>
 </main>
 
 <footer class="foot">
   <div class="wrap cols" data-reveal-group>
-    <span class="reveal-item">Arcas · made by one person · free, with no warranty<br>No cookies, no tracking of you.</span>
+    <span class="reveal-item">Arcas · made by one person · free, with no warranty<br>No cookies, no tracking of you.<br>Microsoft and Excel are trademarks of Microsoft Corporation. Arcas is not affiliated with Microsoft.</span>
     <nav class="reveal-item" aria-label="Footer">
       <a href="index.html#download">Download</a>
       <a href="code-signing.html">Code signing policy</a>
