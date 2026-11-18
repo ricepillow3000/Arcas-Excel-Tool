@@ -138,6 +138,14 @@ paths:
         "400": {$ref: "#/components/responses/Error"}
         "502": {$ref: "#/components/responses/Error"}
         "503": {$ref: "#/components/responses/Error"}
+  /rules:  # AH-201: the AI reads only the headers and each column's kind; the engine checks its rules on every row
+    post:
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/Sheet"}}}}
+      responses:
+        "200": {$ref: "#/components/responses/Json"}
+        "400": {$ref: "#/components/responses/Error"}
+        "502": {$ref: "#/components/responses/Error"}
+        "503": {$ref: "#/components/responses/Error"}
   /key:
     post:
       requestBody:

@@ -5,7 +5,7 @@ import { cutNote, r1c1ToA1, tableFromGrid, isDateFormat, excelDate, rowFromAddre
 import { issuesOf, recommendFix, typoKind, afterFix, unusualColumn } from "./features/fix.js";
 import { plainReason, summaryOf, legendOf, flaggedRows, fairnessNote, fairnessTests, listOrder, levelChange, asLastScan, lastScanSaid, doneOf, shareOf } from "./features/scan.js";
 import { MEASURED, COLOR, OLD_COLOR } from "./constants/index.js";
-import { oddLines } from "./features/ai.js";
+import { oddLines, rulesLines } from "./features/ai.js";
 import { read as readLimit } from "./pages/limits.js";
 import { strengthHint, asStrength, levelAt, levelWord } from "./pages/strength.js";
 import { exactFixes, safeUndo } from "./features/autofix.js";
@@ -205,6 +205,28 @@ assert.equal(summaryOf([{ severity: "High" }, { severity: null }]), "1 of 2 rows
   assert.equal(lines.length, K.CAP + 1);
   assert.equal(lines.at(-1), "+ 10 more words the AI found out of place.");
   assert.equal(oddLines(Array.from({ length: K.CAP }, (_, k) => ({ row: k, col: 0, value: `w${k}`, why: "x" })), ["Item"], 0, 0).length, K.CAP, "exactly CAP lines need no more line");
+}
+// AH-201: Check subject rules says each rule once (true on all rows, on most with the rows against it after it, did not
+// hold, too few rows) with the AI's why, each row by its sheet row and its cells' letters and the sheet's own headers
+{
+  const r = (said, held, total, holds, why = "x") => ({ said, held, total, holds, why });
+  const out = { sent: 3, headers: 4, rules: [r("Net = Debit − Credit", 29, 30, true, "<b>double entry</b>"), r("A is at most B", 30, 30, true),
+    r("C = A × B", 20, 30, false), r("D is 0 where E is after F", 6, 6, false)],
+  rows: [{ row: 7, cells: [3], reason: "Net 5 is not Debit − Credit (4): …", rule: 0 }, { row: 9, cells: [1, 0], reason: "B …", rule: 0 }] };
+  assert.deepEqual(rulesLines(out, ["Debit", "Units", "Units", "Net"], 2, 1), [
+    "Only the first 3 of 4 column headers were sent.",
+    "True on 29 of 30 rows: Net = Debit − Credit. The AI says: <b>double entry</b>",
+    "Row 11, column E (Net): Net 5 is not Debit − Credit (4): …",
+    "Row 13, columns C (Units) and B (Debit): B …",
+    "True on all 30 rows: A is at most B. The AI says: x",
+    "Did not hold, so nothing was flagged: C = A × B (true on 20 of 30 rows). The AI says: x",
+    "Too few rows to check: D is 0 where E is after F (6 rows). The AI says: x"]);
+  assert.deepEqual(rulesLines({ sent: 0, headers: 0, rules: [], rows: [] }, ["A"], 0, 0), ["The AI found no rules to check in your headers."]);
+  const many = { sent: 1, headers: 1, rules: [r("A = B + C", 900, 1000, true)], rows: Array.from({ length: 60 }, (_, k) => ({ row: k, cells: [0], reason: "x", rule: 0 })) };
+  const lines = rulesLines(many, ["A"], 0, 0);
+  assert.equal(lines.length, K.CAP + 1);
+  assert.equal(lines.at(-1), "+ 11 more lines.");
+  assert.equal(rulesLines({ ...many, rows: many.rows.slice(0, K.CAP - 1) }, ["A"], 0, 0).length, K.CAP, "exactly CAP lines need no more line");
 }
 // AH-170: a limit box's text: empty is no limit, a number is the limit, anything else is refused (a number box dropped
 // letters and read empty, so the limit was taken off without a word)

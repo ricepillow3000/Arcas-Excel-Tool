@@ -17,7 +17,14 @@ class H(BaseHTTPRequestHandler):
             ans = {"odd": [{"column": col, "value": values[col][0], "why": "<img src=x onerror=window.__pwned=1> a city"},
                            {"column": col, "value": "Atlantis", "why": "not in the sheet at all"}]}
             return self.reply(body, ans)
-        flagged = re.search(r"Flagged row (\d+):", prompt).group(1)
+        if "column headers of a spreadsheet" in prompt:  # /rules (AH-201): a rule of the sheet's last three headers with
+            names = [h for h, _ in json.loads(prompt.splitlines()[1])]  # markup in "why", and one of a header never sent
+            rule = dict.fromkeys(("target", "first", "then", "value", "when", "after", "id", "parent")) | {"plus": [], "minus": [], "factors": []}
+            ans = {"rules": [{**rule, "kind": "product", "why": "<img src=x onerror=window.__pwned=2> qty times price",
+                              "target": names[-1], "factors": names[-3:-1]},
+                             {**rule, "kind": "order", "why": "not in the sheet", "first": "Ship date", "then": names[0]}]}
+            return self.reply(body, ans)
+        flagged =re.search(r"Flagged row (\d+):", prompt).group(1)
         rng = re.search(r"Data range: (\S+)", prompt).group(1)
         last = rng.split(":")[1][1:]
         req = re.search(r"^User's request: (.*)$", prompt, re.M).group(1).lower()  # its own line: sheet text can't forge one
