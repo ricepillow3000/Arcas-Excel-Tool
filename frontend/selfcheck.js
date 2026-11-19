@@ -943,7 +943,7 @@ for (const f of readdirSync(new URL(".", import.meta.url)).filter((f) => f.endsW
       if (hex(p) === GOLD && p[3] === 255) assert.ok(Math.hypot(x + 0.5 - c, y + 0.5 - c) > c * 0.75, `crest4-${n}.png: gold inside the ring at ${x},${y}`);
     }
     assert.ok(seen.has(GOLD) && seen.has(STEPS[0]) && seen.has(STEPS[5]), `crest4-${n}.png: no gold ring, wine top or navy foot`);
-    if (n === 16) assert.deepEqual([...seen].filter((k) => k !== GOLD && k !== "#F3F1EA" && !STEPS.includes(k)), [], "crest4-16.png: a pixel outside the coin's colours");
+    if (n === 16) assert.deepEqual([...seen].filter((k) => k !== GOLD && k !== "#EEE9DD" && !STEPS.includes(k)), [], "crest4-16.png: a pixel outside the coin's colours");
   }
 }
 

@@ -13,9 +13,10 @@ HERE = Path(__file__).parent
 GOLD, PAPER = "#997D3A", "#F7F5F0"
 # wine to navy in even OKLab lightness steps, the middle steps' colour held up (a straight mix sagged to grey)
 STEPS = ["#6B1E2E", "#5B1E30", "#4B1C35", "#371C3A", "#211B3C", "#0C1938"]
-# the coin: the header bar's own paper, --paper at its heart to --paper-2 at its rim (John: "the gradient white matches
-# the textures of the hero line"), and the bar's grain (styles.css --grain: the same noise, colour, scale and 7% strength)
-CENTRE, RIM = "#F7F5F0", "#EFECE4"
+# the coin: the header bar's own paper at its heart (John: "the gradient white matches the textures of the hero line"),
+# deepening to a warm sand at its rim so the gradient shows inside the ring (John: "add some gradient inside the ring"),
+# and the bar's grain (styles.css --grain: the same noise, colour, scale and 7% strength)
+CENTRE, RIM = "#F7F5F0", "#E3DBCA"
 # each row's tiles as spans of 6 columns: the top, the opening, the opening, the crossbar, the legs
 ROWS = [[(0, 2), (2, 4), (4, 6)], [(0, 2), (4, 6)], [(0, 2), (4, 6)], [(0, 2), (2, 4), (4, 6)], [(0, 2), (4, 6)],
         [(0, 2), (4, 6)]]
@@ -115,7 +116,7 @@ ICON_16 = [
     "...oo------oo...",
     ".....oooooo.....",
 ]
-DISC_16 = "#F3F1EA"  # the coin's gradient at the middle of its radius
+DISC_16 = "#EEE9DD"  # the coin's gradient at the middle of its radius
 
 
 def icon_16():

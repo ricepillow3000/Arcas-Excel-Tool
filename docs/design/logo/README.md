@@ -2,7 +2,7 @@
 
 A capital A made of tiles, like the cells of a sheet: six rows of slanted tiles, wine at the top stepping to navy at the
 bottom, dead centre in a paper coin ringed in gold. The coin is the header bar's own paper, `--paper` at its heart to
-`--paper-2` at its rim, with the bar's grain over it, so on the site it blends into the page and the gold ring is its
+a warm sand at its rim (John: "add some gradient inside the ring"), with the bar's grain over it, so on the site it blends into the page and the gold ring is its
 only edge. On the pane's navy band the same coin carries the A's true colours with no box round it.
 
 How John got here (2026-11-19): he retired the Spear and Banner for a fresh mark from his emblem's shapes, picked a
@@ -55,4 +55,4 @@ How it is drawn (`draw.py` writes every file here; `python docs/design/logo/draw
   (`crest4-*.png` and 1.0.9.0), and every older name still answers with today's mark (`server.OLD_ICONS`).
 
 Palette: the rows #6B1E2E (wine), #5B1E30, #4B1C35, #371C3A, #211B3C, #0C1938 (navy); the ring #997D3A (gold); the
-coin #F7F5F0 to #EFECE4 (paper to paper-2) with the site's grain.
+coin #F7F5F0 (the header bar's paper) at its heart to a warm sand #E3DBCA at its rim, with the site's grain.
