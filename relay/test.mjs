@@ -3,6 +3,15 @@ import assert from "node:assert";
 import worker, { Counter, dayKey, network } from "./worker.js";
 import { canary } from "./canary.mjs";
 
+// AH-209: the caps' day is read from the clock on every call, and the busy-retry test below waits 4 s for real: a full
+// gate run that crossed Pacific midnight (08:00:00 UTC, 19 Nov) counted Ana's 4th fix on a new day, 200 for 429.
+// Every call here reads one fixed Pacific noon; the day's own edges are tested with explicit dates (dayKey below)
+const RealDate = Date, NOON = RealDate.parse("2026-11-19T20:00:00Z");
+globalThis.Date = class extends RealDate {
+  constructor(...a) { super(...(a.length ? a : [NOON])); }
+  static now() { return NOON; }
+};
+
 const hash = async (t) => [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t)))]
   .map((b) => b.toString(16).padStart(2, "0")).join("");
 

@@ -1,5 +1,5 @@
 // Browser test of the REAL pane against the REAL engine, with fake-office.js standing in for Excel.
-// Run via e2e/all.sh (needs node + playwright with chromium, and the repo's .venv). Modes: flow ai live nokey.
+// Run via e2e/all.sh (needs node + playwright with chromium, and the repo's .venv). Modes: flow flow2 ai live nokey.
 import { createRequire } from "node:module";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import fs from "node:fs";
@@ -202,6 +202,7 @@ const back = async () => { await page.click("#fix-back"); await page.waitForSele
 const watchVt = () => page.evaluate(() => { window.__vt = []; const f = () => { __vt.push(document.getAnimations().some((a) => String(a.effect?.pseudoElement).startsWith("::view-transition"))); if (__vt.length < 90) requestAnimationFrame(f); }; requestAnimationFrame(f); });
 const vtDone = async () => { await page.waitForFunction(() => __vt.some(Boolean), null, { timeout: 3000 }).catch(() => {});
   await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== "running"), null, { timeout: 5000 }).catch(() => {}); };
+const openLevel = () => page.$eval("#strength-box", (d) => (d.open = true)); // since AH-175 the slider is folded
 const openRow = async (r) => { await page.click(`#flagged-list button:has-text("Row ${r} ")`); await idle(); await page.waitForFunction(() => document.getElementById("fix-changes").children.length || document.getElementById("fix-explanation").textContent); };
 
 if (mode === "flow") {
@@ -618,7 +619,6 @@ if (mode === "flow") {
   // saved in the workbook; 5 brings everything back
   // a mouse can only drag what is on screen: bring the slider into view first, as a person scrolls up to it
   // since AH-175 the slider is folded: opened first, as a person presses "How hard to look"
-  const openLevel = () => page.$eval("#strength-box", (d) => (d.open = true));
   const track = async () => { await openLevel(); await page.locator("#strength").scrollIntoViewIfNeeded(); const b = await page.locator("#strength").boundingBox(); return { x: (v) => b.x + (b.width * v) / 10, y: b.y + b.height / 2 }; };
   const slide = async (from, to) => { const t = await track(); await page.mouse.move(t.x(from), t.y); await page.mouse.down(); await page.mouse.move(t.x(to), t.y, { steps: 8 }); await page.mouse.up(); };
   const level = () => page.getAttribute("#strength", "aria-valuenow");
@@ -862,7 +862,11 @@ if (mode === "flow") {
   await page.click("#forget-book"); await idle(); // the scan saved the pane's opening setting and its highlights' old fills again: only those go now
   ok((await text("#forget-state")) === "Removed from this workbook: the setting that opens this pane with the file; the colours your highlighted cells had before; the numbers of the last check. Your cells are as they were. Save the workbook to keep the change in the file; the next scan saves the setting that opens this pane again.",
     "a second Forget names only what was there - " + (await text("#forget-state")));
+}
 
+// AH-209: flow mode's second half, a mode of its own. All of it ran in 145 s here against e2e/all.sh's 150 s limit;
+// from 7a on each step loads its own sheet or reloads, so it starts as well from a freshly opened Sales sheet
+if (mode === "flow2") {
   // 7a) 30 scans and re-checks: what the pane keeps (listeners, page nodes) stays what is on screen (AH-13). Counted by
   // Chromium itself after a forced garbage collection, so a leaked list or a listener added per scan shows up
   const cdp = await page.context().newCDPSession(page);
@@ -1485,7 +1489,7 @@ if (mode === "nokey") { // engine started with no key: John's free AI through th
   await page.fill("#ai-key", "");
 }
 
-if (mode === "flow") {
+if (mode === "flow2") {
   // AH-94: under reduced motion the same states come without movement: no entrance, the skeleton without its light, a
   // hovered row filled but not lifted, the card shown without a turn, the list back without a fade
   {

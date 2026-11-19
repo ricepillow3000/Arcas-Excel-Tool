@@ -1,5 +1,5 @@
 """Every gate, in layers, fastest first - run before every commit: python tools/check.py [--e2e] [--keep-going]
-0 CI workflows parse  1 security lint (ruff, Bandit rules), secrets anywhere in the git history  2 pane self-check, website links and scripts  3 relay abuse tests and load test  4 engine tests + API fuzzing
+0 CI workflows parse  1 security lint (ruff, Bandit rules), secrets anywhere in the git history, every mutant's text in its file once  2 pane self-check, website links and scripts  3 relay abuse tests and load test  4 engine tests + API fuzzing
 5 accuracy: the industry bench and the blind 14-domain bench (gates: no crash, no harmful fix, no new Medium+ false alarm)
 6 dependencies with known vulnerabilities (needs the internet)  7 browser e2e and the website in a browser, with --e2e (needs .venv + playwright)
 8 mutation testing, with --mutate: every guard broken on purpose must turn a test red (tools/mutate.py; --e2e adds the browser's mutants)
@@ -19,6 +19,8 @@ LAYERS = [
     # a key deleted later is still in every clone and on GitHub: nothing read the history before AH-87 (a shallow
     # checkout skips with a note; CI fetches the whole history and runs it with --full)
     ("secrets in the git history", [PY, "tools/secret_history.py"]),
+    # AH-209: a mutant whose text a change moved plants nothing; only CI's mutation job read that, after the push
+    ("mutants match their code", [PY, "tools/mutate.py", "--stale"]),
     ("pane self-check", ["node", "frontend/selfcheck.js"]),
     ("website links and scripts", ["node", "tools/test_site.mjs"]),
     ("relay abuse tests", ["node", "relay/test.mjs"]),
