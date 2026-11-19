@@ -3828,5 +3828,228 @@
    "e2e"
   ],
   "modes": "live"
+ },
+ {
+  "id": "pii-luhn-loosen",
+  "guard": "A card number is one only when it passes Luhn (AH-206)",
+  "file": "backend/anomaly_hunter/ai/pii.py",
+  "old": "    return total % 10 == 0\n",
+  "new": "    return True\n",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_pii.py::test_dates_amounts_zips_ids_and_look_alikes_are_left_as_typed"
+  ]
+ },
+ {
+  "id": "pii-luhn-tighten",
+  "guard": "A card number is one only when it passes Luhn (AH-206)",
+  "file": "backend/anomaly_hunter/ai/pii.py",
+  "old": "    return total % 10 == 0\n",
+  "new": "    return total % 10 == 0 and len(digits) == 16\n",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_pii.py::test_each_kind_is_masked_in_the_shapes_people_type_it"
+  ]
+ },
+ {
+  "id": "pii-card-start-loosen",
+  "guard": "A card starts with 2-6 (AH-206)",
+  "file": "backend/anomaly_hunter/ai/pii.py",
+  "old": "CARD = re.compile(r\"(?<![\\w+.-])[2-6]",
+  "new": "CARD = re.compile(r\"(?<![\\w+.-])[0-9]",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_pii.py::test_dates_amounts_zips_ids_and_look_alikes_are_left_as_typed"
+  ]
+ },
+ {
+  "id": "pii-card-start-tighten",
+  "guard": "A card starts with 2-6 (AH-206)",
+  "file": "backend/anomaly_hunter/ai/pii.py",
+  "old": "CARD = re.compile(r\"(?<![\\w+.-])[2-6]",
+  "new": "CARD = re.compile(r\"(?<![\\w+.-])[3-6]",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_pii.py::test_each_kind_is_masked_in_the_shapes_people_type_it"
+  ]
+ },
+ {
+  "id": "pii-card-length-loosen",
+  "guard": "A card is 13 to 19 digits (AH-206)",
+  "file": "backend/anomaly_hunter/ai/pii.py",
+  "old": "CHECK = {\"CARD\": lambda d: 13 <= len(d) <= 19",
+  "new": "CHECK = {\"CARD\": lambda d: 12 <= len(d) <= 20",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_pii.py::test_a_card_of_19_digits_is_masked_and_one_digit_more_or_fewer_than_13_to_19_is_not"
+  ]
+ },
+ {
+  "id": "pii-card-length-tighten",
+  "guard": "A card is 13 to 19 digits (AH-206)",
+  "file": "backend/anomaly_hunter/ai/pii.py",
+  "old": "CHECK = {\"CARD\": lambda d: 13 <= len(d) <= 19",
+  "new": "CHECK = {\"CARD\": lambda d: 14 <= len(d) <= 18",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_pii.py::test_each_kind_is_masked_in_the_shapes_people_type_it",
+   "backend/tests/test_pii.py::test_a_card_of_19_digits_is_masked_and_one_digit_more_or_fewer_than_13_to_19_is_not"
+  ]
+ },
+ {
+  "id": "pii-ssn-area-loosen",
+  "guard": "An SSN's area is never 000, 666 or 900-999 (AH-206)",
+  "file": "backend/anomaly_hunter/ai/pii.py",
+  "old": "(?!000|666|9\\d\\d)",
+  "new": "(?!000|666)",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_pii.py::test_dates_amounts_zips_ids_and_look_alikes_are_left_as_typed"
+  ]
+ },
+ {
+  "id": "pii-ssn-area-tighten",
+  "guard": "An SSN's area is never 000, 666 or 900-999 (AH-206)",
+  "file": "backend/anomaly_hunter/ai/pii.py",
+  "old": "(?!000|666|9\\d\\d)",
+  "new": "(?!000|666|[89]\\d\\d)",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_pii.py::test_each_kind_is_masked_in_the_shapes_people_type_it"
+  ]
+ },
+ {
+  "id": "pii-email-loosen",
+  "guard": "An email ends in a top-level domain of 2+ letters (AH-206)",
+  "file": "backend/anomaly_hunter/ai/pii.py",
+  "old": "\\.[A-Za-z]{2,63}(?![\\w-])",
+  "new": "\\.[A-Za-z0-9-]{1,63}(?![\\w-])",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_pii.py::test_dates_amounts_zips_ids_and_look_alikes_are_left_as_typed"
+  ]
+ },
+ {
+  "id": "pii-email-tighten",
+  "guard": "An email ends in a top-level domain of 2+ letters (AH-206)",
+  "file": "backend/anomaly_hunter/ai/pii.py",
+  "old": "\\.[A-Za-z]{2,63}(?![\\w-])",
+  "new": "\\.[A-Za-z]{3,63}(?![\\w-])",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_pii.py::test_each_kind_is_masked_in_the_shapes_people_type_it"
+  ]
+ },
+ {
+  "id": "pii-taken-loosen",
+  "guard": "A token the sheet already holds is never given to a real value (AH-206)",
+  "file": "backend/anomaly_hunter/ai/pii.py",
+  "old": "    taken = {t for s in texts if isinstance(s, str) for t in TOKEN.findall(s[:SCAN])}\n",
+  "new": "    taken = set()\n",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_pii.py::test_a_token_the_sheet_already_holds_is_never_given_to_a_real_value"
+  ]
+ },
+ {
+  "id": "pii-unmask-unknown-tighten",
+  "guard": "A token the request never gave out stays as typed (AH-206)",
+  "file": "backend/anomaly_hunter/ai/pii.py",
+  "old": "mapping.get(m.group(), m.group())",
+  "new": "mapping.get(m.group(), \"\")",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_pii.py::test_a_token_the_request_never_gave_out_stays_as_typed",
+   "backend/tests/test_fix.py::test_no_email_phone_ssn_or_card_from_the_sheet_reaches_the_ai_and_its_answer_writes_the_real_ones"
+  ]
+ },
+ {
+  "id": "ask-ai-mask-loosen",
+  "guard": "Ask AI sends emails, phones, SSNs and card numbers as tokens (AH-206)",
+  "file": "backend/anomaly_hunter/ai/client.py",
+  "old": "    if MASK:  # after the flagged",
+  "new": "    if False:  # after the flagged",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_fix.py::test_no_email_phone_ssn_or_card_from_the_sheet_reaches_the_ai_and_its_answer_writes_the_real_ones"
+  ]
+ },
+ {
+  "id": "ask-ai-mask-near-loosen",
+  "guard": "Every row Ask AI may show is masked: 5 above and below the flagged one (AH-206)",
+  "file": "backend/anomaly_hunter/ai/client.py",
+  "old": "range(max(0, row_index - 5), min(len(rows), row_index + 6))",
+  "new": "range(max(0, row_index - 2), min(len(rows), row_index + 3))",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_fix.py::test_no_email_phone_ssn_or_card_from_the_sheet_reaches_the_ai_and_its_answer_writes_the_real_ones"
+  ]
+ },
+ {
+  "id": "ask-ai-unmask-loosen",
+  "guard": "The AI's answer gets the real values back before every guard (AH-206)",
+  "file": "backend/anomaly_hunter/ai/client.py",
+  "old": "    fix = Fix(explanation=pii.unmask(fix.explanation, mapping), changes=[CellChange(cell=c.cell, new=pii.unmask(c.new, mapping)) for c in fix.changes])\n",
+  "new": "",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_fix.py::test_the_guards_judge_the_real_value_a_token_stands_for",
+   "backend/tests/test_fix.py::test_no_email_phone_ssn_or_card_from_the_sheet_reaches_the_ai_and_its_answer_writes_the_real_ones"
+  ]
+ },
+ {
+  "id": "ask-ai-hidden-loosen",
+  "guard": "A cell that went out as a stand-in takes only a hidden value (moved or kept) or a blank, never a new one; a stand-in never given out is never written (AH-206 fix round 1)",
+  "file": "backend/anomaly_hunter/ai/client.py",
+  "old": "pii.TOKEN.search(c[\"new\"]) or c[\"cell\"] in secret and",
+  "new": "pii.TOKEN.search(c[\"new\"]) or False and",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_fix.py::test_a_new_value_in_a_cell_that_went_out_as_a_stand_in_is_never_written"
+  ]
+ },
+ {
+  "id": "ask-ai-hidden-token-loosen",
+  "guard": "A cell that went out as a stand-in takes only a hidden value (moved or kept) or a blank, never a new one; a stand-in never given out is never written (AH-206 fix round 1)",
+  "file": "backend/anomaly_hunter/ai/client.py",
+  "old": "        pii.TOKEN.search(c[\"new\"]) or c[\"cell\"] in secret",
+  "new": "        c[\"cell\"] in secret",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_fix.py::test_a_stand_in_the_request_never_gave_out_is_never_written_in_any_cell"
+  ]
+ },
+ {
+  "id": "ask-ai-hidden-held-tighten",
+  "guard": "A cell that went out as a stand-in takes only a hidden value (moved or kept) or a blank, never a new one; a stand-in never given out is never written (AH-206 fix round 1)",
+  "file": "backend/anomaly_hunter/ai/client.py",
+  "old": " and c[\"new\"].strip() and c[\"new\"] not in held)]",
+  "new": " and c[\"new\"].strip())]",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_fix.py::test_a_hidden_value_may_be_moved_kept_or_cleared_since_each_is_a_value_the_sheet_already_holds"
+  ]
+ },
+ {
+  "id": "ask-ai-hidden-blank-tighten",
+  "guard": "A cell that went out as a stand-in takes only a hidden value (moved or kept) or a blank, never a new one; a stand-in never given out is never written (AH-206 fix round 1)",
+  "file": "backend/anomaly_hunter/ai/client.py",
+  "old": " and c[\"new\"].strip() and c[\"new\"] not in held)]",
+  "new": " and c[\"new\"] not in held)]",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_fix.py::test_a_hidden_value_may_be_moved_kept_or_cleared_since_each_is_a_value_the_sheet_already_holds"
+  ]
+ },
+ {
+  "id": "ask-ai-secret-tighten",
+  "guard": "A cell that went out as a stand-in takes only a hidden value (moved or kept) or a blank, never a new one; a stand-in never given out is never written (AH-206 fix round 1)",
+  "file": "backend/anomaly_hunter/ai/client.py",
+  "old": "for j, v in enumerate(r) if v != real[k][j]}",
+  "new": "for j, v in enumerate(r)}",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_fix.py::test_a_new_value_in_a_cell_that_went_out_as_a_stand_in_is_never_written"
+  ]
  }
 ]

@@ -319,3 +319,18 @@ def test_every_privacy_page_says_the_workbook_keeps_codes_of_the_values_dismisse
     assert "a short code for each value you dismissed and the checks you stopped (never the values)" in words("frontend/taskpane.html")
     forget = (ROOT / "frontend/features/forget.js").read_text(encoding="utf-8")
     assert '[ACCEPTED_KEY, "the codes of the values you dismissed"]' in forget and '[IGNORED_KEY, "the checks you stopped"]' in forget
+
+
+def test_every_privacy_page_and_the_pane_say_ask_ai_swaps_emails_phones_ssns_and_cards_and_check_words_does_not():
+    """AH-206: Ask AI masks emails, phone numbers, SSNs and card numbers on this PC (ai/pii.py) and puts them back in
+    the answer; Check words sends its words as they are. The pages, and the pane beside the Ask AI box, say both."""
+    from anomaly_hunter.ai import client
+    swapped = ("Before it goes, emails, phone numbers, US Social Security numbers and card numbers written in their usual "
+               "forms are swapped on this PC for stand-ins such as [EMAIL_1], and the AI's answer gets the real ones back here.")
+    for page in PAGES:
+        said = words(page)
+        assert swapped in said and "they go as they are: judging a word needs the word itself" in said, page
+    assert ("card numbers in it are swapped on this PC for stand-ins such as [EMAIL_1] and put back in the answer here"
+            in words("frontend/taskpane.html"))
+    from anomaly_hunter.ai import pii
+    assert client.MASK is True and pii.mask(["a@example.com"])[0] == ["[EMAIL_1]"]  # on, and the stand-in the pages show

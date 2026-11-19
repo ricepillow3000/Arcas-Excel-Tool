@@ -1,4 +1,5 @@
 import json
+import sys
 import threading
 import urllib.error
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -642,3 +643,83 @@ def test_both_privacy_pages_name_every_place_data_goes_and_every_file_the_app_ke
         assert [p for p in places + files if p not in words] == [], page
         assert [k for k in kept if k not in " ".join(words.split())] == [], page
         assert "any other third party" not in words and "never transmitted" not in words, page
+
+
+# ---- AH-206: emails, phones, SSNs and card numbers go as tokens and come back real, before any guard ----
+
+PII_COLS = ["Customer", "Email", "Phone", "SSN", "Card", "Units"]
+PII_ROWS = [[f"C{k}", f"user{k}@example.com", f"(555) 010-{1000 + k}", f"{100 + k}-45-6789",
+             "4111 1111 1111 1111" if k == 5 else "", 40 + k] for k in range(12)]
+PII_ROWS[5][5] = -5  # the flagged row: sheet row 7
+
+
+def pii_fix(monkeypatch, tmp_path, answer, reason="Units below weird low 0 (Email user5@example.com)", intent=""):
+    got = gemini_stub(monkeypatch, tmp_path, content=json.dumps(answer))
+    (tmp_path / "gemini-key.txt").write_text("AIzaTest")
+    out = client.suggest_fix(PII_COLS, PII_ROWS, 5, 0, 0, reason, intent)
+    return out, [body for _, body in got if body]
+
+
+def test_no_email_phone_ssn_or_card_from_the_sheet_reaches_the_ai_and_its_answer_writes_the_real_ones(monkeypatch, tmp_path):
+    answer = {"explanation": "Units fixed; [EMAIL_1] kept.", "changes": [
+        {"cell": "F7", "new": "45"}, {"cell": "B7", "new": "[EMAIL_1]"}, {"cell": "C7", "new": "[PHONE_1]"},
+        {"cell": "E7", "new": "[CARD_1]"}]}
+    out, sent = pii_fix(monkeypatch, tmp_path, answer, intent="also write my card 4111-1111-1111-1111 and call 555-123-4567")
+    wire = json.dumps(sent[0], ensure_ascii=False)
+    assert "@example.com" not in wire and "(555) 010-" not in wire and "-45-6789" not in wire and "4111" not in wire
+    assert "555-123-4567" not in wire and "B7='[EMAIL_1]'" in wire and "A7='C5'" in wire and "F7=-5" in wire
+    # every row the prompt shows is masked: the flagged row's first, then the rows 5 above and below it
+    assert "B2='[EMAIL_" in wire and "B12='[EMAIL_" in wire and "user0@" not in wire
+    assert out["changes"] == [{"cell": "F7", "new": "45"}, {"cell": "B7", "new": "user5@example.com"},
+                              {"cell": "C7", "new": "(555) 010-1005"}, {"cell": "E7", "new": "4111 1111 1111 1111"}]
+    assert out["explanation"] == "Units fixed; user5@example.com kept."
+
+
+def test_the_guards_judge_the_real_value_a_token_stands_for(monkeypatch, tmp_path):
+    # =[EMAIL_1] names nothing, so a guard reading the token would let it through; =user5@example.com names
+    # USER5 and EXAMPLE.COM, which are no SAFE functions: it is left out, and said
+    answer = {"explanation": "Linked it.", "changes": [{"cell": "F7", "new": "45"}, {"cell": "B7", "new": "=[EMAIL_1]"}]}
+    out, _ = pii_fix(monkeypatch, tmp_path, answer)
+    assert out["changes"] == [{"cell": "F7", "new": "45"}]
+    assert "Left out B7: the formula used a function that is not on this add-in's safe list" in out["explanation"]
+
+
+def test_a_masked_answer_kept_in_the_cache_comes_back_real_without_asking_again(monkeypatch, tmp_path):
+    answer = {"explanation": "ok", "changes": [{"cell": "B7", "new": "[EMAIL_1]"}]}
+    first, sent = pii_fix(monkeypatch, tmp_path, answer, intent="tidy the email")
+    again = client.suggest_fix(PII_COLS, PII_ROWS, 5, 0, 0, "Units below weird low 0 (Email user5@example.com)", "tidy the email")
+    assert again == first and first["changes"] == [{"cell": "B7", "new": "user5@example.com"}]
+    assert len(sent) == 1 and not any("user5@" in f.read_text(encoding="utf-8") for f in (tmp_path / "ai-cache").glob("*.json"))
+
+
+HIDDEN = "Left out {}: Ask AI never sees emails, phone numbers, Social Security or card numbers, so it can't write a new one there: fix it by hand."
+
+
+def test_a_new_value_in_a_cell_that_went_out_as_a_stand_in_is_never_written(monkeypatch, tmp_path):
+    # AH-206 fix round 1: asked to fix an email's typo it saw only as [EMAIL_1], the AI wrote an address made up from
+    # the name in 9 of 10 eval runs. Never invent a value: the cell keeps what it holds, and the card says why
+    answer = {"explanation": "Fixed the typo.", "changes": [
+        {"cell": "B7", "new": "user.five@example.com"}, {"cell": "D7", "new": "123-45-6789"}, {"cell": "F7", "new": "45"}]}
+    out, _ = pii_fix(monkeypatch, tmp_path, answer, intent="fix the typo in this email")
+    assert out["changes"] == [{"cell": "F7", "new": "45"}]  # a cell in the same row that was never hidden is still fixed
+    assert " (" + HIDDEN.format("B7, D7") + ")" in out["explanation"], out["explanation"]
+
+
+def test_a_stand_in_the_request_never_gave_out_is_never_written_in_any_cell(monkeypatch, tmp_path):
+    answer = {"explanation": "ok", "changes": [{"cell": "A7", "new": "[SSN_99]"}, {"cell": "F7", "new": "45 [EMAIL_77]"}]}
+    out, _ = pii_fix(monkeypatch, tmp_path, answer)
+    assert out["changes"] == [] and HIDDEN.format("A7, F7") in out["explanation"], out
+
+
+def test_a_hidden_value_may_be_moved_kept_or_cleared_since_each_is_a_value_the_sheet_already_holds(monkeypatch, tmp_path):
+    # the phone typed into Email moves to Phone through its stand-in, and its old cell is cleared: nothing invented
+    rows = [list(r) for r in PII_ROWS]
+    rows[5][1], rows[5][2] = "(555) 010-1005", ""
+    monkeypatch.setattr(sys.modules[__name__], "PII_ROWS", rows)
+    answer = {"explanation": "Moved [PHONE_1] to Phone.", "changes": [
+        {"cell": "C7", "new": "[PHONE_1]"}, {"cell": "B7", "new": ""}, {"cell": "E7", "new": "[CARD_1]"},
+        {"cell": "D2", "new": "[SSN_2]"}]}
+    out, _ = pii_fix(monkeypatch, tmp_path, answer, intent="move the phone to the Phone column")
+    assert out["changes"] == [{"cell": "C7", "new": "(555) 010-1005"}, {"cell": "B7", "new": ""},
+                              {"cell": "E7", "new": "4111 1111 1111 1111"}, {"cell": "D2", "new": "100-45-6789"}], out
+    assert "Left out" not in out["explanation"] and out["explanation"] == "Moved (555) 010-1005 to Phone."

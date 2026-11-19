@@ -69,12 +69,15 @@ can be charged by Google for what AI help uses; without billing, the free tier c
 - **Ask AI** (fix a row) sends the column names, the row you asked about, up to 5 rows above and 5 below it, the
   formulas in that row, the cell addresses, the reason it was flagged, and anything you type in the request box. On a
   wide sheet only the columns nearest the flagged cell and any column your request names go. Long cells are cut to 200
-  characters, except the flagged cell.
+  characters, except the flagged cell. Before it goes, emails, phone numbers, US Social Security numbers and card
+  numbers written in their usual forms are swapped on this PC for stand-ins such as [EMAIL_1], and the AI's answer gets
+  the real ones back here.
   Up to 5 fixes you accepted before in a column with the same name as the flagged one, from Ask AI's memory (each
   one's column name, the kind of fix, and the old and new values), are sent with Ask AI only once the AI memory is
   switched on in a later update. Until then they stay on this PC.
 - **Check words with AI** sends the names of your text columns that have 2 to 50 different values, and those values (up to
-  60 characters each). It never sends whole rows or numbers. These values can include names of people or places.
+  60 characters each). It never sends whole rows or numbers. These values can include names of people or places, and
+  they go as they are: judging a word needs the word itself.
 - **Check subject rules with AI** sends your column headers (the first 200, each cut to 100 characters) and whether each
   column holds numbers, dates, text or IDs. It never sends a cell. Arcas checks each rule the AI names on every row on
   this PC. Headers can include names of people or places.
