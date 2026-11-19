@@ -71,8 +71,10 @@ def coin(D, h, g, ring, pid, grain=True, sweep=False, side=None, plate=None, lea
     if grain:
         defs += (f'<filter id="{pid}-g" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" '
                  f'baseFrequency=".8" numOctaves="3" seed="3" stitchTiles="stitch"/><feColorMatrix values="0 0 0 0 .05 '
-                 f'0 0 0 0 .1 0 0 0 0 .22 0 0 0 -2 1.25"/><feComposite in2="SourceGraphic" operator="in"/></filter>')
-        noise = f'<circle cx="{num(c)}" cy="{num(c)}" r="{num(inner)}" fill="#000" filter="url(#{pid}-g)" opacity=".07"/>'
+                 f'0 0 0 0 .1 0 0 0 0 .22 0 0 0 -2 1.25"/><feComponentTransfer><feFuncA type="linear" slope=".07"/></feComponentTransfer>'
+                 f'<feComposite in2="SourceGraphic" operator="in"/></filter>')
+        # its 7% inside the filter, so the circle itself stays opaque (test_site.mjs reads every part of the logo opaque)
+        noise = f'<circle cx="{num(c)}" cy="{num(c)}" r="{num(inner)}" fill="#000" filter="url(#{pid}-g)"/>'
     sweeping, whole = "", ""
     if sweep:  # each half disc clipped to its own half, turning from the other half into place: a clockwise sweep from 12
         # each half's clip stops half a pixel short of the middle: a half turned onto the other side otherwise showed its

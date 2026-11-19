@@ -175,8 +175,8 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .bar .cols { min-height: 64px; align-items: center; }
 .brand { grid-column: 1 / span 4; display: inline-flex; align-items: center; gap: 12px; justify-self: start; color: var(--ink); text-decoration: none;
   font: 800 var(--fs-1)/1 var(--sans); letter-spacing: normal; white-space: nowrap; }
-.brand .logo { width: auto; height: 41px; aspect-ratio: 1; flex: none; margin-block: 0 -1px; } /* coin-41.svg, 1 unit a pixel (AH-203) */
-/* its ring draws itself once (John: "not just a static circle"); at rest, reduced motion or no CSS it is whole */
+.brand .logo { width: auto; height: 41px; aspect-ratio: 1; flex: none; margin-block: 0 -1px; } /* coin-41.svg, 1 unit a pixel */
+/* the ring draws itself once (AH-203); whole at rest, reduced motion or no CSS */
 .brand .logo :is(.sweep-a, .sweep-b) { transform-box: view-box; transform-origin: 20.5px 20.5px; }
 @media (prefers-reduced-motion: no-preference) {
   .brand .logo .sweep-a { animation: ring-a 1100ms cubic-bezier(.65, 0, 1, 1) 400ms backwards; }
