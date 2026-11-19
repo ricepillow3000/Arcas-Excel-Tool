@@ -174,6 +174,8 @@ def test_a_group_blank_on_all_but_one_of_its_rows_is_the_layout():
     out = scan(BANK, rows)
     blanks = [i for i in range(400, 451) if i != 420 and out[i]["severity"] in SURE]
     assert not blanks, out[blanks[0]]
+    # ...and a layout says nothing, not even AH-210's note of a stage the label allows (a label merely often blank)
+    assert not [i for i in range(400, 451) if "is blank on" in out[i]["reason"]]
 
 
 def test_a_small_group_blank_on_all_but_one_row_is_no_layout_to_tell():
@@ -290,3 +292,32 @@ def test_a_share_read_from_twenty_rows_corroborates():
 
 def test_a_share_read_from_nineteen_rows_corroborates_nothing():
     assert "keeps its usual share" not in sparse_tax(19)["reason"]
+
+
+# AH-210: one slip changes one cell. A row that fills two or more columns its label leaves empty has the wrong label (a
+# house listed as Land), and the label is named alone: its bathrooms, living area and year built were each coloured
+LISTING = ["Listing", "Type", "Bedrooms", "Living Area", "Year Built", "Price"]
+
+
+def listings(n=120):
+    rows = []
+    for i in range(n):
+        land = i % 4 == 0
+        rows.append([f"L{i:04d}", "Land" if land else ["House", "Condo"][i % 2], None if land else 2 + i % 4,
+                     None if land else 900 + i * 37 % 1500, None if land else 1950 + i % 60, 150000 + i * 7919 % 400000])
+    return rows
+
+
+def test_a_row_that_fills_two_columns_its_label_leaves_empty_names_the_label_alone():
+    rows = listings()
+    rows[40][3], rows[40][4] = 1730, 2005  # a house typed as Land: its area and year are filled
+    out = scan(LISTING, rows)
+    assert out[40]["cells"] == ["Type"] and out[40]["severity"] in SURE, out[40]
+    assert "Type Land does not fit this row, which fills Living Area and Year Built" in out[40]["reason"], out[40]
+
+
+def test_a_row_that_fills_one_column_its_label_leaves_empty_names_that_cell():
+    rows = listings()
+    rows[40][4] = 2005  # a year built typed on one Land listing: the year is the slip
+    out = scan(LISTING, rows)
+    assert out[40]["cells"] == ["Year Built"] and out[40]["severity"] in SURE, out[40]
