@@ -1,0 +1,485 @@
+{
+ "gradebook": {
+  "domain": "Middle-school gradebook: one row per student per assessment; homework out of 10, quizzes 20, tests 100, projects 50; excused work has no score, missing work scores 0.",
+  "errors": [
+   {
+    "row": 16,
+    "cols": [
+     "Score",
+     "Percent",
+     "Letter"
+    ],
+    "kind": "score x10",
+    "domain_specific": false,
+    "proof": "A homework out of 10 scored 10x its scale."
+   },
+   {
+    "row": 456,
+    "cols": [
+     "Letter"
+    ],
+    "kind": "letter typed over its formula",
+    "domain_specific": true,
+    "proof": "Letter is typed and does not match Percent's band."
+   },
+   {
+    "row": 344,
+    "cols": [
+     "Max Points",
+     "Percent",
+     "Letter"
+    ],
+    "kind": "wrong maximum for a test",
+    "domain_specific": true,
+    "proof": "A test out of 10 where every other test is out of 100 (Percent over 100)."
+   },
+   {
+    "row": 391,
+    "cols": [
+     "Type"
+    ],
+    "kind": "misspelt type",
+    "domain_specific": false,
+    "proof": "Type 'Homwork' is a misspelling."
+   },
+   {
+    "row": 440,
+    "cols": [
+     "Date"
+    ],
+    "kind": "year typo",
+    "domain_specific": false,
+    "proof": "A date centuries or decades from the school year."
+   },
+   {
+    "row": 0,
+    "cols": [
+     "Score",
+     "Percent",
+     "Letter"
+    ],
+    "kind": "negative score",
+    "domain_specific": false,
+    "proof": "A negative score."
+   },
+   {
+    "row": 66,
+    "cols": [
+     "Score",
+     "Percent",
+     "Letter"
+    ],
+    "kind": "score above the maximum with no extra credit",
+    "domain_specific": true,
+    "proof": "A quiz scored above its 20 points with no extra credit noted."
+   },
+   {
+    "row": 156,
+    "cols": [
+     "Student ID",
+     "Grade Level",
+     "Class",
+     "Teacher",
+     "Assessment",
+     "Type",
+     "Date",
+     "Max Points",
+     "Score",
+     "Percent",
+     "Letter",
+     "Status",
+     "Note"
+    ],
+    "kind": "grade entered twice",
+    "domain_specific": false,
+    "proof": "The same student and assessment entered twice."
+   }
+  ],
+  "traps": [
+   {
+    "row": 107,
+    "col": "Score",
+    "why": "53 of 50 with the extra credit Note says: above the maximum, and valid."
+   },
+   {
+    "row": 209,
+    "col": "Score",
+    "why": "Excused work has no score and no percent: the blanks are correct."
+   },
+   {
+    "row": 53,
+    "col": "Score",
+    "why": "Missing homework scores 0, as Status says."
+   },
+   {
+    "row": 212,
+    "col": "Score",
+    "why": "A perfect test: 100 of 100."
+   }
+  ]
+ },
+ "store_inventory": {
+  "domain": "Weekly store inventory by SKU: opening + received - sold + returned - shrinkage = closing, the next week opening where the last closed; promo weeks sell at a discount.",
+  "errors": [
+   {
+    "row": 433,
+    "cols": [
+     "Unit Cost",
+     "Stock Value"
+    ],
+    "kind": "cost decimal slip x10",
+    "domain_specific": false,
+    "proof": "Unit Cost is 10x this SKU's cost on every other row."
+   },
+   {
+    "row": 141,
+    "cols": [
+     "Opening Stock",
+     "Closing Stock",
+     "Stock Value"
+    ],
+    "kind": "opening is not last week's closing",
+    "domain_specific": true,
+    "proof": "Opening Stock differs from the same SKU and store's Closing Stock the week before."
+   },
+   {
+    "row": 654,
+    "cols": [
+     "Closing Stock",
+     "Stock Value"
+    ],
+    "kind": "closing typed over its formula",
+    "domain_specific": true,
+    "proof": "Closing Stock is typed and is not opening + received - sold + returned - shrinkage."
+   },
+   {
+    "row": 500,
+    "cols": [
+     "Units Sold",
+     "Closing Stock",
+     "Sales Value",
+     "Stock Value"
+    ],
+    "kind": "sold sign flipped",
+    "domain_specific": false,
+    "proof": "A negative number of units sold."
+   },
+   {
+    "row": 66,
+    "cols": [
+     "Category"
+    ],
+    "kind": "misspelt category",
+    "domain_specific": false,
+    "proof": "Category 'Grcery' is a misspelling."
+   },
+   {
+    "row": 79,
+    "cols": [
+     "Product"
+    ],
+    "kind": "another product's name on this SKU",
+    "domain_specific": true,
+    "proof": "Product 'Oat Cereal' on SKU-34774, whose every other row names another product."
+   },
+   {
+    "row": 555,
+    "cols": [
+     "Unit Cost",
+     "Unit Price",
+     "Stock Value",
+     "Sales Value"
+    ],
+    "kind": "cost and price swapped",
+    "domain_specific": true,
+    "proof": "Unit Cost above Unit Price on a full-price week: the two are swapped."
+   },
+   {
+    "row": 107,
+    "cols": [
+     "Received",
+     "Closing Stock",
+     "Stock Value"
+    ],
+    "kind": "received x100",
+    "domain_specific": false,
+    "proof": "Received is 100x a delivery of this SKU's case size."
+   }
+  ],
+  "traps": [
+   {
+    "row": 509,
+    "col": "Unit Price",
+    "why": "A promo week sells at 25% off, as Promo = Y says: the SKU's other weeks' price is not this one's."
+   },
+   {
+    "row": 358,
+    "col": "Unit Cost",
+    "why": "Electronics cost tens to hundreds of dollars a unit beside groceries at a few: valid for its category."
+   },
+   {
+    "row": 292,
+    "col": "Units Sold",
+    "why": "A week with no sales of a slow item: 0 sold is valid."
+   },
+   {
+    "row": 497,
+    "col": "Received",
+    "why": "A seasonal restock of 20 cases at once: far above the usual delivery, and valid (closing adds up)."
+   }
+  ]
+ },
+ "station_log": {
+  "domain": "Hourly weather-station log from four field sites at different heights and climates; offline hours carry no readings, a battery swap shows as Maintenance.",
+  "errors": [
+   {
+    "row": 366,
+    "cols": [
+     "Humidity (%)"
+    ],
+    "kind": "humidity above 100%",
+    "domain_specific": true,
+    "proof": "Relative humidity cannot exceed 100%."
+   },
+   {
+    "row": 21,
+    "cols": [
+     "Pressure (hPa)"
+    ],
+    "kind": "pressure in kPa",
+    "domain_specific": false,
+    "proof": "Pressure written in kPa (one tenth) under an hPa header."
+   },
+   {
+    "row": 296,
+    "cols": [
+     "Temperature (C)",
+     "Temperature (F)"
+    ],
+    "kind": "temperature sign flipped",
+    "domain_specific": false,
+    "proof": "A minus sign on an ordinary hour at this site."
+   },
+   {
+    "row": 381,
+    "cols": [
+     "Battery (V)"
+    ],
+    "kind": "battery decimal slip",
+    "domain_specific": false,
+    "proof": "A 12 V battery read as 10x."
+   },
+   {
+    "row": 336,
+    "cols": [
+     "Timestamp"
+    ],
+    "kind": "timestamp a day off",
+    "domain_specific": true,
+    "proof": "This station's hourly readings run in order; this one is stamped the day before its neighbours."
+   },
+   {
+    "row": 293,
+    "cols": [
+     "Humidity (%)"
+    ],
+    "kind": "reading missing while OK",
+    "domain_specific": true,
+    "proof": "A blank humidity on an hour whose Status is OK and every other reading is there."
+   },
+   {
+    "row": 141,
+    "cols": [
+     "Rainfall (mm)"
+    ],
+    "kind": "negative rainfall",
+    "domain_specific": false,
+    "proof": "Rainfall cannot be negative."
+   },
+   {
+    "row": 61,
+    "cols": [
+     "Station",
+     "Site",
+     "Elevation (m)",
+     "Timestamp",
+     "Temperature (C)",
+     "Temperature (F)",
+     "Humidity (%)",
+     "Pressure (hPa)",
+     "Wind Speed (m/s)",
+     "Rainfall (mm)",
+     "Battery (V)",
+     "Status"
+    ],
+    "kind": "reading logged twice",
+    "domain_specific": false,
+    "proof": "The same station and hour logged twice."
+   }
+  ],
+  "traps": [
+   {
+    "row": 297,
+    "col": "Rainfall (mm)",
+    "why": "A coastal storm: over 10 mm in an hour among mostly dry hours, and valid."
+   },
+   {
+    "row": 254,
+    "col": "Pressure (hPa)",
+    "why": "At 1,480 m the air pressure is about 850 hPa: valid for the ridge station."
+   },
+   {
+    "row": 482,
+    "col": "Battery (V)",
+    "why": "The battery was swapped in this maintenance hour, so the voltage jumps back up."
+   },
+   {
+    "row": 151,
+    "col": "Temperature (C)",
+    "why": "The station was offline: no readings is correct."
+   },
+   {
+    "row": 496,
+    "col": "Temperature (C)",
+    "why": "A desert afternoon over 38 C is valid."
+   }
+  ]
+ },
+ "payroll_register": {
+  "domain": "Biweekly payroll register: one row per employee per pay period, hourly and salaried staff, gross to net with federal and state withholding and a 401(k) deferral.",
+  "errors": [
+   {
+    "row": 159,
+    "cols": [
+     "Regular Hours",
+     "Federal Tax",
+     "State Tax",
+     "Regular Pay",
+     "Gross Pay",
+     "401(k)",
+     "Net Pay"
+    ],
+    "kind": "hours typed x10",
+    "domain_specific": false,
+    "proof": "800 regular hours in a two-week period (80 is full time)."
+   },
+   {
+    "row": 216,
+    "cols": [
+     "Hourly Rate",
+     "Federal Tax",
+     "State Tax",
+     "Regular Pay",
+     "Overtime Pay",
+     "Gross Pay",
+     "401(k)",
+     "Net Pay"
+    ],
+    "kind": "rate digits swapped",
+    "domain_specific": true,
+    "proof": "Hourly Rate 63.5 where this employee's every other period is 36.5."
+   },
+   {
+    "row": 82,
+    "cols": [
+     "Net Pay"
+    ],
+    "kind": "net pay typed over its formula",
+    "domain_specific": true,
+    "proof": "Net Pay is typed and is not Gross - taxes - 401(k)."
+   },
+   {
+    "row": 325,
+    "cols": [
+     "Department"
+    ],
+    "kind": "misspelt department",
+    "domain_specific": false,
+    "proof": "Department 'Finannce' is a misspelling."
+   },
+   {
+    "row": 305,
+    "cols": [
+     "Federal Tax",
+     "Net Pay"
+    ],
+    "kind": "withholding sign flipped",
+    "domain_specific": false,
+    "proof": "Negative federal tax withheld on an ordinary period."
+   },
+   {
+    "row": 319,
+    "cols": [
+     "State Tax",
+     "Net Pay"
+    ],
+    "kind": "state tax in a state without one",
+    "domain_specific": true,
+    "proof": "WA has no state income tax; every other WA row withholds 0."
+   },
+   {
+    "row": 264,
+    "cols": [
+     "Pay Period End"
+    ],
+    "kind": "year typo",
+    "domain_specific": false,
+    "proof": "A pay period end years away from every other period."
+   },
+   {
+    "row": 28,
+    "cols": [
+     "Pay Period End",
+     "Employee ID",
+     "Department",
+     "Work State",
+     "Pay Type",
+     "Hourly Rate",
+     "Annual Salary",
+     "Regular Hours",
+     "Overtime Hours",
+     "Regular Pay",
+     "Overtime Pay",
+     "Bonus",
+     "Gross Pay",
+     "Federal Tax",
+     "State Tax",
+     "401(k) %",
+     "401(k)",
+     "Net Pay",
+     "Note"
+    ],
+    "kind": "employee paid twice for one period",
+    "domain_specific": false,
+    "proof": "The same employee, period and amounts entered twice."
+   }
+  ],
+  "traps": [
+   {
+    "row": 187,
+    "col": "Bonus",
+    "why": "An executive's annual bonus, paid once a year and named in Note: far above the spot bonuses, and valid."
+   },
+   {
+    "row": 363,
+    "col": "Bonus",
+    "why": "A negative adjustment recovers an earlier overpayment, as Note says; gross still adds up."
+   },
+   {
+    "row": 123,
+    "col": "Regular Hours",
+    "why": "Unpaid leave for the whole period: 0 hours and 0 gross are correct."
+   },
+   {
+    "row": 315,
+    "col": "State Tax",
+    "why": "FL has no state income tax, so 0 withheld is correct."
+   },
+   {
+    "row": 7,
+    "col": "Regular Hours",
+    "why": "A new hire's first period starts mid-period: 40 hours is correct."
+   }
+  ]
+ }
+}

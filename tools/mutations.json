@@ -2988,8 +2988,8 @@
   "id": "weak-slip-loosen",
   "guard": "One weird-limit breach alone on its row, which no slip (UNDO) reads back inside the usual limits, within 2 widths of the weird limits from their middle (REACH), and is no minus sign below a floor of 0, is worth a check, never a vote (AH-198 fix round 2)",
   "file": "backend/anomaly_hunter/engine/detectors.py",
-  "old": "and all(_crossed(f(v), lo, hi) is not None for f in UNDO))",
-  "new": "and any(_crossed(f(v), lo, hi) is not None for f in UNDO))",
+  "old": "and not any(reads(k, f) for k, f in enumerate(UNDO)))",
+  "new": "and not all(reads(k, f) for k, f in enumerate(UNDO)))",
   "kind": "loosen",
   "tests": [
    "backend/tests/test_weak_evidence.py::test_a_weight_in_pounds_among_kilos_is_read_back_and_still_probably_wrong"
@@ -3263,8 +3263,8 @@
   "id": "weak-minus-loosen",
   "guard": "One weird-limit breach alone on its row, which no slip (UNDO) reads back inside the usual limits, within 2 widths of the weird limits from their middle (REACH), and is no minus sign below a floor of 0, is worth a check, never a vote (AH-198 fix round 2)",
   "file": "backend/anomaly_hunter/engine/detectors.py",
-  "old": "and not (v < 0 and lo is not None and lo >= 0) and all(",
-  "new": "and all(",
+  "old": "and not (v < 0 and lo is not None and lo >= 0) and not any(",
+  "new": "and not any(",
   "kind": "loosen",
   "tests": [
    "backend/tests/test_weak_evidence.py::test_a_minus_sign_in_a_column_that_never_goes_below_zero_is_still_probably_wrong"
@@ -4050,6 +4050,270 @@
   "kind": "tighten",
   "tests": [
    "backend/tests/test_fix.py::test_a_new_value_in_a_cell_that_went_out_as_a_stand_in_is_never_written"
+  ]
+ },
+ {
+  "id": "left-out-share-loosen",
+  "guard": "A sum that misses by exactly another cell of its row, to the cent, from a column 0 or blank on 80%+ of rows (LEFT_OUT) and outside the rule, is a part the rule leaves out, never a slip (AH-208)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "LEFT_OUT = 0.8  #",
+  "new": "LEFT_OUT = 0.0  #",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_honest_patterns.py::test_a_column_filled_on_most_rows_is_no_part_a_rule_could_leave_out"
+  ]
+ },
+ {
+  "id": "left-out-share-tighten",
+  "guard": "A sum that misses by exactly another cell of its row, to the cent, from a column 0 or blank on 80%+ of rows (LEFT_OUT) and outside the rule, is a part the rule leaves out, never a slip (AH-208)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "LEFT_OUT = 0.8  #",
+  "new": "LEFT_OUT = 0.99  #",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_honest_patterns.py::test_a_total_that_misses_by_exactly_a_mostly_zero_columns_value_is_that_part_left_out"
+  ]
+ },
+ {
+  "id": "left-out-cent-loosen",
+  "guard": "A sum that misses by exactly another cell of its row, to the cent, from a column 0 or blank on 80%+ of rows (LEFT_OUT) and outside the rule, is a part the rule leaves out, never a slip (AH-208)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "(np.abs(np.abs(miss) - np.abs(v)) <= np.maximum(_cent(v), 1e-6 * np.abs(v)))",
+  "new": "(np.abs(np.abs(miss) - np.abs(v)) <= 1.0)",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_honest_patterns.py::test_a_total_that_misses_by_a_dollar_more_than_that_part_is_still_a_slip"
+  ]
+ },
+ {
+  "id": "left-out-cent-tighten",
+  "guard": "A sum that misses by exactly another cell of its row, to the cent, from a column 0 or blank on 80%+ of rows (LEFT_OUT) and outside the rule, is a part the rule leaves out, never a slip (AH-208)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "(np.abs(np.abs(miss) - np.abs(v)) <= np.maximum(_cent(v), 1e-6 * np.abs(v)))",
+  "new": "(np.abs(np.abs(miss) - np.abs(v)) < 0)",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_honest_patterns.py::test_a_total_that_misses_by_exactly_a_mostly_zero_columns_value_is_that_part_left_out"
+  ]
+ },
+ {
+  "id": "step-band-loosen",
+  "guard": "A value past its usual limits that keeps its usual ratio (1st-99th percentile, at most STEP_BAND 5x wide) to another column, itself past its own limits on that row and not worked out from the value, is a big row: worth a check, never a vote (AH-208)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "STEP_BAND = 5  #",
+  "new": "STEP_BAND = 50  #",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_honest_patterns.py::test_a_share_that_varies_more_than_fivefold_corroborates_nothing"
+  ]
+ },
+ {
+  "id": "step-band-tighten",
+  "guard": "A value past its usual limits that keeps its usual ratio (1st-99th percentile, at most STEP_BAND 5x wide) to another column, itself past its own limits on that row and not worked out from the value, is a big row: worth a check, never a vote (AH-208)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "STEP_BAND = 5  #",
+  "new": "STEP_BAND = 2  #",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_honest_patterns.py::test_a_tax_that_keeps_its_share_of_a_big_gross_is_a_big_row_never_a_slip"
+  ]
+ },
+ {
+  "id": "step-witness-loosen",
+  "guard": "A value past its usual limits that keeps its usual ratio (1st-99th percentile, at most STEP_BAND 5x wide) to another column, itself past its own limits on that row and not worked out from the value, is a big row: worth a check, never a vote (AH-208)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if k == j or col in reads.get(other, ()):",
+  "new": "if k == j:",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_honest_patterns.py::test_a_value_worked_out_from_a_slip_is_never_its_witness"
+  ]
+ },
+ {
+  "id": "step-witness-tighten",
+  "guard": "A value past its usual limits that keeps its usual ratio (1st-99th percentile, at most STEP_BAND 5x wide) to another column, itself past its own limits on that row and not worked out from the value, is a big row: worth a check, never a vote (AH-208)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if k == j or col in reads.get(other, ()):",
+  "new": "if k == j or other in reads:",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_honest_patterns.py::test_a_formula_that_never_reads_the_value_is_its_witness"
+  ]
+ },
+ {
+  "id": "step-big-loosen",
+  "guard": "A value past its usual limits that keeps its usual ratio (1st-99th percentile, at most STEP_BAND 5x wide) to another column, itself past its own limits on that row and not worked out from the value, is a big row: worth a check, never a vote (AH-208)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "s, cand = np.sign(q1), past[nz[past, j] & nz[past, k] & out[past, k]]",
+  "new": "s, cand = np.sign(q1), past[nz[past, j] & nz[past, k]]",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_honest_patterns.py::test_a_witness_inside_its_own_limits_corroborates_nothing"
+  ]
+ },
+ {
+  "id": "unit-middle-loosen",
+  "guard": "A unit read back (C/F, lb/kg, in/cm, ft/m, mi/km, mmol/L) explains a lone breach only where it lands among the column's ordinary values, its 10th to 90th percentile (AH-208)",
+  "file": "backend/anomaly_hunter/engine/detectors.py",
+  "old": "UNITS = 7  #",
+  "new": "UNITS = 99  #",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_honest_patterns.py::test_a_short_period_among_full_ones_is_worth_a_check_never_a_unit_slip"
+  ]
+ },
+ {
+  "id": "unit-middle-tighten",
+  "guard": "A unit read back (C/F, lb/kg, in/cm, ft/m, mi/km, mmol/L) explains a lone breach only where it lands among the column's ordinary values, its 10th to 90th percentile (AH-208)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "[0.1, 0.9])))",
+  "new": "[0.45, 0.55])))",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_honest_patterns.py::test_a_unit_that_reads_back_near_the_columns_edge_is_still_a_slip"
+  ]
+ },
+ {
+  "id": "group-almost-loosen",
+  "guard": "A group's blank is its layout when all its rows (5+) are blank, or all but max(1, 2%) of 20+ (ALMOST) (AH-208)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "| (per >= size - np.maximum(1, ALMOST * size)) & (size >= 20)",
+  "new": "| (per >= size - np.maximum(1, ALMOST * size)) & (size >= 5)",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_honest_patterns.py::test_a_small_group_blank_on_all_but_one_row_is_no_layout_to_tell"
+  ]
+ },
+ {
+  "id": "group-almost-tighten",
+  "guard": "A group's blank is its layout when all its rows (5+) are blank, or all but max(1, 2%) of 20+ (ALMOST) (AH-208)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "| (per >= size - np.maximum(1, ALMOST * size)) & (size >= 20)",
+  "new": "| (per >= size) & (size >= 20)",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_honest_patterns.py::test_a_group_blank_on_all_but_one_of_its_rows_is_the_layout"
+  ]
+ },
+ {
+  "id": "ecod-main-loosen",
+  "guard": "An unusual combination names, among the row's cells past their own usual limits where it has one, the cell most off its median (AH-208)",
+  "file": "backend/anomaly_hunter/engine/detectors.py",
+  "old": "worst = np.where(past.any(axis=1), np.where(past, size, -1).argmax(axis=1), size.argmax(axis=1))",
+  "new": "worst = size.argmax(axis=1)",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_honest_patterns.py::test_an_unusual_combination_names_the_cell_past_its_limits_never_a_sparse_columns_reading"
+  ]
+ },
+ {
+  "id": "ecod-main-tighten",
+  "guard": "An unusual combination names, among the row's cells past their own usual limits where it has one, the cell most off its median (AH-208)",
+  "file": "backend/anomaly_hunter/engine/detectors.py",
+  "old": "worst = np.where(past.any(axis=1), np.where(past, size, -1).argmax(axis=1), size.argmax(axis=1))",
+  "new": "worst = np.where(past, size, -1).argmax(axis=1)",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_honest_patterns.py::test_an_unusual_combination_with_no_cell_past_its_limits_names_the_cell_most_off"
+  ]
+ },
+ {
+  "id": "group-gap-size-loosen",
+  "guard": "One cell filled (or not 0) where its group leaves the column empty on all but max(1, 2%) of its 20+ rows is flagged, only where every label of 20+ rows leaves the column empty or fills it on FILLS 95%, one fills it, and the label is no protected one (AH-208 fix round 2)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "big = size >= 20",
+  "new": "big = size >= 5",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_honest_patterns.py::test_a_group_of_nineteen_rows_is_too_small_to_have_a_layout"
+  ]
+ },
+ {
+  "id": "group-gap-size-tighten",
+  "guard": "One cell filled (or not 0) where its group leaves the column empty on all but max(1, 2%) of its 20+ rows is flagged, only where every label of 20+ rows leaves the column empty or fills it on FILLS 95%, one fills it, and the label is no protected one (AH-208 fix round 2)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "big = size >= 20",
+  "new": "big = size >= 30",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_honest_patterns.py::test_a_date_filled_on_one_open_claim_among_open_claims_without_one_is_flagged"
+  ]
+ },
+ {
+  "id": "group-gap-fills-loosen",
+  "guard": "One cell filled (or not 0) where its group leaves the column empty on all but max(1, 2%) of its 20+ rows is flagged, only where every label of 20+ rows leaves the column empty or fills it on FILLS 95%, one fills it, and the label is no protected one (AH-208 fix round 2)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "FILLS = 0.95  #",
+  "new": "FILLS = 0.8  #",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_honest_patterns.py::test_a_column_no_label_decides_says_nothing_of_its_few_filled_cells"
+  ]
+ },
+ {
+  "id": "group-gap-fills-tighten",
+  "guard": "One cell filled (or not 0) where its group leaves the column empty on all but max(1, 2%) of its 20+ rows is flagged, only where every label of 20+ rows leaves the column empty or fills it on FILLS 95%, one fills it, and the label is no protected one (AH-208 fix round 2)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "FILLS = 0.95  #",
+  "new": "FILLS = 0.97  #",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_honest_patterns.py::test_a_date_filled_on_one_open_claim_among_open_claims_without_one_is_flagged"
+  ]
+ },
+ {
+  "id": "group-gap-few-loosen",
+  "guard": "One cell filled (or not 0) where its group leaves the column empty on all but max(1, 2%) of its 20+ rows is flagged, only where every label of 20+ rows leaves the column empty or fills it on FILLS 95%, one fills it, and the label is no protected one (AH-208 fix round 2)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "empty_g = big & (filled <= np.maximum(1, ALMOST * size))",
+  "new": "empty_g = big & (filled <= np.maximum(2, ALMOST * size))",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_honest_patterns.py::test_two_filled_cells_in_a_group_of_twenty_five_are_how_the_group_is"
+  ]
+ },
+ {
+  "id": "group-gap-few-tighten",
+  "guard": "One cell filled (or not 0) where its group leaves the column empty on all but max(1, 2%) of its 20+ rows is flagged, only where every label of 20+ rows leaves the column empty or fills it on FILLS 95%, one fills it, and the label is no protected one (AH-208 fix round 2)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "empty_g = big & (filled <= np.maximum(1, ALMOST * size))",
+  "new": "empty_g = big & (filled <= np.maximum(0, ALMOST * size))",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_honest_patterns.py::test_a_date_filled_on_one_open_claim_among_open_claims_without_one_is_flagged"
+  ]
+ },
+ {
+  "id": "group-gap-protected-loosen",
+  "guard": "One cell filled (or not 0) where its group leaves the column empty on all but max(1, 2%) of its 20+ rows is flagged, only where every label of 20+ rows leaves the column empty or fills it on FILLS 95%, one fills it, and the label is no protected one (AH-208 fix round 2)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if column_types[c] == \"text\" and c not in prot and len(labels) < 16:",
+  "new": "if column_types[c] == \"text\" and len(labels) < 16:",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_honest_patterns.py::test_a_cell_is_never_judged_by_a_protected_group"
+  ]
+ },
+ {
+  "id": "step-rows-loosen",
+  "guard": "A value past its usual limits that keeps its usual ratio (1st-99th percentile, at most STEP_BAND 5x wide) to another column, itself past its own limits on that row and not worked out from the value, is a big row: worth a check, never a vote (AH-208)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "STEP_ROWS = 20  #",
+  "new": "STEP_ROWS = 19  #",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_honest_patterns.py::test_a_share_read_from_nineteen_rows_corroborates_nothing"
+  ]
+ },
+ {
+  "id": "step-rows-tighten",
+  "guard": "A value past its usual limits that keeps its usual ratio (1st-99th percentile, at most STEP_BAND 5x wide) to another column, itself past its own limits on that row and not worked out from the value, is a big row: worth a check, never a vote (AH-208)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "STEP_ROWS = 20  #",
+  "new": "STEP_ROWS = 21  #",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_honest_patterns.py::test_a_share_read_from_twenty_rows_corroborates"
   ]
  }
 ]

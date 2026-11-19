@@ -391,6 +391,68 @@ def _pointers(df, column_types, skip, blank):
     return out
 
 
+ALMOST = 0.02  # a group of 20+ rows blank on all but this share of them (or one row) is still blank by layout
+
+
+def _all_blank(per, size):
+    """-> per group: a column's blanks are the group's layout. All its rows, 5 or more; or all but max(1, ALMOST) of
+    20 or more: one cell filled where it should not be is that cell's mistake, never 50 blanks'. A bank reconciliation's
+    outstanding cheques have no bank date or amount, 50 of 51 (the 51st cleared, a planted slip), and its 100 valid
+    blank cells were each Medium (AH-208, adversarial episode 5)."""
+    return (per == size) & (size >= 5) | (per >= size - np.maximum(1, ALMOST * size)) & (size >= 20)
+
+
+FILLS = 0.95  # a group that fills a column on this share of its rows, beside groups that leave it empty
+
+
+def group_gaps(df, column_types, skip, computed=None):
+    """AH-208 fix round 2: one cell filled where its group leaves the column empty (blank, or 0 for a number), the
+    mirror of _all_blank: a close date on one of 61 open claims, a deductible on one of 120 health claims, state tax on
+    one of 47 periods in a state with none (episodes 6-8, 7 of their misses; a cleared date on an outstanding cheque in
+    episode 5). Only where a text column of 2-50 labels decides the column: every label of 20+ rows leaves it empty on
+    all but max(1, ALMOST) of them or fills it on FILLS of them, and one label fills it. A bonus paid on 12% of every
+    department's rows, rain on 2% of every station's hours: no label decides those, so nothing is said. Never a
+    protected label (a person's cell is never judged by their sex or race), nor a formula's cell (its inputs are)."""
+    out = [[] for _ in range(len(df))]
+    computed, prot = computed or {}, set(fairness.protected(column_types))
+    cols, labels, blank = list(column_types)[:200], {}, {}
+    for c in cols:  # each text read once, as a label and as a cell (twice took 3 s on 100,000 rows x 16 labels)
+        if column_types[c] != "number":
+            s = df[c].astype(str).str.strip()
+            blank[c] = (df[c].isna() | (s == "")).to_numpy(bool)
+            if column_types[c] == "text" and c not in prot and len(labels) < 16:
+                lab = s.where(~skip & ~blank[c])
+                if 2 <= lab.nunique() <= 50:
+                    labels[c] = pd.factorize(lab)[0]
+    if not labels:
+        return out
+    # every column at once, a label at a time: one pass a column took 8 s on 100,000 rows
+    num = lambda c: np.nan_to_num(df[c].to_numpy(dtype=float)) == 0  # a number column: blank (NaN) or 0
+    empty = np.column_stack([num(c) if column_types[c] == "number" else blank[c] for c in cols])
+    live = np.column_stack([~np.asarray(skip, bool) & ~computed.get(c, np.zeros(len(df), bool)) for c in cols])
+    filled_in = live & ~empty
+    for g, code in labels.items():
+        on = code >= 0
+        at = (code[on][:, None] * len(cols) + np.arange(len(cols))).ravel()  # (label, column) of each cell, counted at once
+        count = lambda m, at=at, on=on, g=len(np.unique(code[on])): np.bincount(at, weights=m[on].ravel(), minlength=g * len(cols)).reshape(g, -1).astype(int)
+        sizes, fills = count(live), count(filled_in)
+        for j, col in enumerate(cols):
+            if col == g:
+                continue
+            size, filled, x, typ = sizes[:, j], fills[:, j], df[col], column_types[col]
+            big = size >= 20
+            empty_g = big & (filled <= np.maximum(1, ALMOST * size))
+            full_g = big & (filled >= FILLS * size)
+            if not full_g.any() or not (empty_g & (filled > 0)).any() or (big & ~empty_g & ~full_g).any():
+                continue
+            for i in np.flatnonzero(live[:, j] & ~empty[:, j] & np.isin(code, np.flatnonzero(empty_g & (filled > 0)))):
+                k = code[i]
+                said = "blank" if typ != "number" else "blank or 0"
+                out[i].append(Why(f"{col} {_shown(x.iat[i])} is filled where {g} {_short(df[g].iat[i])} leaves it {said} "
+                                  f"on {int(size[k] - filled[k])} of {int(size[k])} rows", col))
+    return out
+
+
 def blanks(df, column_types, skip, errors_log, threshold=0.80):
     """Blank cell in a column that is >= 80% filled (summary rows not counted): a required field left empty. Mostly-empty
     columns (notes, optional extras) are left alone. Was 95%: a credit sheet's Income, 92% filled, hid 39 blanks.
@@ -449,10 +511,10 @@ def blanks(df, column_types, skip, errors_log, threshold=0.80):
         if b.any() and 1 - b.sum() / n >= threshold:
             for g, (code, size, per) in groups.items():
                 # a group all blank before the groups above took theirs; the rest counted again on what is left
-                if g == col or not ((per[:, j] == size) & (size >= 5)).any() or not (b & (code >= 0)).any():
+                if g == col or not _all_blank(per[:, j], size).any() or not (b & (code >= 0)).any():
                     continue
                 now = np.bincount(code[code >= 0], weights=b[code >= 0], minlength=len(size))
-                b &= ~np.isin(code, np.flatnonzero((now == size) & (size >= 5)))
+                b &= ~np.isin(code, np.flatnonzero(_all_blank(now, size)))
             # an unknown age on 177 of 891 Titanic passengers, a film with no cast listed: one Medium per row was 1,401 rows
             # on two real tables (blind round 23). Many blanks in every fifth of the sheet are the data; a few, or a block
             # (a paste or an export that stopped), are still each a slip
@@ -806,6 +868,7 @@ def sums(df, column_types, skip, held=None):
         if bad.mean() > 0.05:
             continue
         part = [c for c, o in zip(np.delete(np.array(cols, dtype=object), t), ones) if o]
+        bad &= ~_left_out(a, y - got, [t, *(cols.index(c) for c in part)])
         for i, v, g in zip(x.index[bad], y[bad], got[bad]):  # the total and every part: any one of them may be the slip
             out[i].append(Why(f"{col} {say(v)} does not add up: {' + '.join(part)} = {g:.10g}", col, *part))
     return out
@@ -918,6 +981,75 @@ def _totals(df, cols, skip, out, held=None):
     return done
 
 
+STEP_BAND = 5  # a ratio band at most this wide (high end / low end): a x10 slip of one cell always leaves it
+STEP_ROWS = 20  # rows where both columns hold a number other than 0, to read the band from
+BAND_ROWS = 5000  # rows a ratio band is read from, evenly spaced (see in_step)
+
+
+def _reads(grid, cols):
+    """{column: the columns its formulas read on their own row, all the way down}, from the pane's R1C1 text: a value
+    worked out from another repeats it, so it is no witness for it."""
+    out = {}
+    for row in grid or ():
+        for j, f in enumerate(row):
+            if f:
+                out.setdefault(cols[j], set()).update(cols[j + int(k or 0)] for k in re.findall(r"(?<![\w\]])RC(?:\[(-?\d+)\])?", str(f))
+                                                      if 0 <= j + int(k or 0) < len(cols))
+    for seen in out.values():
+        todo = list(seen)
+        while todo:
+            for d in out.get(todo.pop(), ()):
+                if d not in seen:
+                    seen.add(d)
+                    todo.append(d)
+    return out
+
+
+def in_step(df, column_types, skip, limits, reads, held):
+    """A typo changes one cell. A value past its usual limits that keeps its usual ratio to another column on its row,
+    itself past its own usual limits there, is a big row, never a slip: an executive's 40,000 bonus made Gross Pay big,
+    and Federal Tax, 27% of it as on that person's other periods, was Medium beside it (AH-208, episodes 6-8: 3 traps
+    and 6 valid cells); a house fire's approval kept its 92% of a big claim. Confirmed, as a row that adds up is (see
+    confirm): worth a check, never a vote or a fix. The ratio band is read where both columns hold a number other than
+    0 (STEP_ROWS of them), from the 1st to the 99th percentile, one sign, at most STEP_BAND wide: a x10 slip of either
+    cell always leaves it. Never a witness worked out from the value itself (=Hours*Rate repeats an 800 hours typed for
+    80), nor a column of formulas on that row (a formula's value is never judged here)."""
+    cols = [c for c in numbers(column_types) if limits.get(c) and limits[c][0] is not None and limits[c][1] is not None][:64]
+    if len(cols) < 2:
+        return
+    rows = df.index[~skip]
+    a = df.loc[rows, cols].to_numpy(dtype=float)
+    lo, hi = np.array([limits[c][0] for c in cols]), np.array([limits[c][1] for c in cols])
+    with np.errstate(invalid="ignore"):
+        out = (a < lo) | (a > hi)
+    nz = np.isfinite(a) & (a != 0)
+    # the band from at most BAND_ROWS rows, evenly spaced, so 64 columns that all move together stay a second's work on
+    # 100,000 rows (10 s reading every row), and the same sheet gives the same band on any PC
+    seen = np.unique(np.linspace(0, len(a) - 1, min(len(a), BAND_ROWS)).astype(int))
+    for j, col in enumerate(cols):
+        if not (past := np.flatnonzero(out[:, j])).size:
+            continue
+        # a witness must be past its own limits on one of these rows: that settles nearly every pair before the band is
+        # read (100,000 rows x 64 columns took 8 s reading every band)
+        for k in np.flatnonzero(out[past].any(axis=0)):
+            other = cols[k]
+            if k == j or col in reads.get(other, ()):
+                continue
+            both = seen[nz[seen, j] & nz[seen, k]]
+            if len(both) < STEP_ROWS:
+                continue
+            q1, q99 = np.quantile(a[both, j] / a[both, k], [0.01, 0.99])
+            if q1 * q99 <= 0 or max(abs(q1), abs(q99)) > STEP_BAND * min(abs(q1), abs(q99)):
+                continue
+            # ...and 1% either side: ratios of amounts rounded to the cent wobble, and a band's own end (a 27% rate on a
+            # few periods) fell outside its 99th percentile by 1e-7
+            s, cand = np.sign(q1), past[nz[past, j] & nz[past, k] & out[past, k]]
+            r = a[cand, j] / a[cand, k]
+            at = cand[(s * r >= min(s * q1, s * q99) / 1.01) & (s * r <= max(s * q1, s * q99) * 1.01)]
+            if len(at):
+                confirm(held, len(df), df.index.get_indexer(rows[at]), f"{col} keeps its usual share of {other}", [col])
+
+
 def confirm(held, n, at, rule, pinned):
     """held[col] += (rows, rule): the rows where a rule of the row's own arithmetic holds, and the cells it pins, the
     ones no single change could leave the rule holding on. The chaos audit (2026-10-30, AH-74): an HR sheet's real top
@@ -927,6 +1059,25 @@ def confirm(held, n, at, rule, pinned):
     m[np.asarray(at, dtype=int)] = True
     for c in pinned:
         held.setdefault(c, []).append((m, rule))
+
+
+LEFT_OUT = 0.8  # a column 0 or blank on this share of rows can be a part a rule holding on 95% of rows never sees
+
+
+def _left_out(a, miss, rule):
+    """-> per row: the rule misses by exactly another cell of the row (to the cent, either sign), from a column 0 or blank
+    on LEFT_OUT of the rows and not in the rule: a part the rule leaves out, never a slip. A payroll's Gross Pay =
+    Regular Pay + Overtime Pay held on 95% of rows because Bonus is 0 on all but 30 of 640; on those 30, "Gross Pay does
+    not add up" named 95 valid cells, each missing by exactly its Bonus (AH-208, adversarial episode 4). A rule that held
+    with that part in it is another rule: only columns outside this one count."""
+    hit = np.zeros(len(miss), dtype=bool)
+    with np.errstate(invalid="ignore"):
+        for k in range(a.shape[1]):
+            v = a[:, k]
+            if k in rule or (np.nan_to_num(v) == 0).mean() < LEFT_OUT:
+                continue
+            hit |= (v != 0) & (np.abs(np.abs(miss) - np.abs(v)) <= np.maximum(_cent(v), 1e-6 * np.abs(v)))
+    return hit
 
 
 def _cent(x):
@@ -1028,7 +1179,7 @@ def pairs(df, column_types, skip, limits=None, held=None):
                     for k, c in enumerate(cs):
                         others = np.all([g != 0 for m, g in enumerate(f) if m != k], axis=0)
                         confirm(held, len(df), index[np.flatnonzero(good & live & others)], rule, [cols[c]])
-            for i in np.flatnonzero(ok & ~good):
+            for i in np.flatnonzero(ok & ~good & ~_left_out(a, y - got, [t, *cs])):
                 out[index[i]].append(Why(f"{cols[t]} {say(y[i])} does not add up: {said} = {got[i]:.10g}", cols[t], *(cols[c] for c in cs)))
                 odd = [j for j in (t, *cs) if not usual(j, a[i, j])]
                 if len(odd) != 1:
@@ -1990,6 +2141,7 @@ def score(df, column_types, errors_log, limits, order_by, strength=5, saved=(), 
     for g, run, a, b, _, ta, tb in _balanced(df, column_types, skip, records, computed):
         agree = (ta - tb).round(6).abs() < 0.005
         confirm(held, len(df), np.flatnonzero(np.isin(run, agree.index[agree])), f"{g}'s {a} and {b} agree", (a, b))
+    in_step(df, column_types, skip, limits, _reads(grid, list(df.columns)), held)  # AH-208: a big row, not a slip
     # saved: the columns whose limits the user set - their limits win, so nothing is listed past the data's own band
     lim = limits_detector(df, column_types, limits, typos_only=s < 1, listing=s >= ALONE,
                           quiet=set(fairness.protected(column_types)) | set(saved), held=held, computed=computed)
@@ -2014,7 +2166,7 @@ def score(df, column_types, errors_log, limits, order_by, strength=5, saved=(), 
                                      if r.startswith(f"{col} weird limit is") else r for r in lim["reasons"][i]]
     dets = {"limits": lim,
             "sequence": sequence_detector(df, judged, order_by, k) if s >= 3 else _result(n, "strength below 3"),
-            "ecod": ecod_detector(df, judged, k) if s >= 5 else _result(n, "strength below 5")}
+            "ecod": ecod_detector(df, judged, k, limits) if s >= 5 else _result(n, "strength below 5")}
     # DBSCAN cut 2026-10-07: 90s/100k rows, 81% false alarms, bench same without it
     ran = [d for d in dets.values() if d["ran"]]
     (dup, repeats), (typ, typ_coded), (blank, spread) = duplicates(df, errors_log, column_types, skip), type_errors(df, errors_log, column_types), blanks(df, column_types, skip, errors_log)
@@ -2036,12 +2188,13 @@ def score(df, column_types, errors_log, limits, order_by, strength=5, saved=(), 
     spell, spell_fix, missed, spell_maybe, spell_exact = spellings(df, column_types, skip)
     proven = coded_spellings(df, column_types, skip, spell_maybe)  # AH-198: "Acounts Payable" on Account 2000
     keyed = same_by_key(df, column_types, skip, computed)  # AH-198 fix round 2: a part's one unit cost
+    gaps = group_gaps(df, column_types, skip, computed)  # AH-208: a close date on one open claim
     own = own_scale(df, column_types, skip, records, computed)  # ...a x10 in one entity
     # each list of reasons with its kind (AH-205), in the order the row's sentence says them
     hyg = [("duplicate", dup), ("type", typ), ("blank", blank), ("placeholder", hole), ("code", code), ("far_date", far),
            ("sum", add), ("spelling", spell), ("lost_zero", zeros), ("date_form", forms), ("formula", calc), ("order", above),
            ("gene_date", genes), ("date_order", before), ("record", same), ("balance", owed), ("scale", scaled),
-           ("spelling", proven), ("key", keyed), ("own_scale", own)]
+           ("spelling", proven), ("key", keyed), ("own_scale", own), ("blank", gaps)]
     # all "worth a check" (Low): a lone top value (AH-29), one its row's arithmetic confirms (AH-74), a placeholder code
     # (AH-45), many repeats (AH-48), a date column of many forms (AH-76), a column pasted twice (AH-182)
     notes = [("spelling", missed), ("shifted", shifted(df, column_types, skip)), ("fraction", fractions(df, column_types, skip)),
@@ -2102,7 +2255,8 @@ def score(df, column_types, errors_log, limits, order_by, strength=5, saved=(), 
         if v != 1 or len(lim["reasons"][i]) != 1 or lim["likely"][i] or lim["maybe"][i] or solved[i] or missed[i]:
             return False
         col = lim["reasons"][i][0].cols[0]
-        return bool(limits.get(col)) and unexplained(float(df[col].iat[i]), *limits[col][:4])
+        return bool(limits.get(col)) and unexplained(float(df[col].iat[i]), *limits[col][:4],
+                                                     middle=tuple(np.nanquantile(df[col].to_numpy(dtype=float), [0.1, 0.9])))
 
     for i in range(n):
         if skip[i]:

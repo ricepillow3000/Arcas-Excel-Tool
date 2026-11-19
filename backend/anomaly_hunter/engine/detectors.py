@@ -83,14 +83,21 @@ UNDO = (lambda v: v * 10, lambda v: v / 10, lambda v: v * 100, lambda v: v / 100
 REACH = 2  # a breach within this many widths of the weird limits from their middle is the column's own extreme, at most
 
 
-def unexplained(v, lo, hi, w_lo, w_hi):
+UNITS = 7  # UNDO from here on are units: a factor of any size, unlike a decimal point's whole powers of ten or a sign
+
+
+def unexplained(v, lo, hi, w_lo, w_hi, middle=None):
     """No slip of UNDO reads v back inside its column's usual limits [lo, hi] (a fever of 39.2 C among usual 36.2-37.2 is
     no 3.92, 392, -39.2 nor 102.6 F), and v lies within REACH widths of its weird limits [w_lo, w_hi] from their middle:
     an extreme of the column's own kind, its breach weak evidence of a mistake (AH-198 fix round 2). Street trees at 47.27
     among latitudes of 37.70-37.80 are 17 widths out: no tree of that street. A minus sign where the column never goes
-    below 0 is a slip on its own (a rainfall of -291 among 310-740, whose 291 no slip reads back either)."""
+    below 0 is a slip on its own (a rainfall of -291 among 310-740, whose 291 no slip reads back either).
+    middle = (10th, 90th percentile): a unit read back must land there, among the column's ordinary values. A unit's
+    factor is any size, so some unit reads nearly any value back somewhere inside a narrow usual band: a new hire's 40
+    hours among 64-80 read as 88.2 "pounds for kilos", and stayed Medium in each of 3 payrolls (AH-208, episodes 6-8)."""
+    reads = lambda k, f: _crossed(f(v), lo, hi) is None and (k < UNITS or middle is None or middle[0] <= f(v) <= middle[1])
     return (w_lo is not None and w_hi is not None and abs(v - (w_lo + w_hi) / 2) <= REACH * (w_hi - w_lo)
-            and not (v < 0 and lo is not None and lo >= 0) and all(_crossed(f(v), lo, hi) is not None for f in UNDO))
+            and not (v < 0 and lo is not None and lo >= 0) and not any(reads(k, f) for k, f in enumerate(UNDO)))
 
 
 BEYOND = 4  # a typo sits this many times past every other value in the column
@@ -414,6 +421,10 @@ def limits_detector(df, column_types, limits, typos_only=False, listing=False, q
         # ...and every minus sign the row's reasons name counts, offered a flip or not: a child-spending row with 3 cells
         # below zero kept "likely" on the one big enough to be offered once the smaller two no longer were (AH-47)
         named = {m[1] for t in r["reasons"][i] if (m := re.match(r"(.+) weird limit is \S+; this is -", t))}
+        # ...and a cell the row confirms (pipeline.in_step: a share of its other cells) is one more such cell: a row's raw,
+        # inflation-adjusted and per-child spending all below zero kept "likely" on the third once the first two were
+        # confirmed in step with each other (AH-208)
+        named |= {t.cols[0] for t in r["held_reasons"][i] if float(df[t.cols[0]].iloc[i]) < 0}
         offered = {col for kind, col, _ in steps.get("sign", [])}
         steps.setdefault("sign", []).extend((None, col, None) for col in named - offered)
         for same in steps.values():
@@ -663,14 +674,22 @@ def _ecod(x):
     return np.maximum(np.maximum(left, right), left * -np.sign(sk - 1) + right * np.sign(sk + 1)).sum(axis=1)
 
 
-def ecod_detector(df, column_types, k=K):
-    """ECOD outlier score on scaled numbers."""
+def ecod_detector(df, column_types, k=K, limits=None):
+    """ECOD outlier score on scaled numbers. The cell it names ("mainly") is the one most off its column's median in
+    spreads, among the row's cells past their own usual limits where it has one (limits: {col: (b_lo, b_hi, ...)}): a
+    sparse column's spread is tiny (rain's 0.24 mm), so a storm's honest 9.8 mm was "mainly Rainfall" on the hour a
+    pressure was typed in kPa, and the rain cell was coloured Medium (AH-208, episode 6)."""
     n, cols = len(df), numbers(column_types)
     if why := _skip(n, cols):
         return _result(n, why)
     x = _scaled(df, cols)
     votes, mag = robust_vote(_ecod(x.to_numpy()), k)
-    worst = x.abs().to_numpy().argmax(axis=1)
+    size = x.abs().to_numpy()
+    with np.errstate(invalid="ignore"):
+        past = np.column_stack([(df[c].to_numpy(dtype=float) < lim[0]) | (df[c].to_numpy(dtype=float) > lim[1])
+                                if (lim := (limits or {}).get(c)) and lim[0] is not None and lim[1] is not None
+                                else np.zeros(n, bool) for c in cols])
+    worst = np.where(past.any(axis=1), np.where(past, size, -1).argmax(axis=1), size.argmax(axis=1))
     reasons = [[Why(f"Unusual combination of values, mainly {cols[w]}", cols[w])] if v else [] for v, w in zip(votes, worst)]
     return {**_result(n), "votes": votes, "magnitude": mag, "reasons": reasons}
 
