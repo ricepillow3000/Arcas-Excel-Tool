@@ -2988,8 +2988,8 @@
   "id": "weak-slip-loosen",
   "guard": "One weird-limit breach alone on its row, which no slip (UNDO) reads back inside the usual limits, within 2 widths of the weird limits from their middle (REACH), and is no minus sign below a floor of 0, is worth a check, never a vote (AH-198 fix round 2)",
   "file": "backend/anomaly_hunter/engine/detectors.py",
-  "old": "and all(_crossed(f(v), lo, hi) is not None for f in UNDO))",
-  "new": "and any(_crossed(f(v), lo, hi) is not None for f in UNDO))",
+  "old": "and not any(reads(k, f) for k, f in enumerate(UNDO)))",
+  "new": "and not all(reads(k, f) for k, f in enumerate(UNDO)))",
   "kind": "loosen",
   "tests": [
    "backend/tests/test_weak_evidence.py::test_a_weight_in_pounds_among_kilos_is_read_back_and_still_probably_wrong"
@@ -3263,8 +3263,8 @@
   "id": "weak-minus-loosen",
   "guard": "One weird-limit breach alone on its row, which no slip (UNDO) reads back inside the usual limits, within 2 widths of the weird limits from their middle (REACH), and is no minus sign below a floor of 0, is worth a check, never a vote (AH-198 fix round 2)",
   "file": "backend/anomaly_hunter/engine/detectors.py",
-  "old": "and not (v < 0 and lo is not None and lo >= 0) and all(",
-  "new": "and all(",
+  "old": "and not (v < 0 and lo is not None and lo >= 0) and not any(",
+  "new": "and not any(",
   "kind": "loosen",
   "tests": [
    "backend/tests/test_weak_evidence.py::test_a_minus_sign_in_a_column_that_never_goes_below_zero_is_still_probably_wrong"
