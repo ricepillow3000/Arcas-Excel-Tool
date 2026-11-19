@@ -4315,5 +4315,325 @@
   "tests": [
    "backend/tests/test_honest_patterns.py::test_a_share_read_from_twenty_rows_corroborates"
   ]
+ },
+ {
+  "id": "date-far-tighten",
+  "guard": "A date already far outside its column never counts as a row against an order of two other dates, nor excuses one (AH-210)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "both = (u.notna() & v.notna()).to_numpy() & ~off[a] & ~off[b]",
+  "new": "both = (u.notna() & v.notna()).to_numpy()",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_date_order.py::test_a_date_far_outside_its_column_never_hides_another_row_against_the_order"
+  ]
+ },
+ {
+  "id": "date-far-loosen",
+  "guard": "A date already far outside its column never counts as a row against an order of two other dates, nor excuses one (AH-210)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "both = (u.notna() & v.notna()).to_numpy() & ~off[a] & ~off[b]",
+  "new": "both = (u.notna() & v.notna()).to_numpy() & ~np.logical_or.reduce(list(off.values()))",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_date_order.py::test_a_far_date_in_a_third_column_never_excuses_two_rows_against_the_order"
+  ]
+ },
+ {
+  "id": "date-odd-tighten",
+  "guard": "A date that breaks its order with more of the row's dates than its partner does is named alone (AH-210)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if hits[i, a] != hits[i, b]:",
+  "new": "if abs(hits[i, a] - hits[i, b]) > 1:",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_date_order.py::test_the_date_that_breaks_its_order_with_two_other_dates_of_the_row_is_named_alone"
+  ]
+ },
+ {
+  "id": "date-odd-loosen",
+  "guard": "A date that breaks its order with more of the row's dates than its partner does is named alone (AH-210)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if hits[i, a] != hits[i, b]:",
+  "new": "if True:",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_date_order.py::test_a_date_that_breaks_one_order_only_names_both_when_neither_is_the_sheets_order",
+   "backend/tests/test_date_order.py::test_when_neither_date_is_the_sheets_order_both_are_named"
+  ]
+ },
+ {
+  "id": "label-slip-loosen",
+  "guard": "A row that fills LABEL_SLIP (2)+ columns its label leaves empty names the label alone, one such column its own cell (AH-210)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "LABEL_SLIP = 2  #",
+  "new": "LABEL_SLIP = 1  #",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_honest_patterns.py::test_a_row_that_fills_one_column_its_label_leaves_empty_names_that_cell"
+  ]
+ },
+ {
+  "id": "label-slip-tighten",
+  "guard": "A row that fills LABEL_SLIP (2)+ columns its label leaves empty names the label alone, one such column its own cell (AH-210)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "LABEL_SLIP = 2  #",
+  "new": "LABEL_SLIP = 3  #",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_honest_patterns.py::test_a_row_that_fills_two_columns_its_label_leaves_empty_names_the_label_alone"
+  ]
+ },
+ {
+  "id": "formula-blank-tighten",
+  "guard": "A blank a formula writes is never a value left out; a blank typed over the formula still is (AH-210)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": ".to_numpy(bool) & ~computed.get(c, np.zeros(len(df), bool)) for c in cols])",
+  "new": ".to_numpy(bool) for c in cols])",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_explained_blanks.py::test_a_blank_a_formula_writes_is_never_a_value_left_out"
+  ]
+ },
+ {
+  "id": "formula-blank-loosen",
+  "guard": "A blank a formula writes is never a value left out; a blank typed over the formula still is (AH-210)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": ".to_numpy(bool) & ~computed.get(c, np.zeros(len(df), bool)) for c in cols])",
+  "new": ".to_numpy(bool) & ~computed.get(c, np.zeros(len(df), bool)).any() for c in cols])",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_explained_blanks.py::test_a_blank_typed_over_a_formula_is_still_a_value_left_out"
+  ]
+ },
+ {
+  "id": "first-rows-count-loosen",
+  "guard": "A column blank on each entity's first row (FIRST_ROWS 80% of them, 5+, and 80% of its blanks) is the layout; any other blank a slip (AH-210)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "max(5, FIRST_ROWS * first.sum(), FIRST_ROWS * b.sum())",
+  "new": "max(4, FIRST_ROWS * first.sum(), FIRST_ROWS * b.sum())",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_explained_blanks.py::test_five_entities_first_rows_are_enough_and_four_are_not"
+  ]
+ },
+ {
+  "id": "first-rows-count-tighten",
+  "guard": "A column blank on each entity's first row (FIRST_ROWS 80% of them, 5+, and 80% of its blanks) is the layout; any other blank a slip (AH-210)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "max(5, FIRST_ROWS * first.sum(), FIRST_ROWS * b.sum())",
+  "new": "max(6, FIRST_ROWS * first.sum(), FIRST_ROWS * b.sum())",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_explained_blanks.py::test_five_entities_first_rows_are_enough_and_four_are_not"
+  ]
+ },
+ {
+  "id": "first-rows-share-loosen",
+  "guard": "A column blank on each entity's first row (FIRST_ROWS 80% of them, 5+, and 80% of its blanks) is the layout; any other blank a slip (AH-210)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "FIRST_ROWS = 0.8  #",
+  "new": "FIRST_ROWS = 0.7  #",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_explained_blanks.py::test_eight_of_ten_first_rows_blank_are_the_layout_and_seven_are_not"
+  ]
+ },
+ {
+  "id": "first-rows-share-tighten",
+  "guard": "A column blank on each entity's first row (FIRST_ROWS 80% of them, 5+, and 80% of its blanks) is the layout; any other blank a slip (AH-210)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "FIRST_ROWS = 0.8  #",
+  "new": "FIRST_ROWS = 0.81  #",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_explained_blanks.py::test_eight_of_ten_first_rows_blank_are_the_layout_and_seven_are_not"
+  ]
+ },
+ {
+  "id": "first-rows-most-loosen",
+  "guard": "A column blank on each entity's first row (FIRST_ROWS 80% of them, 5+, and 80% of its blanks) is the layout; any other blank a slip (AH-210)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "max(5, FIRST_ROWS * first.sum(), FIRST_ROWS * b.sum())",
+  "new": "max(5, FIRST_ROWS * first.sum())",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_explained_blanks.py::test_values_deleted_at_the_top_of_a_sheet_are_still_slips_though_they_hold_every_first_row"
+  ]
+ },
+ {
+  "id": "open-end-count-loosen",
+  "guard": "An end date blank where its start (on or before it on OPEN 98% of 50+ rows) is filled, 5+, half in the start's latest quarter: one note, an end not reached (AH-210)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "or at.sum() < 5:",
+  "new": "or at.sum() < 4:",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_explained_blanks.py::test_five_open_ends_are_enough_and_four_are_not"
+  ]
+ },
+ {
+  "id": "open-end-count-tighten",
+  "guard": "An end date blank where its start (on or before it on OPEN 98% of 50+ rows) is filled, 5+, half in the start's latest quarter: one note, an end not reached (AH-210)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "or at.sum() < 5:",
+  "new": "or at.sum() < 6:",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_explained_blanks.py::test_five_open_ends_are_enough_and_four_are_not"
+  ]
+ },
+ {
+  "id": "open-end-order-loosen",
+  "guard": "An end date blank where its start (on or before it on OPEN 98% of 50+ rows) is filled, 5+, half in the start's latest quarter: one note, an end not reached (AH-210)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "OPEN = 0.98  #",
+  "new": "OPEN = 0.977  #",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_explained_blanks.py::test_an_order_held_on_98_percent_of_rows_is_enough_and_less_is_not"
+  ]
+ },
+ {
+  "id": "open-end-order-tighten",
+  "guard": "An end date blank where its start (on or before it on OPEN 98% of 50+ rows) is filled, 5+, half in the start's latest quarter: one note, an end not reached (AH-210)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "OPEN = 0.98  #",
+  "new": "OPEN = 0.983  #",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_explained_blanks.py::test_an_order_held_on_98_percent_of_rows_is_enough_and_less_is_not"
+  ]
+ },
+ {
+  "id": "open-end-latest-loosen",
+  "guard": "An end date blank where its start (on or before it on OPEN 98% of 50+ rows) is filled, 5+, half in the start's latest quarter: one note, an end not reached (AH-210)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if start[at].median() > start[both].quantile(0.75):",
+  "new": "if start[at].median() > start[both].quantile(0.5):",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_explained_blanks.py::test_blanks_short_of_the_latest_quarter_are_still_each_a_slip"
+  ]
+ },
+ {
+  "id": "open-end-latest-tighten",
+  "guard": "An end date blank where its start (on or before it on OPEN 98% of 50+ rows) is filled, 5+, half in the start's latest quarter: one note, an end not reached (AH-210)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if start[at].median() > start[both].quantile(0.75):",
+  "new": "if start[at].min() > start[both].quantile(0.75):",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_explained_blanks.py::test_loans_not_returned_yet_are_one_note_never_a_slip_each"
+  ]
+ },
+ {
+  "id": "stage-share-loosen",
+  "guard": "A label of 20+ rows blank on STAGE 20% (5+) of them, the other rows filled on all but 1%: its blanks one note, a stage it allows (AH-210)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "STAGE = 0.2  #",
+  "new": "STAGE = 0.16  #",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_explained_blanks.py::test_a_label_leaving_a_fifth_of_its_rows_blank_is_a_stage_and_less_is_not"
+  ]
+ },
+ {
+  "id": "stage-share-tighten",
+  "guard": "A label of 20+ rows blank on STAGE 20% (5+) of them, the other rows filled on all but 1%: its blanks one note, a stage it allows (AH-210)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "STAGE = 0.2  #",
+  "new": "STAGE = 0.21  #",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_explained_blanks.py::test_a_label_leaving_a_fifth_of_its_rows_blank_is_a_stage_and_less_is_not"
+  ]
+ },
+ {
+  "id": "stage-size-loosen",
+  "guard": "A label of 20+ rows blank on STAGE 20% (5+) of them, the other rows filled on all but 1%: its blanks one note, a stage it allows (AH-210)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "(size >= 20) & (now >= np.maximum(5, STAGE * size))",
+  "new": "(size >= 19) & (now >= np.maximum(5, STAGE * size))",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_explained_blanks.py::test_a_label_of_twenty_rows_can_have_a_stage_and_one_of_nineteen_cannot"
+  ]
+ },
+ {
+  "id": "stage-size-tighten",
+  "guard": "A label of 20+ rows blank on STAGE 20% (5+) of them, the other rows filled on all but 1%: its blanks one note, a stage it allows (AH-210)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "(size >= 20) & (now >= np.maximum(5, STAGE * size))",
+  "new": "(size >= 21) & (now >= np.maximum(5, STAGE * size))",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_explained_blanks.py::test_a_label_of_twenty_rows_can_have_a_stage_and_one_of_nineteen_cannot"
+  ]
+ },
+ {
+  "id": "stage-floor-loosen",
+  "guard": "A label of 20+ rows blank on STAGE 20% (5+) of them, the other rows filled on all but 1%: its blanks one note, a stage it allows (AH-210)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "(size >= 20) & (now >= np.maximum(5, STAGE * size))",
+  "new": "(size >= 20) & (now >= np.maximum(4, STAGE * size))",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_explained_blanks.py::test_a_label_of_twenty_rows_can_have_a_stage_and_one_of_nineteen_cannot"
+  ]
+ },
+ {
+  "id": "stage-floor-tighten",
+  "guard": "A label of 20+ rows blank on STAGE 20% (5+) of them, the other rows filled on all but 1%: its blanks one note, a stage it allows (AH-210)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "(size >= 20) & (now >= np.maximum(5, STAGE * size))",
+  "new": "(size >= 20) & (now >= np.maximum(6, STAGE * size))",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_explained_blanks.py::test_a_label_of_twenty_rows_can_have_a_stage_and_one_of_nineteen_cannot"
+  ]
+ },
+ {
+  "id": "stage-rest-loosen",
+  "guard": "A label of 20+ rows blank on STAGE 20% (5+) of them, the other rows filled on all but 1%: its blanks one note, a stage it allows (AH-210)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "(b.sum() - now <= 0.01 * (n - size))",
+  "new": "(b.sum() - now <= 0.012 * (n - size))",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_explained_blanks.py::test_a_stage_needs_the_other_rows_filled_on_all_but_one_percent"
+  ]
+ },
+ {
+  "id": "stage-rest-tighten",
+  "guard": "A label of 20+ rows blank on STAGE 20% (5+) of them, the other rows filled on all but 1%: its blanks one note, a stage it allows (AH-210)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "(b.sum() - now <= 0.01 * (n - size))",
+  "new": "(b.sum() - now <= 0.007 * (n - size))",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_explained_blanks.py::test_a_stage_needs_the_other_rows_filled_on_all_but_one_percent"
+  ]
+ },
+ {
+  "id": "as-text-loosen",
+  "guard": "A number typed as text, a space beside it, is flagged where at most max(2, AS_TEXT 1%) of the column is so (AH-210)",
+  "file": "backend/anomaly_hunter/engine/load.py",
+  "old": "AS_TEXT = 0.01  #",
+  "new": "AS_TEXT = 0.014  #",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_text_checks.py::test_a_column_padded_on_more_than_one_percent_of_its_cells_is_how_it_is_written"
+  ]
+ },
+ {
+  "id": "as-text-tighten",
+  "guard": "A number typed as text, a space beside it, is flagged where at most max(2, AS_TEXT 1%) of the column is so (AH-210)",
+  "file": "backend/anomaly_hunter/engine/load.py",
+  "old": "AS_TEXT = 0.01  #",
+  "new": "AS_TEXT = 0.009  #",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_text_checks.py::test_a_number_typed_as_text_with_a_space_beside_it_is_flagged"
+  ]
  }
 ]

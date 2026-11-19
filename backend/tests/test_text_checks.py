@@ -89,3 +89,29 @@ def test_ai_text_check_needs_a_key_and_skips_sheets_without_text():
     assert c.post("/odd-text", json=ODD).status_code == 503  # no AI key: says so, nothing sent
     assert c.post("/odd-text", json={"columns": ["Units"], "rows": [[1], [2]]}).get_json() == {"odd": [], "partial": False}
     assert c.post("/odd-text", json={"columns": []}).status_code == 400
+
+
+# AH-210: a number typed as text ("48 ", a space beside it) among numbers: Excel's SUM and averages leave it out, and
+# the scan saw only the number. A number cell reaches the engine as a number, with no space; a few such cells are each a
+# slip, a column padded on many rows is how its export writes
+def counts(spaced, n=300):
+    rows = [[f"S{i:04d}", 20 + i * 7 % 60, round(5 + i * 0.37 % 9, 2)] for i in range(n)]
+    for i in spaced:
+        rows[i][1] = f"{rows[i][1]} "
+    return ["Showing", "Tickets", "Price"], rows
+
+
+def as_text(cols, rows):
+    return {i: f[0] for i, f in flags(cols, rows).items() if "typed as text" in f[1]}
+
+
+def test_a_number_typed_as_text_with_a_space_beside_it_is_flagged():
+    cols, rows = counts((40, 140, 240))  # 3 of 300: max(2, 1%)
+    out = C.post("/scan", json={"columns": cols, "rows": rows}).get_json()["rows"]
+    assert out[40]["severity"] == "Medium" and out[40]["cells"] == ["Tickets"], out[40]
+    assert out[40]["reason"] == 'Tickets "60 " is a number typed as text, a space beside it: Excel\'s SUM and averages leave it out'
+    assert as_text(cols, rows) == {40: "Medium", 140: "Medium", 240: "Medium"}
+
+
+def test_a_column_padded_on_more_than_one_percent_of_its_cells_is_how_it_is_written():
+    assert as_text(*counts((40, 140, 240, 280))) == {}  # 4 of 300

@@ -202,6 +202,10 @@ def type_errors(df, errors_log, column_types):
             continue
         out[i].append(Why(f"Excel error {raw} in {col}" if EXCEL_ERROR.match(text) else f'Placeholder "{raw}" in column {col}'
                           if PLACEHOLDER.fullmatch(text) else f'Text "{raw}" in {kind} column {col}', col))
+    for col, cells in df.attrs.get("as_text", {}).items():  # AH-210: "48 " typed as text among numbers
+        for i, raw in cells.items():
+            out[df.index.get_loc(i)].append(Why(f'{col} "{_short(raw)}" is a number typed as text, a space beside it: '
+                                                "Excel's SUM and averages leave it out", col))
     return out, notes
 
 
@@ -403,6 +407,7 @@ def _all_blank(per, size):
 
 
 FILLS = 0.95  # a group that fills a column on this share of its rows, beside groups that leave it empty
+LABEL_SLIP = 2  # columns a row fills where its label leaves them empty, from which the label is the row's one slip
 
 
 def group_gaps(df, column_types, skip, computed=None):
@@ -431,6 +436,7 @@ def group_gaps(df, column_types, skip, computed=None):
     empty = np.column_stack([num(c) if column_types[c] == "number" else blank[c] for c in cols])
     live = np.column_stack([~np.asarray(skip, bool) & ~computed.get(c, np.zeros(len(df), bool)) for c in cols])
     filled_in = live & ~empty
+    found = collections.defaultdict(list)  # (row, label column) -> the reasons of the cells it fills where its label leaves them empty
     for g, code in labels.items():
         on = code >= 0
         at = (code[on][:, None] * len(cols) + np.arange(len(cols))).ravel()  # (label, column) of each cell, counted at once
@@ -448,12 +454,90 @@ def group_gaps(df, column_types, skip, computed=None):
             for i in np.flatnonzero(live[:, j] & ~empty[:, j] & np.isin(code, np.flatnonzero(empty_g & (filled > 0)))):
                 k = code[i]
                 said = "blank" if typ != "number" else "blank or 0"
-                out[i].append(Why(f"{col} {_shown(x.iat[i])} is filled where {g} {_short(df[g].iat[i])} leaves it {said} "
-                                  f"on {int(size[k] - filled[k])} of {int(size[k])} rows", col))
+                found[i, g].append(Why(f"{col} {_shown(x.iat[i])} is filled where {g} {_short(df[g].iat[i])} leaves it {said} "
+                                       f"on {int(size[k] - filled[k])} of {int(size[k])} rows", col))
+    # AH-210: one slip changes one cell: a row that fills two or more columns its label leaves empty is the label's slip
+    # (a house listed as Land, with its bathrooms, living area and year built), named alone: its filled cells were each
+    # coloured wrong (2 tuning episodes)
+    for (i, g), said in found.items():
+        if len(said) >= LABEL_SLIP:
+            filled = [r.cols[0] for r in said]
+            said = [Why(f"{g} {_short(df[g].iat[i])} does not fit this row, which fills {', '.join(filled[:-1])} and "
+                        f"{filled[-1]}, where {g} {_short(df[g].iat[i])} leaves them empty", g)]
+        out[i] += said
     return out
 
 
-def blanks(df, column_types, skip, errors_log, threshold=0.80):
+FIRST_ROWS = 0.8  # share of an entity column's first rows (a vehicle's, a meter's) a column leaves blank, 5 or more
+
+
+def _firsts(df, column_types, skip):
+    """The first row of each value of the first 64 text or id columns (a crafted wide sheet stays fast), one mask each."""
+    out = []
+    for c in [c for c, t in column_types.items() if t in ("text", "id")][:64]:
+        v = df[c].astype(str).str.strip().where(~skip & ~_blank(df[c]))
+        out.append((v.notna() & ~v.duplicated()).to_numpy())
+    return out
+
+
+def _first_rows(firsts, b):
+    """AH-210: a column blank on each entity's first row (a vehicle's first fill has no distance since its previous one, a
+    meter's first read no previous read): the first row of each value of a text or id column (`_firsts`), when FIRST_ROWS
+    of those first rows (and 5 or more) are blank and they hold FIRST_ROWS of the column's blanks: 30 incomes deleted at
+    the top of a sheet hold every city's first row, and are still each a slip. -> those rows, or none. A blank on any
+    later row is still each a slip."""
+    for first in firsts:
+        if (b & first).sum() >= max(5, FIRST_ROWS * first.sum(), FIRST_ROWS * b.sum()):
+            return b & first
+    return np.zeros(len(b), bool)
+
+
+STAGE = 0.2  # share of a label's rows left blank (5+) where the rest fill a column: a stage the label allows
+OPEN = 0.98  # rows (of DATE_ROWS+) on which a date column is on or after another before its blanks can be ends not reached
+
+
+def _open_end(df, col, cols, column_types, skip, b, when):
+    """AH-210: an end date not reached yet (an item still out, a case still open): a date column on or after another on
+    OPEN of the rows that fill both, blank on 5+ rows that fill the other, half of those among its latest quarter: what
+    started most recently has most often not ended. 22 of a library's 25 blank return dates were its last 41 loans.
+    -> (those rows, the start column), or None. A blank on a row of no such order, or spread evenly, is still a slip.
+    when: each date column read once, shared by every call."""
+    if column_types.get(col) != "date":
+        return None
+    read = lambda c: when[c] if c in when else when.setdefault(c, pd.to_datetime(df[c], errors="coerce", utc=True).where(~skip))
+    end = read(col)
+    for a in [c for c in cols if c != col and column_types[c] == "date"][:DATE_COLS]:
+        start = read(a)
+        both = start.notna() & end.notna()
+        at = b & start.notna().to_numpy()
+        if both.sum() < DATE_ROWS or (end[both] >= start[both]).mean() < OPEN or at.sum() < 5:
+            continue
+        if start[at].median() > start[both].quantile(0.75):
+            return at, a
+    return None
+
+
+def _stage(df, col, pos, groups, labels, prot, n, notes):
+    """AH-210: a stage one label allows (an open ticket not yet given an agent): a label of 20+ rows holding STAGE of its
+    rows (5 or more) among blanks that would each be a slip, where all but 1% of the other rows fill the column. Its blanks
+    are one note on the first; a blank under any other label is still each a slip (a closed ticket with no agent). Never
+    by a protected label. -> the positions still each a slip."""
+    b = np.zeros(len(df), bool)
+    b[pos] = True
+    for g, (code, size, _) in groups.items():
+        if g == col or g in prot:
+            continue
+        now = np.bincount(code[code >= 0], weights=b[code >= 0], minlength=len(size)).astype(int)
+        for k in np.flatnonzero((size >= 20) & (now >= np.maximum(5, STAGE * size)) & (b.sum() - now <= 0.01 * (n - size))):
+            at = np.flatnonzero(b & (code == k))
+            lab = _short(labels[g].iat[at[0]])
+            notes[df.index[at[0]]].append(Why(f"{col} is blank on {len(at)} of the {size[k]} rows of {g} {lab}, where the other "
+                                              f"rows fill it: a blank {lab} allows", col))
+            b[at] = False
+    return np.flatnonzero(b)
+
+
+def blanks(df, column_types, skip, errors_log, threshold=0.80, computed=None):
     """Blank cell in a column that is >= 80% filled (summary rows not counted): a required field left empty. Mostly-empty
     columns (notes, optional extras) are left alone. Was 95%: a credit sheet's Income, 92% filled, hid 39 blanks.
     -> (blank reasons per row, notes per row): 20+ blanks found in 4 of the 5 fifths of the sheet are one note on the first."""
@@ -481,9 +565,23 @@ def blanks(df, column_types, skip, errors_log, threshold=0.80):
     for c, (rows, code) in codes.items():
         first = min(rows)
         notes[first].append(Why(f"{c} {say(code)} is written {len(rows)} times: the column's code for no value", c))
+    # AH-210: a formula's own blank (=IF(B2="","",...)) is its inputs' to judge, never a value left out
+    computed = computed or {}
     blank = np.column_stack([(_blank(df[c]) & ~skip & ~df.index.isin(wrong.get(c, [])) & ~df.index.isin(list(codes.get(c, ((),))[0])))
-                             .to_numpy(bool) for c in cols])
+                             .to_numpy(bool) & ~computed.get(c, np.zeros(len(df), bool)) for c in cols])
     n = max(1, (~skip).sum())
+    firsts, when = None, {}  # read once, and only for a sheet with a blank: each column reading them made a wide scan 3x slower
+    for j, col in enumerate(cols):  # AH-210: blanks the sheet's own course explains, before any is read as a slip
+        if not blank[:, j].any():
+            continue
+        firsts = _firsts(df, column_types, skip) if firsts is None else firsts
+        blank[:, j] &= ~_first_rows(firsts, blank[:, j])
+        if (ended := _open_end(df, col, cols, column_types, skip, blank[:, j], when)) is not None:
+            at, a = ended
+            notes[df.index[np.flatnonzero(at)[0]]].append(Why(
+                f"{col} is blank in {at.sum()} of {n} rows, half of them or more among the latest by {a}: an end not reached "
+                "yet (an item still out, a case still open)", col))
+            blank[:, j] &= ~at
     # blanks per label per column, counted for every column at once: grouping each label column against each column
     # took 168 s on a crafted 64 x 1,500-column sheet (AH-16 build, 2026-10-22)
     groups = {}
@@ -577,6 +675,8 @@ def blanks(df, column_types, skip, errors_log, threshold=0.80):
             notes[df.index[live[0]]].append(Why(f'{col} is "{word}" (no value) in {len(pos)} of {n} rows' if said_so
                                                 else f"{col} is blank in {len(live)} of {n} rows, spread through the sheet", col))
             pos = pos[drop[pos]]  # ...and those who stopped still count toward their unfinished record, below
+        if len(pos) and not said_so:
+            pos = _stage(df, col, pos, groups, labels, prot, n, notes)
         if len(pos):
             pend.append((j, pos, lambda i, col=col: f"Blank cell in column {col}, which is otherwise filled"))
     # A row with a blank in most of the columns that are otherwise filled, each a blank no layout, sort or export explains,
@@ -1543,20 +1643,29 @@ def date_order(df, column_types, skip, far):
     out = [[] for _ in range(len(df))]
     cols = [c for c, t in column_types.items() if t == "date"][:DATE_COLS]
     when = {c: pd.to_datetime(df[c], errors="coerce", utc=True).where(~skip) for c in cols}  # utc: a +02:00 beside a plain date
+    # AH-210: a date already far outside its column is that date's slip, never a row against the order: a checkout typed
+    # in 2125 made "returned before checked out" a second break, and the real one went unsaid (3 of 4 tuning episodes)
+    off = {c: np.array([any(c in r.cols for r in said) for said in far], bool) for c in cols}
+    broken = []  # (row, a, b, sentence, the cells named)
     for a, b in itertools.permutations(cols, 2):
         u, v = when[a], when[b]
-        both = (u.notna() & v.notna()).to_numpy()
+        both = (u.notna() & v.notna()).to_numpy() & ~off[a] & ~off[b]
         if both.sum() < DATE_ROWS:
             continue
         before, holds = both & (v < u).to_numpy(), both & (v >= u).to_numpy()
         if not 0 < before.sum() <= max(1, 0.001 * both.sum()) or not u[holds].max() > v[holds].min():
             continue
         for i in np.flatnonzero(before):
-            if any(c in r.cols for r in far[i] for c in (a, b)):
-                continue
             named = [c for c in (b, a) if not _in_order(when[c], i, before.sum())] or [b, a]
-            out[i].append(Why(f"{b} {v.iat[i]:%Y-%m-%d} is before {a} {u.iat[i]:%Y-%m-%d}, where {b} is on or after {a} "
-                              f"on {holds.sum()} of {both.sum()} rows", *named))
+            broken.append((i, a, b, f"{b} {v.iat[i]:%Y-%m-%d} is before {a} {u.iat[i]:%Y-%m-%d}, where {b} is on or after {a} "
+                                    f"on {holds.sum()} of {both.sum()} rows", named))
+    # AH-210: one slip changes one date: the date of the row that breaks its order with more of the row's other dates
+    # than its partner does is the odd one (a ticket closed a month before it was opened and first answered), named alone
+    hits = collections.Counter((i, c) for i, a, b, *_ in broken for c in (a, b))
+    for i, a, b, text, named in broken:
+        if hits[i, a] != hits[i, b]:
+            named = [a if hits[i, a] > hits[i, b] else b]
+        out[i].append(Why(text, *named))
     return out
 
 
@@ -2169,7 +2278,7 @@ def score(df, column_types, errors_log, limits, order_by, strength=5, saved=(), 
             "ecod": ecod_detector(df, judged, k, limits) if s >= 5 else _result(n, "strength below 5")}
     # DBSCAN cut 2026-10-07: 90s/100k rows, 81% false alarms, bench same without it
     ran = [d for d in dets.values() if d["ran"]]
-    (dup, repeats), (typ, typ_coded), (blank, spread) = duplicates(df, errors_log, column_types, skip), type_errors(df, errors_log, column_types), blanks(df, column_types, skip, errors_log)
+    (dup, repeats), (typ, typ_coded), (blank, spread) = duplicates(df, errors_log, column_types, skip), type_errors(df, errors_log, column_types), blanks(df, column_types, skip, errors_log, computed=computed)
     (hole, coded), far = placeholders(df, column_types, skip), far_dates(df, column_types, skip)
     zeros = lost_zeros(df, column_types, skip)
     above = order(df, column_types, skip)  # AH-178: a 10th percentile above its 90th, a Low above its High
