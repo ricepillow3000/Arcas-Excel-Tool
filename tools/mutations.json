@@ -3592,5 +3592,27 @@
   "tests": [
    "backend/tests/test_subject_rules.py::test_an_order_two_rows_break_in_1000_is_the_subjects_exception_and_in_2000_each_row_is_flagged"
   ]
+ },
+ {
+  "id": "list-cap-loosen",
+  "guard": "The findings list draws at most CAP (50) rows and one \"+ N more\" line however many a scan flags (AH-204)",
+  "file": "frontend/pages/results.js",
+  "old": "order.slice(0, CAP).map(",
+  "new": "order.map(",
+  "kind": "loosen",
+  "tests": [
+   "e2e"
+  ]
+ },
+ {
+  "id": "list-cap-tighten",
+  "guard": "The findings list draws at most CAP (50) rows and one \"+ N more\" line however many a scan flags (AH-204)",
+  "file": "frontend/pages/results.js",
+  "old": "order.slice(0, CAP).map(",
+  "new": "order.slice(0, CAP - 1).map(",
+  "kind": "tighten",
+  "tests": [
+   "e2e"
+  ]
  }
 ]

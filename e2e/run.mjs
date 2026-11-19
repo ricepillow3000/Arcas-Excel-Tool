@@ -1558,6 +1558,29 @@ if (mode === "flow") {
   ok(ready && st.failed && st.empty && st.name === "" && heard.length === 0,
     "opened mid cell-edit: the sheet-name read fails quietly, the pane still gets ready - " + JSON.stringify({ ready, ...st, heard }));
   await busy.close();
+
+  // AH-204: the list draws at most CAP (50) rows and one "+ N more" line however many a scan flags (a 150,000-row sheet
+  // flagging 6,134 drew 51 items, 301 nodes). The real renderResults, on a page of its own, at the cap's limits both ways
+  const many = await browser.newPage({ ignoreHTTPSErrors: true, viewport: { width: 360, height: 900 } });
+  const slips = [];
+  many.on("pageerror", (e) => slips.push(e.message));
+  await many.route("https://appsforoffice.microsoft.com/**", (r) => r.fulfill({ contentType: "text/javascript", body: fs.readFileSync(DIR + "fake-office.js", "utf8") }));
+  await many.goto("https://127.0.0.1:5055/taskpane.html");
+  await many.waitForSelector("#main-ui", { state: "visible" });
+  for (const [count, more] of [[6000, "+ 5,950 more"], [51, "+ 1 more"], [50, null]]) {
+    const got = await many.evaluate(async (count) => {
+      const { renderResults } = await import("./pages/results.js");
+      const row = { bucket: "Irregularities", cells: ["Total"], exact: {}, formula: {}, likely: {}, maybe: {}, magnitude: 0, reason: "Total 10 does not add up: Qty × Price = 1", severity: "Medium" };
+      const rows = Array.from({ length: count }, () => ({ ...row }));
+      Object.assign(__state, { lastRows: rows, lastScan: { startRow: 0 }, decided: {} });
+      renderResults(rows, {}, null);
+      const list = document.getElementById("flagged-list");
+      return { rows: list.querySelectorAll("button").length, more: [...list.querySelectorAll(".more-rows")].map((li) => li.textContent), nodes: list.querySelectorAll("*").length };
+    }, count);
+    ok(got.rows === 50 && got.nodes < 400 && slips.length === 0 && (more ? got.more.length === 1 && got.more[0].startsWith(more + ", all highlighted in the sheet.") : !got.more.length),
+      `AH-204: ${count} flagged rows draw 50 rows${more ? ` and "${more}"` : " and no more line"} - ` + JSON.stringify({ ...got, slips }));
+  }
+  await many.close();
 }
 
 if (mode === "live") { // AH-180, AH-181

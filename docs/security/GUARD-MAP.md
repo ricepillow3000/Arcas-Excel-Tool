@@ -2,7 +2,7 @@
 
 John's rule (2026-11-10): don't trust green checks. A guard is held only when (1) a test keeps the wrong out and a test
 lets the right in, at the very limit, (2) both are named here, and (3) a planted bug turns them red. `tools/mutate.py`
-plants each mutant of `tools/mutations.json` (324 of them) in a throwaway copy of the repo and runs its tests; one they
+plants each mutant of `tools/mutations.json` (326 of them) in a throwaway copy of the repo and runs its tests; one they
 survive fails the run (`python tools/check.py --mutate`, CI's `mutation` job on every push and pull request).
 
 A loosen mutant lets the wrong in (a check removed, a limit widened); a tighten mutant keeps the right out (a limit cut
@@ -125,3 +125,4 @@ Paths in the Code column are where each mutant's text sits (line numbers from th
 | 108 | 9 | At most 20 AI subject rules (MAX_RULES), each 'why' one line of at most 120 characters (AH-202) | `backend/anomaly_hunter/ai/client.py` `subject_rules`, `MAX_RULES` | test_subject_rules.py::test_at_most_20_rules_are_kept_each_why_one_line_of_at_most_120_characters (21 rules; 201 characters on two lines) | same test (20 rules; 120 characters) | rules-count-loosen (loosen)<br>rules-count-tighten (tighten)<br>rules-why-loosen (loosen)<br>rules-why-tighten (tighten) |
 | 109 | 11 | Check subject rules says at most CAP lines, then one line for the rest; the AI's words only as text (AH-202) | `frontend/features/ai.js` `rulesLines`, `checkRules` | selfcheck.js AH-202 (61 lines); e2e/run.mjs ai "AH-202: the AI's words are text, never markup" | selfcheck.js AH-202 (exactly CAP lines) | rules-lines-loosen (loosen)<br>rules-lines-tighten (tighten) |
 | 110 | 6 | An order the AI names is believed only where at most max(1, 0.1%) of its rows break it (ORDER_OFF, the bar of `date_order`): a few rows against an order are the subject's own exception (AH-202) | `backend/anomaly_hunter/engine/rules.py` `check`, `ORDER_OFF` | test_subject_rules.py::test_an_order_two_rows_break_in_1000_is_the_subjects_exception_and_in_2000_each_row_is_flagged (2 of 1,000) | same test (2 of 2,000) | rules-order-loosen (loosen)<br>rules-order-tighten (tighten)<br>rules-order-bar-loosen (loosen) |
+| 111 | 11 | The findings list draws at most CAP (50) rows and one "+ N more" line however many a scan flags: a 150,000-row sheet flagging 6,134 drew 51 items, 301 nodes (AH-204) | `frontend/pages/results.js` `listRows`; `frontend/constants/index.js` `CAP` | e2e/run.mjs flow "AH-204" (6,000 rows: 50 drawn and "+ 5,950 more", under 400 nodes; 51 rows: 50 and "+ 1 more") | same e2e (exactly 50 rows: all 50 drawn, no more line) | list-cap-loosen (loosen)<br>list-cap-tighten (tighten) |
