@@ -19,7 +19,7 @@ from queue import Queue
 
 ROOT = Path(__file__).resolve().parents[1]
 PY = sys.executable
-E2E = "e2e"  # a mutant's test that is the browser flow (e2e/all.sh, flow mode)
+E2E = "e2e"  # a mutant's test that is the browser test (e2e/all.sh, flow mode, or the mutant's "modes", AH-207)
 WAIT = 900  # seconds one test command may take; longer is a hang the mutant caused, counted as caught
 
 
@@ -92,7 +92,8 @@ def baseline(mutants, copy, env):
                            capture_output=True, text=True, timeout=3 * WAIT)
         if r.returncode != 0:
             red.append("pytest:\n" + (r.stdout + r.stderr)[-3000:])
-    red += [t for t in tests if command(t)[0] != PY and not run(t, copy, env)]
+    modes = " ".join(dict.fromkeys(m.get("modes", "flow") for m in mutants))  # every mode a mutant is judged in
+    red += [t for t in tests if command(t)[0] != PY and not run(t, copy, {**env, "MODES": modes})]
     if red:
         sys.exit("The listed tests are red before any mutant, so no mutant can be judged:\n" + "\n".join(red))
 
@@ -114,6 +115,7 @@ def judge(m, copy, env):
     t = time.time()
     try:
         target.write_bytes(plant(text, m["old"], m["new"], m["id"]).encode("utf-8"))
+        env = {**env, "MODES": m.get("modes", "flow")}  # AH-207: Check as you work is caught only in mode live
         by = next((test for test in m["tests"] if not run(test, copy, env)), None)
     finally:
         target.write_bytes(before)

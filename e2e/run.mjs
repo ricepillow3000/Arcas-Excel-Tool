@@ -1558,6 +1558,29 @@ if (mode === "flow") {
   ok(ready && st.failed && st.empty && st.name === "" && heard.length === 0,
     "opened mid cell-edit: the sheet-name read fails quietly, the pane still gets ready - " + JSON.stringify({ ready, ...st, heard }));
   await busy.close();
+
+  // AH-204: the list draws at most CAP (50) rows and one "+ N more" line however many a scan flags (a 150,000-row sheet
+  // flagging 6,134 drew 51 items, 301 nodes). The real renderResults, on a page of its own, at the cap's limits both ways
+  const many = await browser.newPage({ ignoreHTTPSErrors: true, viewport: { width: 360, height: 900 } });
+  const slips = [];
+  many.on("pageerror", (e) => slips.push(e.message));
+  await many.route("https://appsforoffice.microsoft.com/**", (r) => r.fulfill({ contentType: "text/javascript", body: fs.readFileSync(DIR + "fake-office.js", "utf8") }));
+  await many.goto("https://127.0.0.1:5055/taskpane.html");
+  await many.waitForSelector("#main-ui", { state: "visible" });
+  for (const [count, more] of [[6000, "+ 5,950 more"], [51, "+ 1 more"], [50, null]]) {
+    const got = await many.evaluate(async (count) => {
+      const { renderResults } = await import("./pages/results.js");
+      const row = { bucket: "Irregularities", cells: ["Total"], exact: {}, formula: {}, likely: {}, maybe: {}, magnitude: 0, reason: "Total 10 does not add up: Qty × Price = 1", severity: "Medium" };
+      const rows = Array.from({ length: count }, () => ({ ...row }));
+      Object.assign(__state, { lastRows: rows, lastScan: { startRow: 0 }, decided: {} });
+      renderResults(rows, {}, null);
+      const list = document.getElementById("flagged-list");
+      return { rows: list.querySelectorAll("button").length, more: [...list.querySelectorAll(".more-rows")].map((li) => li.textContent), nodes: list.querySelectorAll("*").length };
+    }, count);
+    ok(got.rows === 50 && got.nodes < 400 && slips.length === 0 && (more ? got.more.length === 1 && got.more[0].startsWith(more + ", all highlighted in the sheet.") : !got.more.length),
+      `AH-204: ${count} flagged rows draw 50 rows${more ? ` and "${more}"` : " and no more line"} - ` + JSON.stringify({ ...got, slips }));
+  }
+  await many.close();
 }
 
 if (mode === "live") { // AH-180, AH-181
@@ -1620,6 +1643,26 @@ if (mode === "live") { // AH-180, AH-181
   await page.evaluate((col) => __paste("Series 3", "B2", col.map((v) => [v])), wave(2));
   const pms = await waitNote('"Series 3" holds the same 40 numbers as "Series 2"');
   ok((await note()).includes('"Series 3" holds the same 40 numbers as "Series 2", in the same order.') && await chimes() === 3, `AH-180: pasting series 2's numbers on tab 3 is said at once (${pms} ms), with a chime - ${await note()}`);
+  // AH-207: one strength for both (John, 2026-11-19: "at maximum strength ... the automatic scanning while the user is
+  // working is at full strength"): the slider's level goes with Check as you work's /scan too, and the fold says so
+  await page.click("#live-close");
+  const liveAt = async (key, level, cell) => {
+    await page.$eval("#strength-box", (d) => (d.open = true)); await page.focus("#strength"); await page.keyboard.press(key);
+    await page.waitForFunction((l) => __state.lastStrength === l && !document.getElementById("scan").disabled, level, { timeout: 15000 }).catch(() => {});
+    await page.waitForTimeout(800); await idle(); // the slider's own re-check of the sheet shown, done before the edit
+    const s = scans.length;
+    await page.evaluate((c) => __edit("Series 1", c, 50), cell);
+    await page.waitForFunction((c) => document.getElementById("notice").textContent.startsWith(`Checked ${c} on "Series 1"`) || document.getElementById("live-note").checkVisibility(), cell, { timeout: 8000 }).catch(() => {});
+    if (await note()) await page.click("#live-close");
+    return scans.slice(s).map((b) => `${b.sheet}:${b.strength}`).join();
+  };
+  { const at10 = await liveAt("End", 10, "B5");
+    ok(at10 === "Series 1:10", "AH-207: with the slider at 10, Check as you work's /scan is sent at 10 - " + at10);
+    const at0 = await liveAt("Home", 0, "B6");
+    ok(at0 === "Series 1:0", "AH-207: with the slider at 0, Check as you work's /scan is sent at 0 - " + at0);
+    const said = await page.evaluate(() => [document.getElementById("strength-both")?.textContent, document.getElementById("live-hint").textContent]);
+    ok(said[0] === "Find problems and Check as you work both use this level." && said[1].endsWith(" It uses the level you set under Find problems."),
+      "AH-207: the slider's fold and Check as you work's fold say the one level is used by both - " + JSON.stringify(said)); }
 }
 
 // proof for people, at rest: the pointer off every button first (the full-page picture moved the page under it, and a

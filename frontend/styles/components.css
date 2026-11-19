@@ -30,6 +30,7 @@
   .slider-scale span:last-child { margin-left: auto; }
 }
 #strength-hint { min-height: 2.9em; margin: var(--s2) 0 0; } /* the words change length; the layout under them doesn't jump */
+#strength-both { margin: var(--s2) 0 0; } /* AH-207: above the hint, so a level's longer words never move it */
 /* what the level did on the bench, one press away: a link's look, a finger's height (AH-149 review). What an AI button
    sends is one press away the same way, under a one line note (AH-164: four lines of small print under each button) */
 :is(#strength-tested, .sends) summary { list-style: none; display: flex; align-items: center; min-height: 44px; cursor: pointer; font: 600 var(--fs--1)/1.4 var(--sans);
