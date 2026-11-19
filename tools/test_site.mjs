@@ -164,16 +164,30 @@ for (const f of fs.readdirSync(path.join(SITE, "assets")).filter((f) => /\.(png|
     assert.ok((metaOf(src, "property", "og:image:alt")[0] || "").length >= 20, `${p}: no og:image:alt`);
   }
 }
-// the icons: 32 and 64 for tabs, 180 for an iPhone's home screen, 192 for Android, 512 for an install prompt
+// the icons: 32 and 64 for tabs, 180 for an iPhone's home screen, 192 for Android, 512 for an install prompt; crest3 is
+// AH-203's mark (a new drawing gets new names: a browser caches a favicon by its URL, as Office does)
 {
-  for (const [f, n] of [["crest2-32.png", 32], ["crest2-64.png", 64], ["crest2-180.png", 180], ["crest2-192.png", 192], ["crest2-512.png", 512]]) {
+  for (const [f, n] of [["crest3-32.png", 32], ["crest3-64.png", 64], ["crest3-180.png", 180], ["crest3-192.png", 192], ["crest3-512.png", 512]]) {
     const [w, h] = pngSize("assets/" + f);
     assert.ok(w === n && h === n, `assets/${f} is ${w} x ${h}, not ${n} x ${n}`);
   }
   for (const p of ALL) {
     const at = p === MISSING ? ROOT_PATH : "";
-    assert.ok(allHtml[p].includes(`<link rel="apple-touch-icon" href="${at}assets/crest2-180.png">`) && allHtml[p].includes(`<link rel="icon" href="${at}assets/crest2-192.png" sizes="192x192">`), `${p}: no 180 apple-touch-icon or 192 icon`);
+    assert.ok(allHtml[p].includes(`<link rel="apple-touch-icon" href="${at}assets/crest3-180.png">`) && allHtml[p].includes(`<link rel="icon" href="${at}assets/crest3-192.png" sizes="192x192">`), `${p}: no 180 apple-touch-icon or 192 icon`);
   }
+}
+// the site's logos are the drawings in docs/design/logo without their comments (README): every page's header is
+// mark-40.svg and the download's is mark-80.svg, so a redrawn mark can never leave one page on the old art (AH-203)
+{
+  const drawing = (n) => fs.readFileSync(path.join(SITE, "..", "docs", "design", "logo", n), "utf8").replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/<svg [^>]*>/, "").replace(/<\/svg>\s*$/, "").replace(/>\s+</g, "><").trim();
+  const inner = (tag) => tag.replace(/^<svg [^>]*>/, "").replace(/<\/svg>$/, "");
+  for (const p of ALL) {
+    const head = /<a class="brand"[^>]*><svg class="logo" viewBox="0 0 32 40" aria-hidden="true">[\s\S]*?<\/svg>/.exec(allHtml[p]);
+    assert.ok(head && inner(head[0].slice(head[0].indexOf("<svg"))) === drawing("mark-40.svg"), `${p}: the header's logo is not docs/design/logo/mark-40.svg`);
+  }
+  const big = /<svg class="logo logo-lg" viewBox="0 0 80 80" aria-hidden="true">[\s\S]*?<\/svg>/.exec(html["index.html"]);
+  assert.ok(big && inner(big[0]) === drawing("mark-80.svg"), "index.html: the download's logo is not docs/design/logo/mark-80.svg");
 }
 // every image is described or marked as decoration, every inline drawing is hidden from readers or named, no
 // placeholder is left in what a user reads, and every outside link goes to a host the site already uses
@@ -1441,28 +1455,36 @@ for (const width of [1280, 390]) {
 }
 
 // the download's logo: the original Spear and Banner (docs/design/logo/mark-80.svg; John brought it back on 2026-10-30)
-// directly above the Download button, shown whole: its five parts present and drawn inside the logo's box, each painted
-// in exactly the site's own flat colors (the banner navy, the spear, bar and drape one gold, the emblem paper: AH-103), the logo, its
-// parts and the stage around it opaque and every part in place by the end of the page (AH-72's scroll motion must finish
-// there), and with no animation at all when motion is unwelcome
+// directly above the Download button, shown whole: its four parts present and drawn inside the logo's box, each painted
+// in exactly the site's own flat colors (the banner navy, the spear and bar one gold, the emblem paper: AH-103; the
+// banner's gold line inside it a stroke, AH-203), the logo, its parts and the stage around it opaque and every part in place
+// by the end of the page (AH-72's scroll motion must finish there), and with no animation at all when motion is unwelcome.
+// Where: the spear stands on the bar over the banner's middle, the bar sits on the banner and is wider than it, the
+// banner hangs from the bar, and the emblem lies inside the banner's gold line (AH-203: no drape between bar and banner)
 const logo = (page) => page.evaluate(() => {
   const l = document.querySelector("#download .logo"), b = document.querySelector('#download a[href$="Arcas.exe"]');
   const r = l.getBoundingClientRect(), q = b.getBoundingClientRect();
-  const names = ["spear", "bar", "drape", "banner", "emblem"], part = (n) => l.querySelector(`[data-part="${n}"]`);
+  const names = ["spear", "bar", "banner", "emblem"], part = (n) => l.querySelector(`[data-part="${n}"]`);
   const drawn = names.filter((n) => { const g = part(n), s = g && g.getBoundingClientRect();
     return s && s.width > 0 && s.height > 0 && s.left >= r.left && s.right <= r.right && s.top >= r.top && s.bottom <= r.bottom; });
-  // the fills a part paints (a stroke-only line says fill none); <use> copies the finial's halves with their own fill
-  const fills = (n) => [...new Set([...part(n).querySelectorAll("path, rect, circle, use")].map((e) => getComputedStyle(e).fill))].filter((f) => f !== "none").sort().join(" ");
+  // the fills a part paints (a stroke-only line says fill none), and the strokes it draws (the emblem's ring and slash, the banner's line)
+  const paint = (n, k) => [...new Set([part(n), ...part(n).querySelectorAll("path, rect, circle, use")].filter((e) => e.tagName !== "g").map((e) => getComputedStyle(e)[k]))].filter((f) => f !== "none").sort().join(" ");
+  const box = (n) => part(n).getBoundingClientRect(), [sp, ba, bn, em] = names.map(box);
+  const line = ([...part("banner").querySelectorAll("path")].find((e) => getComputedStyle(e).fill === "none") || { getBoundingClientRect: () => bn }).getBoundingClientRect();
+  const near = (a, z) => Math.abs(a - z) <= 0.5;
   const up = []; for (let e = l.parentElement; e && e.id !== "download"; e = e.parentElement) up.push(e);
   const parts = [...up, l, ...l.querySelectorAll("*")].map((c) => getComputedStyle(c));
-  return { parts: drawn.join(), banner: fills("banner"), spear: fills("spear"), bar: fills("bar"), drape: fills("drape"), emblem: fills("emblem"),
+  return { parts: drawn.join(), banner: paint("banner", "fill"), rim: paint("banner", "stroke"), spear: paint("spear", "fill"), bar: paint("bar", "fill"), emblem: paint("emblem", "fill") + " | " + paint("emblem", "stroke"),
+    where: near(sp.bottom, ba.top) && near(sp.left + sp.width / 2, bn.left + bn.width / 2) && near(ba.bottom, bn.top) && ba.left < bn.left && ba.right > bn.right
+      && line.left > bn.left && line.right < bn.right && line.top > bn.top && line.bottom < bn.bottom
+      && em.left > line.left && em.right < line.right && em.top > line.top && em.bottom < line.bottom,
     above: r.width >= 64 && r.height >= 64 && r.bottom <= q.top && q.top - r.bottom <= 64 && r.left < q.right && q.left < r.right,
     shown: parts.every((c) => c.opacity === "1" && c.visibility === "visible" && c.display !== "none"),
     placed: parts.slice(up.length).every((c) => c.transform === "none"), animated: parts.some((c) => c.animationName !== "none") };
 });
-const GOLD = "rgb(153, 125, 58)"; // --gold #997D3A, flat: no lit face (AH-103)
-const WHOLE = { parts: "spear,bar,drape,banner,emblem", banner: "rgb(12, 25, 56)", spear: GOLD, bar: GOLD, drape: GOLD, emblem: "rgb(247, 245, 240)",
-  above: true, shown: true, placed: true };
+const GOLD = "rgb(153, 125, 58)", PAPER = "rgb(247, 245, 240)"; // --gold #997D3A, flat: no lit face (AH-103)
+const WHOLE = { parts: "spear,bar,banner,emblem", banner: "rgb(12, 25, 56)", rim: GOLD, spear: GOLD, bar: GOLD, emblem: `${PAPER} | ${PAPER}`,
+  where: true, above: true, shown: true, placed: true };
 // brought to the middle of the screen, the banner and the blade are what the eye gets there: nothing covers them
 const onTop = (page) => page.evaluate(async () => {
   const l = document.querySelector("#download .logo"); l.scrollIntoView({ block: "center" });
