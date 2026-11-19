@@ -1,4 +1,6 @@
 # Arcas
+<img src="docs/design/logo/mark-157.svg" width="74" height="78" alt="The Arcas logo: a capital A made of tiles, wine at the top to navy at the bottom, with one gold tile">
+
 Excel add-in that flags abnormal rows and tells unusual-but-fine rows from broken ones. It never deletes data.
 Your sheet is checked on your own PC. Nothing leaves it unless you turn on AI help: see [What leaves your PC](PRIVACY.md).
 Website: [ricepillow3000.github.io/excel-anomaly-hunter](https://ricepillow3000.github.io/excel-anomaly-hunter/) (`site/`, published by `.github/workflows/pages.yml`).

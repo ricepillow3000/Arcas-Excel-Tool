@@ -164,15 +164,36 @@ for (const f of fs.readdirSync(path.join(SITE, "assets")).filter((f) => /\.(png|
     assert.ok((metaOf(src, "property", "og:image:alt")[0] || "").length >= 20, `${p}: no og:image:alt`);
   }
 }
-// the icons: 32 and 64 for tabs, 180 for an iPhone's home screen, 192 for Android, 512 for an install prompt
+// the icons: 32 and 64 for tabs, 180 for an iPhone's home screen, 192 for Android, 512 for an install prompt; crest4 is
+// AH-203's mark (a new drawing gets new names: a browser caches a favicon by its URL, as Office does)
 {
-  for (const [f, n] of [["crest2-32.png", 32], ["crest2-64.png", 64], ["crest2-180.png", 180], ["crest2-192.png", 192], ["crest2-512.png", 512]]) {
+  for (const [f, n] of [["crest4-32.png", 32], ["crest4-64.png", 64], ["crest4-180.png", 180], ["crest4-192.png", 192], ["crest4-512.png", 512]]) {
     const [w, h] = pngSize("assets/" + f);
     assert.ok(w === n && h === n, `assets/${f} is ${w} x ${h}, not ${n} x ${n}`);
   }
   for (const p of ALL) {
     const at = p === MISSING ? ROOT_PATH : "";
-    assert.ok(allHtml[p].includes(`<link rel="apple-touch-icon" href="${at}assets/crest2-180.png">`) && allHtml[p].includes(`<link rel="icon" href="${at}assets/crest2-192.png" sizes="192x192">`), `${p}: no 180 apple-touch-icon or 192 icon`);
+    assert.ok(allHtml[p].includes(`<link rel="apple-touch-icon" href="${at}assets/crest4-180.png">`) && allHtml[p].includes(`<link rel="icon" href="${at}assets/crest4-192.png" sizes="192x192">`), `${p}: no 180 apple-touch-icon or 192 icon`);
+  }
+}
+// the site's logos are docs/design/logo's drawings (README): every page's header is mark-29.svg and the download's is
+// mark-157.svg, so a redrawn mark can never leave one page on the old art; each is drawn for the size it is shown at,
+// its rows' flat edges on whole pixels there (a row edge between pixels blurred at 1x, AH-203)
+{
+  const drawing = (n) => fs.readFileSync(path.join(SITE, "..", "docs", "design", "logo", n), "utf8").trim();
+  const inner = (svg) => svg.replace(/^<svg [^>]*>/, "").replace(/<\/svg>$/, "");
+  const box = (svg) => /viewBox="([^"]+)"/.exec(svg)[1];
+  for (const [n, re, pages] of [["mark-29.svg", /<svg class="logo" viewBox="[^"]+" aria-hidden="true">[\s\S]*?<\/svg>/, ALL],
+    ["mark-157.svg", /<svg class="logo logo-lg" viewBox="[^"]+" aria-hidden="true">[\s\S]*?<\/svg>/, ["index.html"]]]) {
+    const want = drawing(n);
+    for (const p of pages) {
+      const got = re.exec(allHtml[p]);
+      assert.ok(got && inner(got[0]) === inner(want) && box(got[0]) === box(want), `${p}: the logo is not docs/design/logo/${n}`);
+    }
+    const rows = [...inner(want).matchAll(/d="M[^"]*"/g)].flatMap((m) => [...m[0].matchAll(/[ML]-?[\d.]+ (-?[\d.]+)/g)].map((k) => +k[1]));
+    assert.ok(rows.length > 0 && rows.every((y) => Number.isInteger(y)), `${n}: a row edge off the pixel grid (${rows.filter((y) => !Number.isInteger(y)).slice(0, 3)})`);
+    const h = +box(want).split(" ")[3];
+    assert.ok(Number.isInteger(h) && new RegExp(`height: ${h}px`).test(fs.readFileSync(path.join(SITE, "styles.css"), "utf8")), `${n}: not shown at its own ${h} px height in styles.css`);
   }
 }
 // every image is described or marked as decoration, every inline drawing is hidden from readers or named, no
@@ -1440,36 +1461,39 @@ for (const width of [1280, 390]) {
   }
 }
 
-// the download's logo: the original Spear and Banner (docs/design/logo/mark-80.svg; John brought it back on 2026-10-30)
-// directly above the Download button, shown whole: its five parts present and drawn inside the logo's box, each painted
-// in exactly the site's own flat colors (the banner navy, the spear, bar and drape one gold, the emblem paper: AH-103), the logo, its
-// parts and the stage around it opaque and every part in place by the end of the page (AH-72's scroll motion must finish
-// there), and with no animation at all when motion is unwelcome
+// the download's logo (AH-203): John's A of tiles (docs/design/logo/mark-157.svg) directly above the Download button,
+// shown whole: its 14 tiles and one gold cell drawn inside the logo's box, one flat colour a row stepping from wine at the
+// top to navy at the bottom, the gold cell in the A's opening (between its row's two tiles, above the crossbar's three),
+// the logo and the stage around it opaque and in place by the end of the page (AH-72's scroll motion must finish there),
+// and with no animation at all when motion is unwelcome
 const logo = (page) => page.evaluate(() => {
   const l = document.querySelector("#download .logo"), b = document.querySelector('#download a[href$="Arcas.exe"]');
   const r = l.getBoundingClientRect(), q = b.getBoundingClientRect();
-  const names = ["spear", "bar", "drape", "banner", "emblem"], part = (n) => l.querySelector(`[data-part="${n}"]`);
-  const drawn = names.filter((n) => { const g = part(n), s = g && g.getBoundingClientRect();
-    return s && s.width > 0 && s.height > 0 && s.left >= r.left && s.right <= r.right && s.top >= r.top && s.bottom <= r.bottom; });
-  // the fills a part paints (a stroke-only line says fill none); <use> copies the finial's halves with their own fill
-  const fills = (n) => [...new Set([...part(n).querySelectorAll("path, rect, circle, use")].map((e) => getComputedStyle(e).fill))].filter((f) => f !== "none").sort().join(" ");
+  const tiles = [...l.querySelectorAll('[data-part="tile"]')], cells = [...l.querySelectorAll('[data-part="cell"]')];
+  const inside = (e) => { const s = e.getBoundingClientRect();
+    return s.width > 0 && s.height > 0 && s.left >= r.left - 0.5 && s.right <= r.right + 0.5 && s.top >= r.top - 0.5 && s.bottom <= r.bottom + 0.5; };
+  const rows = []; for (const t of tiles) (rows[+t.dataset.row] ||= new Set()).add(getComputedStyle(t).fill);
+  const row = (n) => tiles.filter((t) => +t.dataset.row === n).map((t) => t.getBoundingClientRect()).sort((a, z) => a.left - z.left);
+  const cell = cells[0], c = cell && cell.getBoundingClientRect(), same = cell ? row(+cell.dataset.row) : [], under = cell ? row(+cell.dataset.row + 1) : [];
   const up = []; for (let e = l.parentElement; e && e.id !== "download"; e = e.parentElement) up.push(e);
-  const parts = [...up, l, ...l.querySelectorAll("*")].map((c) => getComputedStyle(c));
-  return { parts: drawn.join(), banner: fills("banner"), spear: fills("spear"), bar: fills("bar"), drape: fills("drape"), emblem: fills("emblem"),
+  const parts = [...up, l, ...l.querySelectorAll("*")].map((s) => getComputedStyle(s));
+  return { tiles: tiles.length, cells: cells.length, drawn: [...tiles, ...cells].every(inside), rows: rows.map((f) => [...f].join()).join(" | "),
+    cell: cells.map((e) => getComputedStyle(e).fill).join(),
+    opening: !!cell && same.length === 2 && same[0].right < c.left && c.right < same[1].left && under.length === 3 && under.every((u) => u.top >= c.bottom),
     above: r.width >= 64 && r.height >= 64 && r.bottom <= q.top && q.top - r.bottom <= 64 && r.left < q.right && q.left < r.right,
-    shown: parts.every((c) => c.opacity === "1" && c.visibility === "visible" && c.display !== "none"),
-    placed: parts.slice(up.length).every((c) => c.transform === "none"), animated: parts.some((c) => c.animationName !== "none") };
+    shown: parts.every((s) => s.opacity === "1" && s.visibility === "visible" && s.display !== "none"),
+    placed: parts.slice(up.length).every((s) => s.transform === "none"), animated: parts.some((s) => s.animationName !== "none") };
 });
-const GOLD = "rgb(153, 125, 58)"; // --gold #997D3A, flat: no lit face (AH-103)
-const WHOLE = { parts: "spear,bar,drape,banner,emblem", banner: "rgb(12, 25, 56)", spear: GOLD, bar: GOLD, drape: GOLD, emblem: "rgb(247, 245, 240)",
-  above: true, shown: true, placed: true };
-// brought to the middle of the screen, the banner and the blade are what the eye gets there: nothing covers them
+const GOLD = "rgb(153, 125, 58)"; // --gold #997D3A, flat
+const STEPS = ["rgb(107, 30, 46)", "rgb(91, 30, 48)", "rgb(75, 28, 53)", "rgb(55, 28, 58)", "rgb(33, 27, 60)", "rgb(12, 25, 56)"]; // wine to navy
+const WHOLE = { tiles: 14, cells: 1, drawn: true, rows: STEPS.join(" | "), cell: GOLD, opening: true, above: true, shown: true, placed: true };
+// brought to the middle of the screen, the gold cell and the top row are what the eye gets there: nothing covers them
 const onTop = (page) => page.evaluate(async () => {
   const l = document.querySelector("#download .logo"); l.scrollIntoView({ block: "center" });
   await new Promise((go) => setTimeout(go, 300));
   const at = (x, y) => { const e = document.elementFromPoint(x, y); return e && l.contains(e) ? e.closest("[data-part]").dataset.part : String(e && e.tagName); };
-  const ban = l.querySelector('[data-part="banner"]').getBoundingClientRect(), sp = l.querySelector('[data-part="spear"]').getBoundingClientRect();
-  return [at(ban.left + 3, ban.top + ban.height * 0.6), at(sp.left + sp.width / 2, sp.top + sp.height * 0.15)].join();
+  const c = l.querySelector('[data-part="cell"]').getBoundingClientRect(), t = l.querySelector('[data-part="tile"][data-row="0"]').getBoundingClientRect();
+  return [at(c.left + c.width / 2, c.top + c.height / 2), at(t.left + t.width / 2, t.top + t.height / 2)].join();
 });
 
 // the sample workspace: tabs, arrow keys, filters, and a detail box per flagged row
@@ -1552,12 +1576,12 @@ const onTop = (page) => page.evaluate(async () => {
   assert.equal(await behind(), "rgb(12, 25, 56)");
   await p.evaluate(() => scrollTo(0, document.getElementById("download").offsetTop + 60 - innerHeight / 2)); await p.waitForTimeout(100);
   assert.equal(await behind(), "rgb(239, 236, 228)");
-  // ... and the logo above the Download button is whole once its stage has risen into place: five parts drawn, in their
-  // colors, opaque and in place
+  // ... and the logo above the Download button is whole once its stage has risen into place: every tile and its gold
+  // cell drawn, in their colors, opaque and in place
   await p.waitForSelector("#download .stage[data-settled]", { state: "attached", timeout: 3000 });
   const whole = await logo(p); delete whole.animated;
   assert.deepEqual(whole, WHOLE);
-  assert.equal(await onTop(p), "banner,spear");
+  assert.equal(await onTop(p), "cell,tile");
   await p.evaluate(() => scrollTo(0, 0)); await p.waitForTimeout(100);
   assert.equal(await behind(), "rgb(247, 245, 240)");
   assert.equal(await p.textContent("#sha"), "ab".repeat(32));
@@ -1955,7 +1979,7 @@ for (const width of [1440, 390]) { // a coloured cell steps up when hovered, and
   await t.page.click('.typology button[data-kind="all"]');
   assert.equal(await t.page.evaluate(() => document.getAnimations().length), 0, "an animation runs under reduced motion");
   assert.deepEqual(await logo(t.page), { ...WHOLE, animated: false });
-  assert.equal(await onTop(t.page), "banner,spear");
+  assert.equal(await onTop(t.page), "cell,tile");
   assert.equal(await t.page.evaluate(() => document.querySelector("#download .logo").getAnimations({ subtree: true }).length), 0, "the logo moves under reduced motion");
   await done(t, "reduced motion", [API]);
 }

@@ -149,7 +149,7 @@ def test_ribbon_icons_are_cacheable_but_panel_code_is_not():
     # Office drops ribbon icons served with no-store/no-cache, so icons must be
     # cacheable while the panel's HTML/JS and API stay no-store (stale-JS guard).
     c = client()
-    icon = c.get("/assets/crest2-32.png")
+    icon = c.get("/assets/crest4-32.png")
     assert icon.status_code == 200
     assert "no-store" not in icon.headers["Cache-Control"]
     assert "no-cache" not in icon.headers["Cache-Control"]
@@ -157,10 +157,10 @@ def test_ribbon_icons_are_cacheable_but_panel_code_is_not():
     assert c.get("/health").headers["Cache-Control"] == "no-store"
 
 
-# Every icon name a shipped manifest gave Office before today's (1.0.1.0 to 1.0.7.0). Excel keeps drawing the manifest
+# Every icon name a shipped manifest gave Office before today's (1.0.1.0 to 1.0.8.0). Excel keeps drawing the manifest
 # it cached first across upgrades: a 1.0.8.0 install showed 1.0.5.0's "Anomaly Hunter" with Office's grey placeholder,
-# because mark-*.png was deleted (AH-154). Typed here, never read from git: CI clones shallow.
-RETIRED_ICONS = ["icon", "logo", "banner", "mark", "crest"]
+# because mark-*.png was deleted (AH-154). Typed here, never read from git: CI clones shallow. crest2 is 1.0.8.0's (AH-203).
+RETIRED_ICONS = ["icon", "logo", "banner", "mark", "crest", "crest2"]
 
 
 def test_every_ribbon_icon_an_old_cached_manifest_names_is_still_our_crest():

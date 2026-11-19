@@ -44,7 +44,7 @@ strong,b{font-weight:700}
 
 /* ---------- head (shared): a navy band, the mark straight on it, a bold flush-left title ---------- */
 .hero{position:relative;text-align:left;color:var(--on-navy);padding:var(--s5) var(--inline) var(--s5);background:var(--tex-navy),var(--navy);border-bottom:1px solid var(--gold-hi)}
-.hero .mark{display:inline-block;line-height:0;margin-bottom:var(--s4)} /* no tile: the mark's gold rim and spear carry it on the navy band (John, 2026-10-30) */
+.hero .mark{display:inline-block;line-height:0;margin-bottom:var(--s4)} /* on navy the mark sits on its paper square, the ribbon's own icon, in its true colours (John, 2026-11-19, AH-203) */
 .hero .mark img{display:block}
 .hero h1{max-width:14em;font:800 clamp(var(--fs-4),6vw,var(--fs-6))/.95 var(--sans);color:var(--on-navy);text-wrap:balance}
 .hero .lead{max-width:600px;margin:var(--s3) 0 0;padding-top:var(--s2);border-top:1px solid var(--rule-navy);font-size:var(--fs-1);line-height:1.45;color:var(--on-navy-2)}

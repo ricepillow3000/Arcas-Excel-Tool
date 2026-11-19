@@ -1,42 +1,58 @@
-# The Spear & Banner mark
+# The Arcas mark: an A of tiles (AH-203)
 
-Flat, like the page it sits on: solid fills in the site's own colors, square ends, no shading and no outline.
-John's spear is measured from his reference image; the emblem is his sketch (two panels touching at their inner top
-corners, a slashed ring above).
+A capital A made of tiles, like the cells of a sheet: six rows of slanted tiles, wine at the top stepping to navy at the
+bottom, and one gold tile in the A's opening, the one cell Arcas finds. Flat, like the page it sits on: solid fills in
+the site's own colours, square corners, no shading, no outline.
 
-Why (AH-103): the header showed a blocky pixel-grid redraw and the large logo had dark brown outlines, rounded ends and
-a lit and a shaded face of gold, so the mark looked out of place on a flat, square-cornered, hairline page. John kept
-the design and changed only its texture ("B: flat + thin lines").
+Why (John, 2026-11-19): "redesign our logo ... make it so it matches the textures, design, and feel of our website and
+tool". The Spear and Banner went through two rounds (crest3, never shipped) before John asked for a fresh mark built
+from his emblem's shapes, then for "a letter A in caps ... made of square blocks ... kind of gradient", and picked a
+Nano Banana idea (Gemini's image model) of a tiled A shading by rows: "wine red at the top, fading into navy, with
+accents of gold in the middle". Its tiles lean like his emblem's two slabs, the A is his triangle, and the gold cell is
+the product: every cell read, the wrong one found.
 
-Why one drawing per size (AH-121): a blind judge compared the AH-103 mark with the old one and the new one lost 5 of 9
-points. At 1x the header was soft and its emblem a white blob (a ring stroke under one pixel, the panels crowding it, the
-shaft between pixels, the bar and the drape one gold shape); the 16 px icon was a smudge and the 32 px mush; the large
-logo had lost the old one's detail and its 55% navy hairlines read as grey on gold. It won on high-DPI crispness, on
-fitting the page and on header and large logo being one drawing, so the shapes, the palette and the flat texture stay.
-Each drawing is now made for the pixels it lands on: every straight edge on a whole pixel at its size. A second blind
-round still lost the 16 and 32 px icons (a smooth ring and V hem rasterised to grey at those sizes) and the large logo's
-character, so the 16 and 32 px icons are placed pixel by pixel (`shape-rendering="crispEdges"`, whole-pixel rects, every
-pixel gold, navy, paper or empty) and the large drawing gained flat details.
+How it was judged (blind, labels shuffled, each mark shown in the website header, the phone header, the pane's navy
+band, a browser tab, Excel's ribbon light and dark, and the download section):
+- Round 6, five marks: this A 153 of 210, a flat navy block A 155, a solid A with a dot 147, today's crest2 91. It led
+  on eye-catching, memorable, fit with the site and the seven feel measures; its points were lost on craft (16 px,
+  the pane, soft rows), which the polish below fixed.
+- Round 7, after the polish: this A 131 (126 before it), the flat navy block A 163, crest2 83. One judge in two
+  preferred the flat block A; John chose this one.
 
-| Drawing | Grid | Used for | What it keeps |
+The polish (round 6's list, no element changed): every row on whole pixels at the size it is shown; 6% taller than
+wide and the top row 46% of the base (a square footprint read as a pyramid); the middle steps' colour held up (a
+straight mix sagged to grey); a 16 px icon of its own, the crossbar joining both legs and the gold one 2 x 2 cell (with
+gaps it read as an arch with a lantern). On navy the mark sits on its paper square, the ribbon's own icon: drawn in
+tints for navy (rose to cream, gold-hi) it read too bright and its gold not gold (John, 2026-11-19), so it keeps its
+true colours everywhere.
+
+| Drawing | Shown at | Rows | Used for |
 |---|---|---|---|
-| `mark-80.svg` | 80, 1 unit = 1 px | the download's logo (240 and 320 px, so 3 and 4 px a unit), `crest2-80.png` (ribbon 80), the exe's 256 | everything, with solid navy details one unit wide: the blade's midrib (one navy wedge on the axis, tapering to the point), a band where the blade meets the pole, each wing's inner curl, the collar's two bands, each end cap's two bands, the X lashing the bar to the pole, a line between the bar and the drape, the drape's two folds. Pole 4, collar and lashing 6 wide on one centre, so no seam |
-| `mark-64.svg` | 64 | `crest2-64.png`: the pane's logo at 2x, the manifest's high resolution icon, the 64 px favicon, the exe's 64 | the large drawing redrawn on its own grid (never 80 scaled by .8, which put every edge between pixels), a tip 2 px wide from its first row, and only the details that stay clean at 64: the blade band, the wings' curls, the collar's bands and the line between the bar and the drape (end-cap bands, drape folds, midrib and lashing read as noise there) |
-| `mark-40.svg` | 32 x 40, 1 unit = 1 CSS px | the site header (inline, 40 px tall, `aspect-ratio: 32 / 40`), the exe's 48 (drawn 1:1, centred) | a tip never under 2 px wide below its first row (a needle point faded to a gradient at 1x), shaft 2, rim 1, a 1 px gap between the bar and the drape (a navy strip there read as a stray rule), a ring of 1.5 px stroke with 2 px clear above the panels, the emblem as big as the banner allows; sharp at 1x, smooth at 2x and 3x |
-| `mark-32.svg` | 32 | `crest2-32.png`: favicon, ribbon 32, the pane's logo at 1x, the exe's 32 | placed pixel by pixel: tip and shaft 2 px solid, curled wings, collar, a navy row between the bar and the drape, the hem a stepped V, and the emblem as the slashed ring alone: a 2 px ring whose hole a 1 px diagonal slash splits into two navy corners (the panels were a smear at this size) |
-| `mark-16.svg` | 16 | `crest2-16.png`: favicon, ribbon 16, the exe's 16 | placed pixel by pixel: a 1 px tip and shaft with a small crossguard, the bar and caps, the banner and rim with the hem one step, and a 1 px ring with a 1 px diagonal slash poking past it (a 2 px ring buried the slash and read as a white square); centred on column 7 |
+| `mark-157.svg` | 157 px tall | 22, 5 apart | the download's logo (inline in `site/index.html`), the README |
+| `mark-29.svg` | 29 px tall | 4, 1 apart | the header of every site page (inline), 1.8 times the 16 px capitals beside it |
+| `mark-23.svg` | 23 px tall | 3, 1 apart | `frontend/assets/crest4-mark.svg`: the pane on paper (Check as you work's note) |
+| `icon-16.svg`, `icon-32.svg` | 16, 32 px | placed pixel by pixel | `crest4-16.png`, `crest4-32.png`: ribbon, favicon, the exe's 16 and 32, and on the pane's navy bands (header, footer, its privacy and support pages) with `crest4-64.png` at 2x |
+| `icon-48.svg` ... `icon-512.svg` | their size | whole pixels there | `crest4-64.png` (manifest, favicon), `crest4-80.png` (ribbon), the site's 180, 192 and 512, the exe's 48 and 256 |
 
-- Render with Chromium at 1x on a transparent background, each file at its own size (the 16 and 32 px PNGs must hold only
-  the three palette colours and fully transparent pixels): `mark-16.svg` at 16 to
-  `frontend/assets/crest2-16.png`, `mark-32.svg` at 32 to `crest2-32.png`, `mark-64.svg` at 64 to `crest2-64.png`,
-  `mark-80.svg` at 80 to `crest2-80.png`; copy `crest2-32.png` and `crest2-64.png` to `site/assets/` for the favicons.
-  `packaging/AnomalyHunter.ico` holds PNG entries, each from its own drawing: 16, 32, 48 (`mark-40.svg` at 32 x 40 in the
-  middle of a 48 square), 64 and 256 (`mark-80.svg` at 256).
-- The site's inline copies are these files without comments: `mark-40.svg` in the header of every page, `mark-80.svg`
-  above the Download button. Their `data-part` groups are what `tools/test_site.mjs` reads; a navy detail is a stroke
-  with no fill, so each part still fills in one color; the midrib, a filled navy wedge, is its own `data-part="midrib"`.
+The icons are the mark on a paper square: on a dark ribbon, a tab or the pane's navy band, wine and navy would vanish
+on their own.
+
+- `python docs/design/logo/draw.py` writes every drawing here. Render each with Chromium at 1x at its own size:
+  `icon-16.svg` to `frontend/assets/crest4-16.png`, `icon-32.svg` to `crest4-32.png`, `icon-64.svg` to `crest4-64.png`,
+  `icon-80.svg` to `crest4-80.png`; copy `crest4-32.png` and `crest4-64.png` to `site/assets/`, and render `icon-180`,
+  `icon-192` and `icon-512` to `site/assets/crest4-180.png`, `-192.png`, `-512.png`. Copy `mark-23.svg` to
+  `frontend/assets/crest4-mark.svg`.
+- `packaging/AnomalyHunter.ico` holds PNG entries 16, 32, 48, 64 and 256, each its own `icon-*.svg`.
+- `site/assets/og-card.png` (1200 x 630): the left panel, paper-2 #EFECE4 from x 0 to 424, holds the mark at rows of 44
+  px, 10 apart (314 px tall), centred; the rest unchanged; saved as a 256-colour PNG.
+- `site/assets/pane-after-scan.webp`: its top 60 rows are the pane's header rendered at 360 px, 1x, with this mark.
+- The site's inline copies are these files as they are (`tools/test_site.mjs` checks every page, and that each
+  drawing's rows are whole pixels at the height `styles.css` shows it). Each tile is `data-part="tile"` with its
+  `data-row`, the gold one `data-part="cell"`: the browser check reads one colour a row, wine to navy, and the gold cell
+  between its row's two tiles, above the crossbar. `frontend/selfcheck.js` reads the 16 and 32 px PNGs pixel by pixel:
+  only the palette, every row a mirror image, a paper edge, the gold one 2 x 2 or 6 x 4 cell.
 - Office caches ribbon icons per URL: new art gets new file names and a `<Version>` bump in `frontend/manifest.xml`
-  (`crest2-*.png` and 1.0.8.0 for this one).
+  (`crest4-*.png` and 1.0.9.0 for this one), and every older name still answers with today's mark (`server.OLD_ICONS`).
 
-Palette (the tokens in `site/styles.css`): gold #997D3A for the spear, pole, bar, caps, drape and the banner's rim;
-navy #0C1938 for the banner and the details; paper #F7F5F0 for the emblem.
+Palette: the rows #6B1E2E (wine), #5B1E30, #4B1C35, #371C3A, #211B3C, #0C1938 (navy); the cell #997D3A (gold) on paper
+#F7F5F0, everywhere.

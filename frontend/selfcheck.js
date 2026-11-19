@@ -10,6 +10,7 @@ import { read as readLimit } from "./pages/limits.js";
 import { strengthHint, asStrength, levelAt, levelWord } from "./pages/strength.js";
 import { exactFixes, safeUndo } from "./features/autofix.js";
 import { readdirSync, readFileSync } from "node:fs";
+import { inflateSync } from "node:zlib";
 import { hash, rowHash, codes, codeAt, asBook, decide, PER_SHEET, SHEETS } from "./features/decisions.js";
 import { WORKBOOK_KEYS } from "./features/forget.js";
 import { asHighlights, KEPT } from "./features/highlight.js";
@@ -911,6 +912,36 @@ for (const f of readdirSync(new URL(".", import.meta.url)).filter((f) => f.endsW
   assert.equal(checkedSaid("Series 3", ["B2:B500"]), 'Checked B2:B500 on "Series 3": nothing unusual.');
   assert.equal(checkedSaid("S", ["A1", "B2", "A1", "C3", "D4", "E5"]), 'Checked A1, B2, C3 and 2 more on "S": nothing unusual.', "each address once, 3 named");
   assert.equal(noteSaid("Sales", findingsAt(rows, s, {}, ["B3"])[0], 3, {}), 'Sheet "Sales", cell B3: Probably wrong. Units is 900, above its usual limit of 90 (likely 90). And 3 more in what you changed.');
+}
+
+// AH-203: the 16 and 32 px icons (ribbon, favicon, the exe's), read pixel by pixel. Each pixel is paper, gold or one of the
+// six steps from wine to navy (a blend between two read as a smudge at 16 px); every row is its own mirror image; the
+// mark keeps a paper edge round it; and the gold is one solid cell, 2 x 2 at 16 and 6 x 4 at 32 (a gold bar fused to the
+// crossbar at 16 px read as an arch with a lantern, not an A)
+{
+  const rgba = (file) => { // an 8-bit RGB or RGBA PNG, as Chromium writes it (RGB when every pixel is opaque)
+    const b = readFileSync(new URL(file, import.meta.url)), w = b.readUInt32BE(16), h = b.readUInt32BE(20), parts = [];
+    assert.ok(b[24] === 8 && (b[25] === 2 || b[25] === 6) && b[28] === 0, `${file}: not an 8-bit RGB or RGBA PNG`);
+    const n = b[25] === 6 ? 4 : 3;
+    for (let i = 8; i < b.length; i += 12 + b.readUInt32BE(i)) if (b.toString("latin1", i + 4, i + 8) === "IDAT") parts.push(b.subarray(i + 8, i + 8 + b.readUInt32BE(i)));
+    const raw = inflateSync(Buffer.concat(parts)), out = Buffer.alloc(w * h * n), row = w * n;
+    for (let y = 0; y < h; y++) for (let x = 0; x < row; x++) {
+      const f = raw[y * (row + 1)], v = raw[y * (row + 1) + 1 + x], a = x >= n ? out[y * row + x - n] : 0, up = y ? out[(y - 1) * row + x] : 0, c = x >= n && y ? out[(y - 1) * row + x - n] : 0;
+      const p = a + up - c, pr = Math.abs(p - a) <= Math.abs(p - up) && Math.abs(p - a) <= Math.abs(p - c) ? a : Math.abs(p - up) <= Math.abs(p - c) ? up : c;
+      out[y * row + x] = (v + [0, a, up, (a + up) >> 1, pr][f]) & 255;
+    }
+    const PAL = { "247,245,240,255": "p", "153,125,58,255": "g", "107,30,46,255": "1", "91,30,48,255": "2", "75,28,53,255": "3", "55,28,58,255": "4", "33,27,60,255": "5", "12,25,56,255": "6" };
+    return { w, h, at: (x, y) => PAL[[...out.subarray((y * w + x) * n, (y * w + x) * n + 3), n === 4 ? out[(y * w + x) * n + 3] : 255].join()] || "?" };
+  };
+  for (const [n, cw, ch] of [[16, 2, 2], [32, 6, 4]]) {
+    const { w, h, at } = rgba(`assets/crest4-${n}.png`), rows = [];
+    for (let y = 0; y < h; y++) { let r = ""; for (let x = 0; x < w; x++) r += at(x, y); rows.push(r); }
+    assert.ok(!rows.join("").includes("?"), `crest4-${n}.png: a pixel outside the palette`);
+    rows.forEach((r, y) => assert.equal(r, [...r].reverse().join(""), `crest4-${n}.png: row ${y} is not its own mirror image`));
+    assert.ok(/^p+$/.test(rows[0] + rows[h - 1] + rows.map((r) => r[0] + r[w - 1]).join("")), `crest4-${n}.png: the mark touches the icon's edge`);
+    const gold = rows.flatMap((r, y) => [...r].map((c, x) => c === "g" ? [x, y] : null).filter(Boolean)), xs = gold.map(([x]) => x), ys = gold.map(([, y]) => y);
+    assert.ok(gold.length === cw * ch && Math.max(...xs) - Math.min(...xs) + 1 === cw && Math.max(...ys) - Math.min(...ys) + 1 === ch, `crest4-${n}.png: the gold is not one ${cw} x ${ch} cell`);
+  }
 }
 
 console.log("panel self-check passed");
