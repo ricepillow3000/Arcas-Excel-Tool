@@ -186,6 +186,8 @@ jobs:
           Set-Location tests\e2e
           node run.mjs flow
           if ($LASTEXITCODE) { throw "pane flow failed" }
+          node run.mjs flow2  # AH-209: flow's second half, a mode of its own
+          if ($LASTEXITCODE) { throw "pane flow2 failed" }
 
       # An update over the old name (AH-101): a user's PC runs the last release made before the rename, its engine
       # AnomalyHunter.exe. The new file, run over it, must stop that engine, remove the old exe, point the Run value at

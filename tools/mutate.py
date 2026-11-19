@@ -4,7 +4,8 @@ right out) and the tests that must fail with it. A mutant they survive is a guar
 AH-155 (John, 2026-11-10): 110 mutants of 55 guards, all written with tests that were green, and 15 survived. Green
 checks prove nothing until a planted bug turns them red.
 Runs in throwaway copies of the repo, never in these files: an interrupted run can never leave a bug behind.
---e2e also runs the mutants only the browser test can catch (needs playwright and a free port 5055, one at a time)."""
+--e2e also runs the mutants only the browser test can catch (needs playwright and a free port 5055, one at a time).
+--stale only checks every mutant still matches its code (in tools/check.py's default run, in a second)."""
 import argparse
 import json
 import os
@@ -129,9 +130,13 @@ def main():
     ap.add_argument("--only", default="", help="comma-separated mutant ids")
     ap.add_argument("-j", type=int, default=min(4, os.cpu_count() or 1), help="copies run side by side")
     ap.add_argument("--e2e", action="store_true", help="also the mutants only the browser test can catch")
+    ap.add_argument("--stale", action="store_true", help="only check each mutant's text is in its file exactly once")
     a = ap.parse_args()
     start = time.time()
     mutants = load([i for i in a.only.split(",") if i])
+    if a.stale:  # AH-209: CI's mutation job found 2 stale mutants after AH-208 that the local default gate never read
+        print(f"{len(mutants)} mutants, each text found once in its file")
+        return 0
     browser = [m for m in mutants if E2E in m["tests"]]
     if not a.e2e:
         mutants = [m for m in mutants if E2E not in m["tests"]]

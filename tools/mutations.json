@@ -3602,7 +3602,8 @@
   "kind": "loosen",
   "tests": [
    "e2e"
-  ]
+  ],
+  "modes": "flow2"
  },
  {
   "id": "list-cap-tighten",
@@ -3613,7 +3614,8 @@
   "kind": "tighten",
   "tests": [
    "e2e"
-  ]
+  ],
+  "modes": "flow2"
  },
  {
   "id": "live-strength-loosen",

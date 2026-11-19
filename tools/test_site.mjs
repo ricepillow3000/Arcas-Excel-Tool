@@ -1457,7 +1457,13 @@ for (const width of [1280, 390]) {
       await p.goto(BASE + file);
       const a = p.locator("header a, footer a, .notice-bar a").nth(i);
       // on a phone the header's links wait behind the Menu button (AH-126): opened first, as a visitor would
-      if (await p.locator(".menu-btn").isVisible() && await a.evaluate((el) => !!el.closest("#main-nav"))) await p.click(".menu-btn");
+      // ...and clicked once its 200 ms opening has ended, as a finger lands on a link that has stopped. AH-209: clicked
+      // mid-opening ("not stable"), Playwright's third try scrolls the link to the screen's centre (134 px), and the menu
+      // closes on a scroll past 8 px, as it should: 1 run in 20 timed out on a hidden "Privacy & security"
+      if (await p.locator(".menu-btn").isVisible() && await a.evaluate((el) => !!el.closest("#main-nav"))) {
+        await p.click(".menu-btn");
+        await p.locator("#main-nav").evaluate((nav) => Promise.all(nav.getAnimations({ subtree: true }).map((x) => x.finished)));
+      }
       assert.ok(await a.isVisible(), `${file} at ${width}px: ${href} is hidden`);
       await a.click();
       const want = new URL(href, BASE + file);
