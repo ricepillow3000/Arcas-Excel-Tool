@@ -2,21 +2,21 @@
   <!-- the large drawing, for 80 px and over (the download's logo, the ribbon's 80, the exe's 256, the 192 and 512 icons and
        the sharing card): one unit is one pixel at 80, every straight edge on a whole unit. AH-203, the hairline mark: a
        plain leaf blade of straight edges, a pole and a square-ended bar 4 units each (2 nearly vanished at 32 px on the
-       pane's navy band, the blind judge's one fix), the banner hung straight from the bar, and its rim a one-unit gold
-       line set 2 units in from the edge (the site's hairline box). The emblem is John's, at its size, 4 units higher
-       than AH-121's, in the room the drape left -->
+       pane's navy band), the banner hung straight from the bar, and its rim a one-unit gold line set 2 units in from the
+       edge (the site's hairline box). Fix round 1: the pole 14 (18 left the banner under half the mark's height) and the
+       bar 4 past the banner each side (8 read as a sword's crossguard). The emblem is John's, at its size -->
   <g data-part="spear" fill="#997D3A">
-    <path d="M40 4 L44 16 L42 22 H38 L36 16 Z"/>
-    <rect x="38" y="22" width="4" height="18"/>
+    <path d="M40 7 L44 19 L42 25 H38 L36 19 Z"/>
+    <rect x="38" y="25" width="4" height="14"/>
   </g>
-  <rect data-part="bar" x="12" y="40" width="56" height="4" fill="#997D3A"/>
+  <rect data-part="bar" x="16" y="39" width="48" height="4" fill="#997D3A"/>
   <g data-part="banner">
-    <path d="M20 44 H60 V71 L40 75 L20 71 Z" fill="#0C1938"/>
-    <path d="M22.5 46.5 H57.5 V68.95 L40 72.45 L22.5 68.95 Z" fill="none" stroke="#997D3A" stroke-linejoin="miter"/>
+    <path d="M20 43 H60 V70 L40 74 L20 70 Z" fill="#0C1938"/>
+    <path d="M22.5 45.5 H57.5 V67.95 L40 71.45 L22.5 67.95 Z" fill="none" stroke="#997D3A" stroke-linejoin="miter"/>
   </g>
   <g data-part="emblem">
-    <g fill="#F7F5F0"><path d="M30 61 H40 L36 67 H26 Z"/><path d="M50 61 H40 L44 67 H54 Z"/></g>
-    <circle cx="40" cy="56" r="3.1" fill="none" stroke="#F7F5F0" stroke-width="1.5"/>
-    <path d="M35.4 59.62 L44.6 52.38" fill="none" stroke="#F7F5F0" stroke-width="1.5" stroke-linecap="square"/>
+    <g fill="#F7F5F0"><path d="M30 60 H40 L36 66 H26 Z"/><path d="M50 60 H40 L44 66 H54 Z"/></g>
+    <circle cx="40" cy="55" r="3.1" fill="none" stroke="#F7F5F0" stroke-width="1.5"/>
+    <path d="M35.4 58.62 L44.6 51.38" fill="none" stroke="#F7F5F0" stroke-width="1.5" stroke-linecap="square"/>
   </g>
 </svg>

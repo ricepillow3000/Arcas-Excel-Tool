@@ -1,20 +1,21 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 40">
-  <!-- the site header's drawing, 40 px tall: one unit is one CSS pixel, so its edges land on whole pixels at 1x. The tip 2 px
-       wide from its second row (a needle point faded to a gradient at 1x), the blade 4 at its widest, the pole 2 and the bar
-       3 (the 80's 4 units scaled to this banner, AH-203), the gold line one pixel set one pixel in from the banner's edge,
-       the ring's stroke 1.5 px; also the exe's 48 px entry, drawn 1:1 in the middle of its square -->
+  <!-- the site header's drawing, 40 px tall: one unit is one CSS pixel, so its edges land on whole pixels at 1x. The blade
+       is whole-pixel rows, 2, 4, 6 and 4 px wide, two rows each (AH-203 fix round 1: a slanted edge blurred at 1x and the
+       leaf read as a match head or a pin; uneven steps read as a tiered tower), the pole 2 by 3, the bar 3 and 2 px past the banner each side, the gold line one pixel
+       set one pixel in from the banner's edge, the ring's stroke 1.5 px; also the exe's 48 px entry, drawn 1:1 in the
+       middle of its square -->
   <g data-part="spear" fill="#997D3A">
-    <path d="M16 0 L17 1 L18 7 L17 10 H15 L14 7 L15 1 Z"/>
-    <rect x="15" y="10" width="2" height="4"/>
+    <rect x="15" y="2" width="2" height="1"/><rect x="15" y="3" width="2" height="1"/><rect x="14" y="4" width="4" height="1"/><rect x="14" y="5" width="4" height="1"/><rect x="13" y="6" width="6" height="1"/><rect x="13" y="7" width="6" height="1"/><rect x="14" y="8" width="4" height="1"/><rect x="14" y="9" width="4" height="1"/>
+    <rect x="15" y="10" width="2" height="3"/>
   </g>
-  <rect data-part="bar" x="1" y="14" width="30" height="3" fill="#997D3A"/>
+  <rect data-part="bar" x="2" y="13" width="28" height="3" fill="#997D3A"/>
   <g data-part="banner">
-    <path d="M4 17 H28 V37 L16 40 L4 37 Z" fill="#0C1938"/>
-    <path d="M5.5 18.5 H26.5 V35.83 L16 38.45 L5.5 35.83 Z" fill="none" stroke="#997D3A" stroke-linejoin="miter"/>
+    <path d="M4 16 H28 V37 L16 40 L4 37 Z" fill="#0C1938"/>
+    <path d="M5.5 17.5 H26.5 V35.83 L16 38.45 L5.5 35.83 Z" fill="none" stroke="#997D3A" stroke-linejoin="miter"/>
   </g>
   <g data-part="emblem">
-    <g fill="#F7F5F0"><path d="M16 32 H11 L9 35 H14 Z"/><path d="M16 32 H21 L23 35 H18 Z"/></g>
-    <circle cx="16" cy="26" r="3.25" fill="none" stroke="#F7F5F0" stroke-width="1.5"/>
-    <path d="M11.5 29.5 L19.5 21.5 L20.5 22.5 L12.5 30.5 Z" fill="#F7F5F0"/>
+    <g fill="#F7F5F0"><path d="M16 31 H11 L9 34 H14 Z"/><path d="M16 31 H21 L23 34 H18 Z"/></g>
+    <circle cx="16" cy="25" r="3.25" fill="none" stroke="#F7F5F0" stroke-width="1.5"/>
+    <path d="M11.5 28.5 L19.5 20.5 L20.5 21.5 L12.5 29.5 Z" fill="#F7F5F0"/>
   </g>
 </svg>

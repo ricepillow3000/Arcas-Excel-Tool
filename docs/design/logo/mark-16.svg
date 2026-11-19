@@ -1,9 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" shape-rendering="crispEdges">
   <!-- the 16 px drawing (favicon, ribbon 16, the exe's 16), placed by hand pixel by pixel: every pixel is gold, navy, paper
-       or empty. Centred on column 7: a 1 px tip over a 3 px blade, the bar, and the banner hung from it; here the gold line
-       is the banner's edge, the bar its top (set 1 px in, with navy outside it, it left the ring 7 px of room and no gap,
-       and the ring read as nested squares, AH-203), and the emblem AH-121's 1 px ring with a 1 px slash poking past it -->
-  <path fill="#997D3A" d="M7 0h1v1h-1zM6 1h3v1h-3zM6 2h3v1h-3zM7 3h1v1h-1zM1 4h13v1h-13zM2 5h1v1h-1zM12 5h1v1h-1zM2 6h1v1h-1zM12 6h1v1h-1zM2 7h1v1h-1zM12 7h1v1h-1zM2 8h1v1h-1zM12 8h1v1h-1zM2 9h1v1h-1zM12 9h1v1h-1zM2 10h1v1h-1zM12 10h1v1h-1zM2 11h1v1h-1zM12 11h1v1h-1zM2 12h1v1h-1zM12 12h1v1h-1zM2 13h1v1h-1zM12 13h1v1h-1zM2 14h3v1h-3zM10 14h3v1h-3zM4 15h7v1h-7z"/>
-  <path fill="#0C1938" d="M3 5h9v1h-9zM3 6h3v1h-3zM9 6h1v1h-1zM11 6h1v1h-1zM3 7h2v1h-2zM6 7h3v1h-3zM10 7h2v1h-2zM3 8h1v1h-1zM5 8h3v1h-3zM9 8h1v1h-1zM11 8h1v1h-1zM3 9h1v1h-1zM5 9h2v1h-2zM8 9h2v1h-2zM11 9h1v1h-1zM3 10h1v1h-1zM5 10h1v1h-1zM7 10h3v1h-3zM11 10h1v1h-1zM3 11h2v1h-2zM6 11h3v1h-3zM10 11h2v1h-2zM3 12h1v1h-1zM5 12h1v1h-1zM9 12h3v1h-3zM3 13h9v1h-9zM5 14h5v1h-5z"/>
-  <path fill="#F7F5F0" d="M6 6h3v1h-3zM10 6h1v1h-1zM5 7h1v1h-1zM9 7h1v1h-1zM4 8h1v1h-1zM8 8h1v1h-1zM10 8h1v1h-1zM4 9h1v1h-1zM7 9h1v1h-1zM10 9h1v1h-1zM4 10h1v1h-1zM6 10h1v1h-1zM10 10h1v1h-1zM5 11h1v1h-1zM9 11h1v1h-1zM4 12h1v1h-1zM6 12h3v1h-3z"/>
+       or empty. Centred between columns 7 and 8: the spear a 2 px post with no arms (a tip over a wider block read as a
+       "+" cross, AH-203 fix round 1), the bar 1 px past the banner each side, the banner's gold rim on its edge, the bar
+       its top, and AH-121's 1 px ring with a 1 px slash poking past it -->
+  <path fill="#997D3A" d="M7 0h2v1h-2zM7 1h2v1h-2zM7 2h2v1h-2zM1 3h14v1h-14zM2 4h1v1h-1zM13 4h1v1h-1zM2 5h1v1h-1zM13 5h1v1h-1zM2 6h1v1h-1zM13 6h1v1h-1zM2 7h1v1h-1zM13 7h1v1h-1zM2 8h1v1h-1zM13 8h1v1h-1zM2 9h1v1h-1zM13 9h1v1h-1zM2 10h1v1h-1zM13 10h1v1h-1zM2 11h1v1h-1zM13 11h1v1h-1zM2 12h1v1h-1zM13 12h1v1h-1zM2 13h1v1h-1zM13 13h1v1h-1zM2 14h3v1h-3zM11 14h3v1h-3zM4 15h8v1h-8z"/>
+  <path fill="#0C1938" d="M3 4h10v1h-10zM3 5h3v1h-3zM9 5h1v1h-1zM11 5h2v1h-2zM3 6h2v1h-2zM6 6h3v1h-3zM10 6h3v1h-3zM3 7h1v1h-1zM5 7h3v1h-3zM9 7h1v1h-1zM11 7h2v1h-2zM3 8h1v1h-1zM5 8h2v1h-2zM8 8h2v1h-2zM11 8h2v1h-2zM3 9h1v1h-1zM5 9h1v1h-1zM7 9h3v1h-3zM11 9h2v1h-2zM3 10h2v1h-2zM6 10h3v1h-3zM10 10h3v1h-3zM3 11h1v1h-1zM5 11h1v1h-1zM9 11h4v1h-4zM3 12h10v1h-10zM3 13h10v1h-10zM5 14h6v1h-6z"/>
+  <path fill="#F7F5F0" d="M6 5h3v1h-3zM10 5h1v1h-1zM5 6h1v1h-1zM9 6h1v1h-1zM4 7h1v1h-1zM8 7h1v1h-1zM10 7h1v1h-1zM4 8h1v1h-1zM7 8h1v1h-1zM10 8h1v1h-1zM4 9h1v1h-1zM6 9h1v1h-1zM10 9h1v1h-1zM5 10h1v1h-1zM9 10h1v1h-1zM4 11h1v1h-1zM6 11h3v1h-3z"/>
 </svg>

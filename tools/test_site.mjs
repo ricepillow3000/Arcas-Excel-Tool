@@ -186,6 +186,9 @@ for (const f of fs.readdirSync(path.join(SITE, "assets")).filter((f) => /\.(png|
     const head = /<a class="brand"[^>]*><svg class="logo" viewBox="0 0 32 40" aria-hidden="true">[\s\S]*?<\/svg>/.exec(allHtml[p]);
     assert.ok(head && inner(head[0].slice(head[0].indexOf("<svg"))) === drawing("mark-40.svg"), `${p}: the header's logo is not docs/design/logo/mark-40.svg`);
   }
+  // the header's blade is whole-pixel rows: drawn with slanted edges it blurred at 1x into a match head (AH-203 fix round 1)
+  const blade = /<g data-part="spear"[^>]*>([\s\S]*?)<\/g>/.exec(drawing("mark-40.svg"));
+  assert.ok(blade && /^(<rect x="\d+" y="\d+" width="\d+" height="\d+"\/>)+$/.test(blade[1]), "mark-40.svg: the spear has an edge off the pixel grid");
   const big = /<svg class="logo logo-lg" viewBox="0 0 80 80" aria-hidden="true">[\s\S]*?<\/svg>/.exec(html["index.html"]);
   assert.ok(big && inner(big[0]) === drawing("mark-80.svg"), "index.html: the download's logo is not docs/design/logo/mark-80.svg");
 }
@@ -1475,6 +1478,9 @@ const logo = (page) => page.evaluate(() => {
   const up = []; for (let e = l.parentElement; e && e.id !== "download"; e = e.parentElement) up.push(e);
   const parts = [...up, l, ...l.querySelectorAll("*")].map((c) => getComputedStyle(c));
   return { parts: drawn.join(), banner: paint("banner", "fill"), rim: paint("banner", "stroke"), spear: paint("spear", "fill"), bar: paint("bar", "fill"), emblem: paint("emblem", "fill") + " | " + paint("emblem", "stroke"),
+    // fix round 1: the bar passes the banner by at most a tenth of its width each side (a quarter read as a sword's
+    // crossguard), and the banner is at least 45% of the mark's height (a longer pole left the meaning small)
+    fit: (ba.width - bn.width) / 2 <= 0.1 * ba.width && (bn.bottom - bn.top) / (bn.bottom - sp.top) >= 0.45,
     where: near(sp.bottom, ba.top) && near(sp.left + sp.width / 2, bn.left + bn.width / 2) && near(ba.bottom, bn.top) && ba.left < bn.left && ba.right > bn.right
       && line.left > bn.left && line.right < bn.right && line.top > bn.top && line.bottom < bn.bottom
       && em.left > line.left && em.right < line.right && em.top > line.top && em.bottom < line.bottom,
@@ -1484,7 +1490,7 @@ const logo = (page) => page.evaluate(() => {
 });
 const GOLD = "rgb(153, 125, 58)", PAPER = "rgb(247, 245, 240)"; // --gold #997D3A, flat: no lit face (AH-103)
 const WHOLE = { parts: "spear,bar,banner,emblem", banner: "rgb(12, 25, 56)", rim: GOLD, spear: GOLD, bar: GOLD, emblem: `${PAPER} | ${PAPER}`,
-  where: true, above: true, shown: true, placed: true };
+  fit: true, where: true, above: true, shown: true, placed: true };
 // brought to the middle of the screen, the banner and the blade are what the eye gets there: nothing covers them
 const onTop = (page) => page.evaluate(async () => {
   const l = document.querySelector("#download .logo"); l.scrollIntoView({ block: "center" });

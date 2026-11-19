@@ -10,6 +10,7 @@ import { read as readLimit } from "./pages/limits.js";
 import { strengthHint, asStrength, levelAt, levelWord } from "./pages/strength.js";
 import { exactFixes, safeUndo } from "./features/autofix.js";
 import { readdirSync, readFileSync } from "node:fs";
+import { inflateSync } from "node:zlib";
 import { hash, rowHash, codes, codeAt, asBook, decide, PER_SHEET, SHEETS } from "./features/decisions.js";
 import { WORKBOOK_KEYS } from "./features/forget.js";
 import { asHighlights, KEPT } from "./features/highlight.js";
@@ -911,6 +912,36 @@ for (const f of readdirSync(new URL(".", import.meta.url)).filter((f) => f.endsW
   assert.equal(checkedSaid("Series 3", ["B2:B500"]), 'Checked B2:B500 on "Series 3": nothing unusual.');
   assert.equal(checkedSaid("S", ["A1", "B2", "A1", "C3", "D4", "E5"]), 'Checked A1, B2, C3 and 2 more on "S": nothing unusual.', "each address once, 3 named");
   assert.equal(noteSaid("Sales", findingsAt(rows, s, {}, ["B3"])[0], 3, {}), 'Sheet "Sales", cell B3: Probably wrong. Units is 900, above its usual limit of 90 (likely 90). And 3 more in what you changed.');
+}
+
+// AH-203 fix round 1: the 16 and 32 px icons (ribbon, favicon, the pane's logo at 1x), read pixel by pixel. Each pixel is
+// gold, navy, paper or empty; one gold edge, never navy, meets the outside (a navy edge outside a gold line read as a
+// double edge on paper); at 16 the spear is a post no wider than 2 px (a tip over a 3 px block read as a "+" cross); at 32
+// it is pointed, its widest row 3 times its tip and held for 2 rows (a single wider row read as arms, a 4 px one as a club)
+{
+  const rgba = (file) => { // an 8-bit RGBA PNG, as Chromium writes it
+    const b = readFileSync(new URL(file, import.meta.url)), w = b.readUInt32BE(16), h = b.readUInt32BE(20), parts = [];
+    for (let i = 8; i < b.length; i += 12 + b.readUInt32BE(i)) if (b.toString("latin1", i + 4, i + 8) === "IDAT") parts.push(b.subarray(i + 8, i + 8 + b.readUInt32BE(i)));
+    const raw = inflateSync(Buffer.concat(parts)), out = Buffer.alloc(w * h * 4), row = w * 4;
+    for (let y = 0; y < h; y++) for (let x = 0; x < row; x++) {
+      const f = raw[y * (row + 1)], v = raw[y * (row + 1) + 1 + x], a = x >= 4 ? out[y * row + x - 4] : 0, up = y ? out[(y - 1) * row + x] : 0, c = x >= 4 && y ? out[(y - 1) * row + x - 4] : 0;
+      const p = a + up - c, pr = Math.abs(p - a) <= Math.abs(p - up) && Math.abs(p - a) <= Math.abs(p - c) ? a : Math.abs(p - up) <= Math.abs(p - c) ? up : c;
+      out[y * row + x] = (v + [0, a, up, (a + up) >> 1, pr][f]) & 255;
+    }
+    return { w, h, at: (x, y) => x < 0 || y < 0 || x >= w || y >= h ? "." : ({ "0,0,0,0": ".", "153,125,58,255": "g", "12,25,56,255": "n", "247,245,240,255": "p" })[[...out.subarray((y * w + x) * 4, (y * w + x) * 4 + 4)].join()] || "?" };
+  };
+  for (const n of [16, 32]) {
+    const { w, h, at } = rgba(`assets/crest3-${n}.png`), all = [];
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) all.push([x, y, at(x, y)]);
+    assert.deepEqual(all.filter(([, , c]) => c === "?").length, 0, `crest3-${n}.png: a pixel outside the palette`);
+    const edge = all.filter(([x, y, c]) => c === "n" && [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => at(x + dx, y + dy) === "."));
+    assert.deepEqual(edge.length, 0, `crest3-${n}.png: navy meets the outside at ${edge.slice(0, 3).map(([x, y]) => x + "," + y).join(" ")}`);
+    const widths = [];
+    for (let y = 0; y < h; y++) { const xs = all.filter(([, yy, c]) => yy === y && c === "g").map(([x]) => x); if (xs.length && Math.max(...xs) - Math.min(...xs) + 1 > w / 2) break; if (xs.length) widths.push(Math.max(...xs) - Math.min(...xs) + 1); }
+    const top = Math.max(...widths);
+    if (n === 16) assert.ok(top <= 2, `crest3-16.png: the spear is ${top} px wide somewhere (rows ${widths}): arms read as a cross`);
+    else assert.ok(top >= 3 * widths[0] && widths.filter((x) => x === top).length >= 2, `crest3-32.png: the spear (rows ${widths}) is not pointed`);
+  }
 }
 
 console.log("panel self-check passed");

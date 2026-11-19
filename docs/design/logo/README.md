@@ -28,15 +28,31 @@ What changed:
 - The banner hangs straight from the bar. Its rim is a one-unit gold line set 2 units in from its edge, following the V
   hem: the site's hairline box and the pane's navy band with its gold line. On the navy band the banner's edge melts into
   the band and this line draws its shape (B21).
-- The emblem is John's, at its size, 4 units higher on the 80 than AH-121's, in the room the drape left.
+- The emblem is John's, at its size, in the room the drape left.
+
+Fix round 1 (a second blind judge preferred this mark to AH-121's 57 to 40, and named its defects):
+- The blade read as a match head or a pin at 40 px (a slanted edge blurs at 1x) and as a "+" cross at 16. At 40 and 32
+  it is now whole-pixel rows, 2, 4, 6 and 4 px wide, two rows each (uneven steps read as a tiered tower, a single wider
+  row as arms); at 16 a 2 px post with no arms; at 64 a flat 2 px tip and a 4 px base on whole pixels with straight
+  sides (1 px steps read as a tower at 2x).
+- The pole is about 25% shorter at every size (14 units on the 80, was 18), so the banner is over 45% of the mark's
+  height.
+- The bar passes the banner by about 8% of its width each side (4 units on the 80, 3 px on the 64, 2 on the 40 and the
+  32, 1 on the 16; it was 8 on the 80, a quarter of the banner, and read as a sword's crossguard). Its weight stays 4
+  units, the pole's: an earlier judge needed it heavy enough to show at 32 px on navy, and one weight for pole and bar
+  is plainer than a 3 beside a 4.
+- At 32 one gold edge, the rim on the banner's outside (a navy edge outside the gold line read as a double edge on
+  paper), and the ring redrawn: 2 px around a 4 px hole, its 1 px slash 2 px past the ring at each end.
+- At 64 the bar, banner, gold line and the hem's point are whole pixels (`crispEdges`), so the point is sharp.
+- No lighter navy or cream outer edge for dark backgrounds (B1, R31; B21: the gold carries it on navy), no notch.
 
 | Drawing | Grid | Used for | What it keeps |
 |---|---|---|---|
-| `mark-80.svg` | 80, 1 unit = 1 px | the download's logo (160 px, 2 px a unit), `crest3-80.png` (ribbon 80), the exe's 256, the site's 192 and 512 icons, the 180 on paper, the sharing card (at 320) | everything: a leaf blade from a point at y 4 to 8 wide at y 16 and 4 at y 22, the pole 38 to 42 down to y 40, the bar 12 to 68 from y 40 to 44, the banner 20 to 60 from y 44 with its hem at 71 and its point at 75, the gold line 2 units in, the emblem (panels 61 to 67, the ring at y 56) |
-| `mark-64.svg` | 64 | `crest3-64.png`: the pane's logo at 2x, the manifest's high resolution icon, the 64 px favicon, the exe's 64 | the same parts redrawn on their own grid (never 80 scaled by .8): pole and bar 4 px, which is the 2 CSS px the pane's navy band needs at 2x; the blade 8 at its widest; the gold line 1 px set 2 px in; AH-121's 64 px emblem, 3 px higher |
-| `mark-40.svg` | 32 x 40, 1 unit = 1 CSS px | the site header (inline, 40 px tall, `aspect-ratio: 32 / 40`), the exe's 48 (drawn 1:1, centred) | a tip 2 px wide from its second row (a needle point faded to a gradient at 1x), the blade 4 at its widest, the pole 2 and the bar 3 (the 80's 4 units scaled to this banner), the gold line 1 px set 1 px in, the ring's stroke 1.5 px; sharp at 1x, smooth at 2x and 3x |
-| `mark-32.svg` | 32 | `crest3-32.png`: favicon, ribbon 32, the pane's logo at 1x, the exe's 32 | placed pixel by pixel: the tip 2 px, the blade 4, the pole and the bar 2 px solid, a navy row under the bar, the gold line 1 px set 1 px in with its hem a V of 3 px steps, and the emblem as AH-121's 32 px ring alone: a 2 px ring whose hole a 1 px slash splits into two navy corners (the panels were a smear at this size) |
-| `mark-16.svg` | 16 | `crest3-16.png`: favicon, ribbon 16, the exe's 16 | placed pixel by pixel, centred on column 7: a 1 px tip over a 3 px blade, the bar, and the banner with its gold line on the edge, the bar standing for its top (set 1 px in it left the ring no gap and read as nested squares), and AH-121's 1 px ring with a 1 px slash poking past it |
+| `mark-80.svg` | 80, 1 unit = 1 px | the download's logo (160 px, 2 px a unit), `crest3-80.png` (ribbon 80), the exe's 256, the site's 192 and 512 icons, the 180 on paper, the sharing card (at 320) | everything: a leaf blade from a point at y 7 to 8 wide at y 19 and 4 at y 25, the pole 38 to 42 down to y 39, the bar 16 to 64 from y 39 to 43, the banner 20 to 60 from y 43 with its hem at 70 and its point at 74, the gold line 2 units in, the emblem (panels 60 to 66, the ring at y 55) |
+| `mark-64.svg` | 64 | `crest3-64.png`: the pane's logo at 2x, the manifest's high resolution icon, the 64 px favicon, the exe's 64 | its own grid (never 80 scaled by .8): the bar, banner, gold line and hem whole pixels; the blade a flat 2 px tip to 8 px to a 4 px base on whole pixels; pole and bar 4 px (2 CSS px on the pane's navy band at 2x), the bar 3 px past the banner; the gold line 1 px set 2 px in; AH-121's 64 px emblem, drawn smooth |
+| `mark-40.svg` | 32 x 40, 1 unit = 1 CSS px | the site header (inline, 40 px tall, `aspect-ratio: 32 / 40`), the exe's 48 (drawn 1:1, centred) | the blade whole-pixel rows (2, 4, 6, 4 px, two rows each), the pole 2 by 3, the bar 3 and 2 px past the banner, the banner 24 by 24, the gold line 1 px set 1 px in, the ring's stroke 1.5 px; sharp at 1x, smooth at 2x and 3x |
+| `mark-32.svg` | 32 | `crest3-32.png`: favicon, ribbon 32, the pane's logo at 1x, the exe's 32 | placed pixel by pixel: the 40's stepped blade, a 6 px pole, the bar 2 px solid and 2 px past the banner, one gold rim on the banner's outside with its hem a V of 3, 3, 2 and 2 px steps, and the emblem as the ring alone: 2 px around a 4 px hole, a 1 px slash 2 px past it at each end (the panels were a smear at this size) |
+| `mark-16.svg` | 16 | `crest3-16.png`: favicon, ribbon 16, the exe's 16 | placed pixel by pixel, centred between columns 7 and 8: a 2 px post with no arms, the bar 1 px past the banner, the banner with its gold rim on the edge, the bar standing for its top, and AH-121's 1 px ring with a 1 px slash poking past it |
 
 - Render with Chromium at 1x on a transparent background, each file at its own size (the 16 and 32 px PNGs must hold only
   the three palette colours and fully transparent pixels): `mark-16.svg` at 16 to `frontend/assets/crest3-16.png`,
@@ -49,16 +65,19 @@ What changed:
 - `site/assets/og-card.png` (1200 x 630): the left panel, paper-2 #EFECE4 from x 0 to 424, with `mark-80.svg` at 320 px
   whose top left corner is at (52, 156); the rest of the card unchanged; saved as a 256-colour PNG (`+dither -colors 256`).
 - The site's inline copies are these files without comments: `mark-40.svg` in the header of every page, `mark-80.svg`
-  above the Download button; `tools/test_site.mjs` checks every page holds them as they are here. Their `data-part`
-  groups (spear, bar, banner, emblem) are what its browser check reads: the spear and bar fill gold, the banner navy with
-  its gold line a stroke, the emblem paper; the spear stands on the bar over the banner's middle, the bar sits on the
-  banner and is wider than it, and the emblem lies inside the gold line.
+  above the Download button; `tools/test_site.mjs` checks every page holds them as they are here, and that the header's
+  blade is whole-pixel rects. Their `data-part` groups (spear, bar, banner, emblem) are what its browser check reads: the
+  spear and bar fill gold, the banner navy with its gold line a stroke, the emblem paper; the spear stands on the bar
+  over the banner's middle, the bar sits on the banner and passes it by at most a tenth of its width each side, the
+  banner is at least 45% of the mark's height, and the emblem lies inside the gold line. `frontend/selfcheck.js` reads
+  the 16 and 32 px PNGs pixel by pixel: only the palette, no navy meeting the outside, a 16 px spear no wider than 2 px,
+  and a pointed 32 px blade.
 - Office caches ribbon icons per URL: new art gets new file names and a `<Version>` bump in `frontend/manifest.xml`
   (`crest3-*.png` and 1.0.9.0 for this one), and every older name still answers with today's crest (`server.OLD_ICONS`).
 
-Palette (the tokens in `site/styles.css`): gold #997D3A for the spear, pole, bar and the banner's line; navy #0C1938 for
-the banner; paper #F7F5F0 for the emblem.
+Palette (the tokens in `site/styles.css`): gold #997D3A for the spear, pole, bar and the banner's line or rim; navy
+#0C1938 for the banner; paper #F7F5F0 for the emblem.
 
-Honest weaknesses: at 16 px the gold line is the banner's edge, not set in, and the 3 px blade on its 1 px pole can read
-as a small cross; at 64 px on the pane (32 CSS px at 2x) the gold line is one device pixel; the 80's blade has a point at
-its tip, so at 80 px at 1x its first rows are a blend.
+Honest weaknesses: at 16 and 32 px the gold line is the banner's edge, not set in, so on the pane's navy band at 1x
+the banner is a gold outline; at 16 the spear is a plain post, with no point; the 40's and 32's stepped blade shows its
+steps at 2x and 3x; the 64's blade sides and the 80's tip are slanted, so they blend at 1x.
