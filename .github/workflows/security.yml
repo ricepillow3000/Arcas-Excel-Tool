@@ -29,6 +29,9 @@ jobs:
       # --full: a shallow checkout here is a failure, never a skip
       - name: Secrets anywhere in the git history (keys, invite codes, private keys, .env and key files)
         run: python tools/secret_history.py --full
+      # stdlib only too: a mutant whose text a change moved plants nothing (AH-209), said here before the slow jobs
+      - name: Every mutant's text is in its file exactly once
+        run: python tools/mutate.py --stale
       - run: pip install -e ".[dev]" -c constraints.txt  # every package pinned (tools/pinned.py), shared with tools/check.py
 
       - name: Engine API tests + fuzzing (other websites refused, key never leaks, no input crashes the engine)
