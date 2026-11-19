@@ -2416,7 +2416,7 @@
   "id": "pinned-sum-loosen",
   "guard": "Where the formula check pins a row's broken cell, a sum about that cell names it alone (AH-198)",
   "file": "backend/anomaly_hunter/engine/pipeline.py",
-  "old": "if \" does not add up\" in r and r.cols[0] in pinned else r",
+  "old": "if \" does not add up\" in r and pinned & set(r.cols) else r",
   "new": "if False else r",
   "kind": "loosen",
   "tests": [
@@ -2427,7 +2427,7 @@
   "id": "pinned-sum-tighten",
   "guard": "Where the formula check pins a row's broken cell, a sum about that cell names it alone (AH-198)",
   "file": "backend/anomaly_hunter/engine/pipeline.py",
-  "old": "if \" does not add up\" in r and r.cols[0] in pinned else r",
+  "old": "if \" does not add up\" in r and pinned & set(r.cols) else r",
   "new": "if \" does not add up\" in r else r",
   "kind": "tighten",
   "tests": [
@@ -2779,8 +2779,8 @@
   "id": "coded-codes-loosen",
   "guard": "A misspelling its row's code proves (10+ codes of 2+ rows) is Medium (AH-198)",
   "file": "backend/anomaly_hunter/engine/pipeline.py",
-  "old": "len(multi) >= 10 and",
-  "new": "len(multi) >= 9 and",
+  "old": "(len(multi) >= 10,",
+  "new": "(len(multi) >= 9,",
   "kind": "loosen",
   "tests": [
    "backend/tests/test_coded_spellings.py::test_nine_codes_are_too_few_to_prove_it_and_it_stays_worth_a_check"
@@ -2790,8 +2790,8 @@
   "id": "coded-codes-tighten",
   "guard": "A misspelling its row's code proves (10+ codes of 2+ rows) is Medium (AH-198)",
   "file": "backend/anomaly_hunter/engine/pipeline.py",
-  "old": "len(multi) >= 10 and",
-  "new": "len(multi) >= 11 and",
+  "old": "(len(multi) >= 10,",
+  "new": "(len(multi) >= 11,",
   "kind": "tighten",
   "tests": [
    "backend/tests/test_coded_spellings.py::test_a_misspelling_its_rows_own_code_proves_is_a_slip_not_a_guess"
@@ -4636,6 +4636,128 @@
   "kind": "tighten",
   "tests": [
    "backend/tests/test_text_checks.py::test_a_number_typed_as_text_with_a_space_beside_it_is_flagged"
+  ]
+ },
+ {
+  "id": "pinned-part-loosen",
+  "guard": "Where the formula check pins a part of a sum, not only its total, the sum names that part alone (AH-211)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if \" does not add up\" in r and pinned & set(r.cols) else r",
+  "new": "if \" does not add up\" in r and r.cols[0] in pinned else r",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_formula_cells.py::test_a_sum_about_a_part_the_formula_check_pins_names_that_part_alone"
+  ]
+ },
+ {
+  "id": "rounded-loosen",
+  "guard": "A held exact pair rule missed within its columns' rounding on ROUNDED (3)+ rows: those are rounding, one or two still slips (AH-211)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "ROUNDED = 3  #",
+  "new": "ROUNDED = 2  #",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_rule_fits.py::test_three_rows_a_rounding_step_off_a_held_product_are_rounding_and_two_are_each_a_slip"
+  ]
+ },
+ {
+  "id": "rounded-tighten",
+  "guard": "A held exact pair rule missed within its columns' rounding on ROUNDED (3)+ rows: those are rounding, one or two still slips (AH-211)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "ROUNDED = 3  #",
+  "new": "ROUNDED = 4  #",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_rule_fits.py::test_three_rows_a_rounding_step_off_a_held_product_are_rounding_and_two_are_each_a_slip"
+  ]
+ },
+ {
+  "id": "restated-loosen",
+  "guard": "A pair rule one of whose columns is a formula reading all its other columns never judges that formula's rows (AH-211)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "            if named - {c} <= reads[c]:",
+  "new": "            if True:",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_rule_fits.py::test_a_formula_that_reads_other_columns_than_the_rule_never_excuses_its_rows"
+  ]
+ },
+ {
+  "id": "restated-tighten",
+  "guard": "A pair rule one of whose columns is a formula reading all its other columns never judges that formula's rows (AH-211)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "            if named - {c} <= reads[c]:",
+  "new": "            if named - {c} < reads[c]:",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_rule_fits.py::test_a_rule_that_is_exactly_its_formula_said_again_never_judges_its_rounding",
+   "backend/tests/test_rule_fits.py::test_a_rule_that_restates_a_formula_of_its_own_columns_never_judges_that_formulas_rows"
+  ]
+ },
+ {
+  "id": "label-mirror-loosen",
+  "guard": "A row that fills a column its label leaves empty and leaves empty one it fills, both as one other label has them, names its label alone (AH-211)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if set.intersection(empties, *(fillers[g, f] for f in filled))]",
+  "new": "if True]",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_honest_patterns.py::test_a_row_that_looks_like_two_different_labels_never_names_its_own"
+  ]
+ },
+ {
+  "id": "label-mirror-tighten",
+  "guard": "A row that fills a column its label leaves empty and leaves empty one it fills, both as one other label has them, names its label alone (AH-211)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if set.intersection(empties, *(fillers[g, f] for f in filled))]",
+  "new": "if set.intersection(empties, *(fillers[g, f] for f in filled)) and len(filled) > 1]",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_honest_patterns.py::test_a_row_that_fills_a_column_its_label_leaves_empty_and_leaves_blank_one_it_fills_names_the_label_alone"
+  ]
+ },
+ {
+  "id": "odd-line-loosen",
+  "guard": "A date against the order that also differs from its record's lines is named alone, where the column is one date a record on all but max(1, 1%) of records besides the row's own (AH-211)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "(kinds > 1).sum() - 1 <= max(1, 0.01 * len(kinds))",
+  "new": "(kinds > 1).sum() - 2 <= max(1, 0.01 * len(kinds))",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_date_order.py::test_one_other_record_whose_lines_differ_still_lets_the_slip_be_named_and_two_do_not"
+  ]
+ },
+ {
+  "id": "odd-line-tighten",
+  "guard": "A date against the order that also differs from its record's lines is named alone, where the column is one date a record on all but max(1, 1%) of records besides the row's own (AH-211)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "(kinds > 1).sum() - 1 <= max(1, 0.01 * len(kinds))",
+  "new": "(kinds > 1).sum() <= max(1, 0.01 * len(kinds))",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_date_order.py::test_one_other_record_whose_lines_differ_still_lets_the_slip_be_named_and_two_do_not"
+  ]
+ },
+ {
+  "id": "coded-own-loosen",
+  "guard": "A misspelling its row's code proves: the code names one label on all but max(1, 1%) of codes besides the row's own (AH-211)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if not enough or len(off - {df[k].iat[i]}) > allowed:",
+  "new": "if not enough or len(off - {df[k].iat[i]}) > allowed + 1:",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_coded_spellings.py::test_one_other_code_with_two_names_still_lets_the_codes_prove_it_and_two_do_not"
+  ]
+ },
+ {
+  "id": "coded-own-tighten",
+  "guard": "A misspelling its row's code proves: the code names one label on all but max(1, 1%) of codes besides the row's own (AH-211)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if not enough or len(off - {df[k].iat[i]}) > allowed:",
+  "new": "if not enough or len(off) > allowed:",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_coded_spellings.py::test_one_other_code_with_two_names_still_lets_the_codes_prove_it_and_two_do_not"
   ]
  }
 ]

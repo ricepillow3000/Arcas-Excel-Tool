@@ -34,3 +34,13 @@ def test_a_misspelling_its_rows_own_code_proves_is_a_slip_not_a_guess():
 def test_nine_codes_are_too_few_to_prove_it_and_it_stays_worth_a_check():
     out = scan(ledger(9))
     assert out[5]["severity"] == "Low" and "differs from the other rows" not in out[5]["reason"]
+
+
+def test_one_other_code_with_two_names_still_lets_the_codes_prove_it_and_two_do_not():
+    # AH-211 episode 20: "Finannce" on an employee whose other rows read Finance, beside one other employee moved to
+    # another department for a period: the code still names one label besides the row's own slip
+    for others, want in ((1, "Medium"), (2, "Low")):
+        rows = ledger(11)
+        for k in range(others):
+            rows[8 + 3 * (k + 1)][1] = NAMES[0]  # one row of another account under another account's name
+        assert scan(rows)[5]["severity"] == want, others
