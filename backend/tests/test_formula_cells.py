@@ -52,6 +52,20 @@ def test_a_sum_about_the_cell_the_formula_check_pins_names_that_cell_alone():
     assert out[29]["cells"] == ["Total"], "Qty and Price are fine: the formula check says Total is the broken cell"
 
 
+def test_a_sum_about_a_part_the_formula_check_pins_names_that_part_alone():
+    # AH-211 episodes 17 and 20: Net typed over =Gross-Tax-Fees made "Gross does not add up: Tax + Fees + Net" name Gross,
+    # Tax and Fees too, each right
+    cols = ["Item", "Gross", "Tax", "Fees", "Net"]
+    rows = [[f"Item {i}", 1000 + 37 * i, 100 + 3 * i, 20 + i % 9, 0] for i in range(60)]
+    for r in rows:
+        r[4] = r[1] - r[2] - r[3]
+    formulas = [[None, None, None, None, "=RC[-3]-RC[-2]-RC[-1]"] for _ in rows]
+    formulas[29][4], rows[29][4] = None, rows[29][4] - 200  # typed over, and wrong
+    out = scan(rows, formulas, cols)
+    assert "does not add up" in out[29]["reason"] and "typed number" in out[29]["reason"], out[29]
+    assert out[29]["cells"] == ["Net"], "Gross, Tax and Fees are fine: the formula check says Net is the broken cell"
+
+
 def test_a_sum_with_no_formula_to_pin_it_still_names_every_cell_it_reads():
     cols = ["Item", "Qty", "Price", "Total"]
     rows = [[f"Item {i}", 2 + i % 7, 5 + i % 4, (2 + i % 7) * (5 + i % 4)] for i in range(40)]

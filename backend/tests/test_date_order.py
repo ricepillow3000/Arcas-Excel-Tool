@@ -104,3 +104,48 @@ def test_a_date_that_breaks_one_order_only_names_both_when_neither_is_the_sheets
     rows[25][3] = rows[25][1]  # closed the day it opened, but a day before its first response (opened the day before)
     rows[25][2] = (datetime.date.fromisoformat(rows[25][1]) + datetime.timedelta(days=1)).isoformat()
     assert ticket_said(rows) == {25: ("Medium", ["First Response", "Closed"])}
+
+
+# AH-211: a report's lines share its Submitted date; one line submitted before its expense, its other line a month later:
+# the line's Submitted date also differs from its own report's, so it is the slip, named alone (adversarial episode 19)
+REPORT = ["Report", "Expense date", "Submitted", "Amount"]
+
+
+def reports(n=40, lines=2):
+    rows = []
+    for r in range(n):
+        spent = DAY + datetime.timedelta(days=(r * 37) % 300)  # reports in no date order
+        sent = spent + datetime.timedelta(days=5 + r % 20 + lines)
+        for k in range(lines):
+            rows.append([f"ER-{r:03}", (spent + datetime.timedelta(days=k)).isoformat(), sent.isoformat(), 20 + (r * 7 + k) % 90])
+    return rows
+
+
+def scan_report(rows):
+    r = APP.post("/scan", json={"columns": REPORT, "rows": rows, "strength": 5})
+    assert r.status_code == 200, r.get_json()
+    return r.get_json()["rows"]
+
+
+def test_a_date_that_breaks_the_order_and_differs_from_its_own_records_lines_is_named_alone():
+    rows = reports()
+    rows[31][2] = (datetime.date.fromisoformat(rows[31][1]) - datetime.timedelta(days=5)).isoformat()
+    assert said(scan_report(rows)) == {31: ("Medium", ["Submitted"])}
+
+
+def test_a_date_its_record_does_not_share_never_singles_out_either_date():
+    rows = reports()
+    for k, r in enumerate(rows):  # each line submitted on its own day: Submitted is no record's date
+        r[2] = (datetime.date.fromisoformat(r[2]) + datetime.timedelta(days=k % 2)).isoformat()
+    rows[31][2] = (datetime.date.fromisoformat(rows[31][1]) - datetime.timedelta(days=5)).isoformat()
+    assert said(scan_report(rows)) == {31: ("Medium", ["Expense date", "Submitted"])}
+
+
+def test_one_other_record_whose_lines_differ_still_lets_the_slip_be_named_and_two_do_not():
+    for others, want in ((1, ["Submitted"]), (2, ["Expense date", "Submitted"])):
+        rows = reports()
+        rows[31][2] = (datetime.date.fromisoformat(rows[31][1]) - datetime.timedelta(days=5)).isoformat()
+        for k in range(others):  # another report's second line submitted a day after its first: no order broken
+            r = rows[2 * (3 + 7 * k) + 1]  # reports 3 and 10
+            r[2] = (datetime.date.fromisoformat(r[2]) + datetime.timedelta(days=1)).isoformat()
+        assert said(scan_report(rows)) == {31: ("Medium", want)}, others

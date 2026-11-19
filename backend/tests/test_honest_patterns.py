@@ -321,3 +321,55 @@ def test_a_row_that_fills_one_column_its_label_leaves_empty_names_that_cell():
     rows[40][4] = 2005  # a year built typed on one Land listing: the year is the slip
     out = scan(LISTING, rows)
     assert out[40]["cells"] == ["Year Built"] and out[40]["severity"] in SURE, out[40]
+
+
+# AH-211: the same slip seen from both sides. A salaried employee typed Hourly fills Annual Salary, which Hourly leaves
+# empty, and leaves Hourly Rate blank, which Hourly fills: the row looks like Salaried in both, so Pay Type is named
+# alone (Annual Salary was coloured, valid, and the Pay Type slip missed, adversarial episode 17)
+PAY_TYPES = ["Employee", "Pay Type", "Hourly Rate", "Annual Salary", "Hours", "Shift"]
+
+
+def pay_types(n=120):
+    rows = []
+    for i in range(n):
+        salaried = i % 3 == 0
+        rows.append([f"E{i:04d}", "Salaried" if salaried else "Hourly", None if salaried else 15 + i % 20,
+                     1000 * (40 + i % 50) if salaried else None, 80, ["Day", "Night"][i % 2]])
+    return rows
+
+
+def test_a_row_that_fills_a_column_its_label_leaves_empty_and_leaves_blank_one_it_fills_names_the_label_alone():
+    rows = pay_types()
+    rows[40][2], rows[40][3] = None, 75400  # an Hourly row that looks Salaried: a salary and no hourly rate
+    out = scan(PAY_TYPES, rows)
+    assert out[40]["cells"] == ["Pay Type"] and out[40]["severity"] in SURE, out[40]
+    assert "Pay Type Hourly does not fit this row, which fills Annual Salary and leaves Hourly Rate blank" in out[40]["reason"], out[40]
+
+
+def test_a_row_that_fills_a_column_its_label_leaves_empty_and_keeps_the_rest_names_that_cell():
+    rows = pay_types()
+    rows[40][3] = 75400  # an hourly row with its rate kept and a salary typed too: the salary is the slip
+    out = scan(PAY_TYPES, rows)
+    assert out[40]["cells"] == ["Annual Salary"] and out[40]["severity"] in SURE, out[40]
+
+
+def test_a_blank_no_other_label_leaves_empty_never_names_the_label():
+    rows = pay_types()
+    rows[40][3], rows[40][5] = 75400, None  # a salary typed, and a Shift deleted: every label fills Shift
+    out = scan(PAY_TYPES, rows)
+    assert "Pay Type" not in out[40]["cells"] and "Annual Salary" in out[40]["cells"], out[40]
+
+
+def test_a_row_that_looks_like_two_different_labels_never_names_its_own():
+    # Hourly fills Rate and Hours, Salaried Salary and Hours, Contractor Fee alone. An Hourly row with a salary (as
+    # Salaried) and no hours (as Contractor) looks like no one label: its salary is named, never its Pay Type
+    cols = ["Employee", "Pay Type", "Hourly Rate", "Annual Salary", "Fee", "Hours"]
+    rows = []
+    for i in range(150):
+        kind = ["Hourly", "Salaried", "Contractor"][i % 3]
+        rows.append([f"E{i:04d}", kind, 15 + i % 20 if kind == "Hourly" else None,
+                     1000 * (40 + i % 50) if kind == "Salaried" else None, 500 + i % 90 if kind == "Contractor" else None,
+                     None if kind == "Contractor" else 80])
+    rows[42][3], rows[42][5] = 75400, None  # an Hourly row (42 % 3 == 0), its rate kept
+    out = scan(cols, rows)
+    assert "Pay Type" not in out[42]["cells"] and "Annual Salary" in out[42]["cells"], out[42]

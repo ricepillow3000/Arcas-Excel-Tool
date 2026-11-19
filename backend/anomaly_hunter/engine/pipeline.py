@@ -417,8 +417,9 @@ def group_gaps(df, column_types, skip, computed=None):
     episode 5). Only where a text column of 2-50 labels decides the column: every label of 20+ rows leaves it empty on
     all but max(1, ALMOST) of them or fills it on FILLS of them, and one label fills it. A bonus paid on 12% of every
     department's rows, rain on 2% of every station's hours: no label decides those, so nothing is said. Never a
-    protected label (a person's cell is never judged by their sex or race), nor a formula's cell (its inputs are)."""
-    out = [[] for _ in range(len(df))]
+    protected label (a person's cell is never judged by their sex or race), nor a formula's cell (its inputs are).
+    -> (reasons, explained: per row, the blank cells a label's slip explains)."""
+    out, explained = [[] for _ in range(len(df))], [set() for _ in range(len(df))]
     computed, prot = computed or {}, set(fairness.protected(column_types))
     cols, labels, blank = list(column_types)[:200], {}, {}
     for c in cols:  # each text read once, as a label and as a cell (twice took 3 s on 100,000 rows x 16 labels)
@@ -430,13 +431,15 @@ def group_gaps(df, column_types, skip, computed=None):
                 if 2 <= lab.nunique() <= 50:
                     labels[c] = pd.factorize(lab)[0]
     if not labels:
-        return out
+        return out, explained
     # every column at once, a label at a time: one pass a column took 8 s on 100,000 rows
     num = lambda c: np.nan_to_num(df[c].to_numpy(dtype=float)) == 0  # a number column: blank (NaN) or 0
     empty = np.column_stack([num(c) if column_types[c] == "number" else blank[c] for c in cols])
     live = np.column_stack([~np.asarray(skip, bool) & ~computed.get(c, np.zeros(len(df), bool)) for c in cols])
     filled_in = live & ~empty
     found = collections.defaultdict(list)  # (row, label column) -> the reasons of the cells it fills where its label leaves them empty
+    # AH-211: ...and the columns it leaves empty where its label fills them, each with the labels that leave it empty
+    unfilled, fillers = collections.defaultdict(list), {}
     for g, code in labels.items():
         on = code >= 0
         at = (code[on][:, None] * len(cols) + np.arange(len(cols))).ravel()  # (label, column) of each cell, counted at once
@@ -449,7 +452,12 @@ def group_gaps(df, column_types, skip, computed=None):
             big = size >= 20
             empty_g = big & (filled <= np.maximum(1, ALMOST * size))
             full_g = big & (filled >= FILLS * size)
-            if not full_g.any() or not (empty_g & (filled > 0)).any() or (big & ~empty_g & ~full_g).any():
+            if not full_g.any() or not empty_g.any() or (big & ~empty_g & ~full_g).any():
+                continue
+            fillers[g, col] = set(np.flatnonzero(full_g))
+            for i in np.flatnonzero(live[:, j] & empty[:, j] & np.isin(code, np.flatnonzero(full_g))):
+                unfilled[i, g].append((col, set(np.flatnonzero(empty_g))))
+            if not (empty_g & (filled > 0)).any():
                 continue
             for i in np.flatnonzero(live[:, j] & ~empty[:, j] & np.isin(code, np.flatnonzero(empty_g & (filled > 0)))):
                 k = code[i]
@@ -460,12 +468,19 @@ def group_gaps(df, column_types, skip, computed=None):
     # (a house listed as Land, with its bathrooms, living area and year built), named alone: its filled cells were each
     # coloured wrong (2 tuning episodes)
     for (i, g), said in found.items():
+        filled = [r.cols[0] for r in said]
         if len(said) >= LABEL_SLIP:
-            filled = [r.cols[0] for r in said]
             said = [Why(f"{g} {_short(df[g].iat[i])} does not fit this row, which fills {', '.join(filled[:-1])} and "
                         f"{filled[-1]}, where {g} {_short(df[g].iat[i])} leaves them empty", g)]
+        # AH-211: a row that fills a column its label leaves empty and leaves empty one its label fills, both as one other
+        # label has them, is that label's row: a salaried employee typed Hourly, with a salary and no hourly rate, had
+        # Annual Salary coloured (valid) and the Pay Type slip missed (adversarial episode 17)
+        elif gone := [c for c, empties in unfilled.get((i, g), ()) if set.intersection(empties, *(fillers[g, f] for f in filled))]:
+            said = [Why(f"{g} {_short(df[g].iat[i])} does not fit this row, which fills {', '.join(filled)} and leaves "
+                        f"{', '.join(gone)} blank, where {g} {_short(df[g].iat[i])}'s other rows do the opposite", g)]
+            explained[i].update(gone)
         out[i] += said
-    return out
+    return out, explained
 
 
 FIRST_ROWS = 0.8  # share of an entity column's first rows (a vehicle's, a meter's) a column leaves blank, 5 or more
@@ -1161,6 +1176,7 @@ def confirm(held, n, at, rule, pinned):
         held.setdefault(c, []).append((m, rule))
 
 
+ROUNDED = 3  # rows a held exact rule misses within its columns' rounding: that many are rounding, never slips (AH-211)
 LEFT_OUT = 0.8  # a column 0 or blank on this share of rows can be a part a rule holding on 95% of rows never sees
 
 
@@ -1180,6 +1196,25 @@ def _left_out(a, miss, rule):
     return hit
 
 
+def _restated(grid, order, cols, rows):
+    """-> f(rule's columns) = per row: one of the rule's cells holds a formula that reads all its other columns, so the
+    rule is that formula said again and its row can never break it by a slip: only the formula's own rounding or its
+    other inputs move it. A pharmacy's Days Supply =ROUND(Qty/(Units per Dose x Doses per Day),0) made "Qty = Doses per
+    Day x Days Supply", and a liquid's 5 mL a dose broke it on 4 valid cells; a box score's FG% =ROUND(FGM/FGA,3) made
+    FGM = FGA x FG% (AH-211 episodes 18 and 19). A typed value there is still judged (and the formula check names it)."""
+    reads = _reads(grid, order)
+    worked = {c: np.array([row[j] is not None for row in grid])[rows] for j, c in enumerate(order) if c in reads and c in cols}
+
+    def on(rule):
+        named = {cols[k] for k in rule}
+        hit = np.zeros(int(rows.sum()), dtype=bool)
+        for c in named & set(worked):
+            if named - {c} <= reads[c]:
+                hit |= worked[c]
+        return hit
+    return on
+
+
 def _cent(x):
     """How near counts as equal "to the cent": a cent, or one unit of the column's own last digit when it is written finer.
     College admissions' rates, all under 0.06, were each within a cent of any product of two others: 474 Medium rows and
@@ -1195,7 +1230,7 @@ def _decimals(x):
     return next((d for d in range(7) if (np.abs(x - np.round(x, d)) < 1e-9).mean() >= 0.95), 6)
 
 
-def pairs(df, column_types, skip, limits=None, held=None):
+def pairs(df, column_types, skip, limits=None, held=None, grid=None):
     """A column that is two others multiplied or added in >= 95% of rows (Line Total = Qty x Unit Price, Net New =
     New + Churned), or two multiplied after a 0-1 discount (Units x Unit Price x (1 - Discount)): the other rows don't
     add up. Tried pair by pair, so a x10 typo elsewhere can't bend it the way it
@@ -1205,11 +1240,12 @@ def pairs(df, column_types, skip, limits=None, held=None):
     other two (Units -5 with Total 170.43 = Units x 2.99 -> 57) when the answer is a usual value written like its
     column: exact, where the pane would otherwise offer the median. Two odd cells: the arithmetic can't say which.
     fits[i][col](v): the rule holds on row i, to the cent or within its columns' rounding, with that cell set to v.
-    held: filled with the rows each rule holds on (see confirm)."""
+    held: filled with the rows each rule holds on (see confirm). grid: the pane's R1C1 formulas (see _restated)."""
     out, fix, fits = [[] for _ in range(len(df))], [{} for _ in range(len(df))], [{} for _ in range(len(df))]
     cols = numbers(column_types)
     a = df[cols][~skip].to_numpy(dtype=float)
     index = df.index[~skip]
+    restated = _restated(grid, list(df.columns), cols, ~skip)
     if len(cols) < 3 or len(a) < 20:
         return out, fix, fits
     bounds = lambda j: (limits or {}).get(cols[j]) or (None, None, None, None)
@@ -1264,11 +1300,18 @@ def pairs(df, column_types, skip, limits=None, held=None):
             holds = lambda good: ((good & (y != 0)).sum() >= 20 and (good & live).sum() >= 0.95 * live.sum()
                                   and (good & full).sum() >= 5 and (full & ~good).sum() <= max(1, 0.05 * full.sum()))
             good = ok & near(y, got, cent[t])
+            r = rounded(y, cs, op, slice(None))
+            within = ok & (np.abs(y - got) <= r[0] + own[t] + r[1]) if r is not None else good
             if not holds(good):  # the exact rule first; then what rounding explains, never looser than that
-                r = rounded(y, cs, op, slice(None))
-                good = ok & (np.abs(y - got) <= r[0] + own[t] + r[1]) if r is not None else good
+                good = within
                 if not holds(good):
                     continue
+            elif (within & ~good).sum() >= ROUNDED:
+                # ...and once the exact rule holds, a miss within that rounding is rounding where ROUNDED+ rows miss so,
+                # as _totals: FGM = FGA x FG%, FG% =ROUND(FGM/FGA,3), held to the cent on 96% of a box score's rows, and
+                # 17 rows with 20+ attempts missed by up to 0.0135 (51 valid cells, AH-211 episode 18); one or two such
+                # misses are still each a slip
+                good = within
             if held is not None:
                 # a cell is pinned where no change to it alone keeps the rule: every cell of a sum; the total of a product,
                 # and a factor only where the other factors are not 0 (0 x anything is 0: Qty 0 says nothing of the price)
@@ -1279,7 +1322,7 @@ def pairs(df, column_types, skip, limits=None, held=None):
                     for k, c in enumerate(cs):
                         others = np.all([g != 0 for m, g in enumerate(f) if m != k], axis=0)
                         confirm(held, len(df), index[np.flatnonzero(good & live & others)], rule, [cols[c]])
-            for i in np.flatnonzero(ok & ~good & ~_left_out(a, y - got, [t, *cs])):
+            for i in np.flatnonzero(ok & ~good & ~_left_out(a, y - got, [t, *cs]) & ~restated((t, *cs))):
                 out[index[i]].append(Why(f"{cols[t]} {say(y[i])} does not add up: {said} = {got[i]:.10g}", cols[t], *(cols[c] for c in cs)))
                 odd = [j for j in (t, *cs) if not usual(j, a[i, j])]
                 if len(odd) != 1:
@@ -1633,15 +1676,16 @@ DATE_COLS = 20  # date columns whose pairs are read, in sheet order: a crafted w
 DATE_ROWS = 50  # rows with both dates before an order between two date columns is read: the same bar as a check's 50
 
 
-def date_order(df, column_types, skip, far):
+def date_order(df, column_types, skip, far, records=None):
     """AH-198: two date columns where one is on or after the other on every row but max(1, 0.1%), their dates meeting
     where it holds (a sample resulted on or after it was drawn, delivered on or after it shipped): a row where it comes
     before is a contradiction. Which date is wrong is unknown, unless one column is the sheet's own order (its dates
     never go back down the rows, at most the same few) and this row keeps that order: then the other is named alone. Two
     breaks in 64 or 1,181 rows were a medicines register's re-examined opinions, honest. A date already far outside its
-    column (far) is that date's slip, said once."""
+    column (far) is that date's slip, said once. records: see _odd_line."""
     out = [[] for _ in range(len(df))]
     cols = [c for c, t in column_types.items() if t == "date"][:DATE_COLS]
+    odd = _odd_line(df, records or {}, cols)
     when = {c: pd.to_datetime(df[c], errors="coerce", utc=True).where(~skip) for c in cols}  # utc: a +02:00 beside a plain date
     # AH-210: a date already far outside its column is that date's slip, never a row against the order: a checkout typed
     # in 2125 made "returned before checked out" a second break, and the real one went unsaid (3 of 4 tuning episodes)
@@ -1665,7 +1709,27 @@ def date_order(df, column_types, skip, far):
     for i, a, b, text, named in broken:
         if hits[i, a] != hits[i, b]:
             named = [a if hits[i, a] > hits[i, b] else b]
+        # AH-211: ...and so is the one that also differs from its own record's other lines, where every record shares that
+        # date (a report's Submitted date, a day before its expense and a month before the report's other line)
+        elif len(named) == 2 and len(lone := [c for c in named if odd[c][i]]) == 1:
+            named = lone
         out[i].append(Why(text, *named))
+    return out
+
+
+def _odd_line(df, records, cols):
+    """AH-211: {column: per row, its value differs from another line of its record}, for a column every record of 2+
+    lines (RECORDS+ of them) writes once but max(1, 1%), as same_in_record reads one, besides the row's own record (the
+    slip being judged: a report submitted early and another late were 2 of 165, episode 19); all False for any other
+    column. A record of 2 lines cannot say which line is odd: only a second contradiction (date_order's) can."""
+    out = {c: np.zeros(len(df), dtype=bool) for c in cols}
+    for run in records.values():
+        keep = run >= 0
+        for c in cols:
+            v = pd.Series(df[c].astype(str).str.strip().where(~_blank(df[c])).to_numpy(object)[keep])
+            kinds = v.groupby(run[keep]).nunique(dropna=False)
+            if len(kinds) >= RECORDS and (kinds > 1).sum() - 1 <= max(1, 0.01 * len(kinds)):
+                out[c][np.flatnonzero(keep)[np.isin(run[keep], kinds.index[kinds > 1])]] = True
     return out
 
 
@@ -1837,8 +1901,9 @@ def own_scale(df, column_types, skip, records, computed=None):
 def coded_spellings(df, column_types, skip, maybe):
     """AH-198: a possible misspelling (spellings' guess, maybe = {column: usual spelling} per row) its row's own code
     proves: another column whose every value names one label of this column (Account 2000 is "Accounts Payable" on its
-    10+ codes of 2+ rows but max(1, 1%)), and whose other rows of this code all read the usual spelling. "Acounts Payable"
-    on Account 2000 is then no other payee, but a slip. Only the cells the spelling check already guessed at."""
+    10+ codes of 2+ rows but max(1, 1%) besides the row's own), and whose other rows of this code all read the usual
+    spelling. "Acounts Payable" on Account 2000 is then no other payee, but a slip. Only the cells the spelling check
+    already guessed at."""
     out = [[] for _ in range(len(df))]
     seen = {}
     for i in (i for i in range(len(df)) if maybe[i]):
@@ -1850,8 +1915,11 @@ def coded_spellings(df, column_types, skip, maybe):
                     both = ~skip & ~_blank(df[k]) & ~_blank(df[col])
                     kinds = df[col][both].astype(str).str.strip().groupby(df[k][both]).agg(["nunique", "size"])
                     multi = kinds[kinds["size"] >= 2]
-                    seen[k, col] = len(multi) >= 10 and (multi["nunique"] > 1).sum() <= max(1, 0.01 * len(multi))
-                if not seen[k, col]:
+                    seen[k, col] = (len(multi) >= 10, set(multi.index[multi["nunique"] > 1]), max(1, 0.01 * len(multi)))
+                # ...besides the row's own code, whose second name is the slip judged (AH-211: "Finannce" on an employee,
+                # and another employee moved to another department for one period, episode 20)
+                enough, off, allowed = seen[k, col]
+                if not enough or len(off - {df[k].iat[i]}) > allowed:
                     continue
                 same = df[col][(df[k] == df[k].iat[i]) & ~skip & (df.index != df.index[i])].astype(str).str.strip()
                 if len(same) >= 2 and (same == usual).all():
@@ -2238,7 +2306,7 @@ def score(df, column_types, errors_log, limits, order_by, strength=5, saved=(), 
     # the row's own arithmetic first: a value in a cell of a rule that holds on its row is confirmed by it, never a slip
     # the limits vote on or offer a typo for (AH-74, see confirm)
     held = {}
-    paired, solved, fits = pairs(df, column_types, skip, limits, held)
+    paired, solved, fits = pairs(df, column_types, skip, limits, held, grid)
     add = [list(dict.fromkeys(s + m)) for s, m in zip(sums(df, column_types, skip, held), paired, strict=True)]
     # a formula's value is worked out from its inputs: its odd value is theirs, so the limits never judge or name it (Net
     # =Debit-Credit said every big debit twice), and a column of formulas adds nothing to a mix of values (AH-198)
@@ -2282,22 +2350,27 @@ def score(df, column_types, errors_log, limits, order_by, strength=5, saved=(), 
     (hole, coded), far = placeholders(df, column_types, skip), far_dates(df, column_types, skip)
     zeros = lost_zeros(df, column_types, skip)
     above = order(df, column_types, skip)  # AH-178: a 10th percentile above its 90th, a Low above its High
-    before = date_order(df, column_types, skip, far)  # AH-198: delivered before it shipped
+    before = date_order(df, column_types, skip, far, records)  # AH-198: delivered before it shipped
     same = same_in_record(df, column_types, skip, records, computed)
     owed, owed_fix = balances(df, column_types, skip, records, computed)
     scaled = by_scale(df, column_types, skip, k, computed, [{c for r in said for c in r.cols} for said in lim["reasons"]])
     calc, calc_fix = formulas(df, column_types, skip, grid)  # AH-152: a typed value or another formula among a column's formulas
-    # ...and where it pins the broken cell, a sum about that cell names it alone: its inputs are fine (AH-198)
+    # ...and where it pins the broken cell, a sum about that cell names it alone: its inputs are fine (AH-198). A part of
+    # the sum too, not only its total: Net Pay typed over =Gross-Fed-SS-Medicare made "Gross Pay does not add up" name
+    # Gross Pay and three deductions that were right (8 valid cells in 2 payrolls, AH-211 episodes 17 and 20)
     for i, said in enumerate(calc):
         pinned = {c for r in said for c in r.cols}
-        add[i] = [Why(r, r.cols[0]) if " does not add up" in r and r.cols[0] in pinned else r for r in add[i]]
+        add[i] = [Why(r, *[c for c in r.cols if c in pinned]) if " does not add up" in r and pinned & set(r.cols) else r
+                  for r in add[i]]
     genes = gene_dates(df, column_types, skip)  # AH-182: a gene name Excel turned into a date
     forms, many_forms = date_forms(df, column_types, skip)
     code, coded_top = codes(df, column_types, skip)
     spell, spell_fix, missed, spell_maybe, spell_exact = spellings(df, column_types, skip)
     proven = coded_spellings(df, column_types, skip, spell_maybe)  # AH-198: "Acounts Payable" on Account 2000
     keyed = same_by_key(df, column_types, skip, computed)  # AH-198 fix round 2: a part's one unit cost
-    gaps = group_gaps(df, column_types, skip, computed)  # AH-208: a close date on one open claim
+    gaps, explained = group_gaps(df, column_types, skip, computed)  # AH-208: a close date on one open claim
+    # ...and a blank its label's slip explains is that slip, never a cell left out too (AH-211)
+    blank = [[r for r in said if _about(r) not in explained[i]] for i, said in enumerate(blank)]
     own = own_scale(df, column_types, skip, records, computed)  # ...a x10 in one entity
     # each list of reasons with its kind (AH-205), in the order the row's sentence says them
     hyg = [("duplicate", dup), ("type", typ), ("blank", blank), ("placeholder", hole), ("code", code), ("far_date", far),
