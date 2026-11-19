@@ -1,7 +1,7 @@
 import { SEV } from "../constants/index.js";
 import { state } from "../hooks/use-state.js";
 import { $, dated, only, show } from "../utils/dom.js";
-import { rowFromAddress } from "../utils/sheet.js";
+import { rowFromAddress, shownAs } from "../utils/sheet.js";
 import { act } from "../hooks/use-action.js";
 import { busy, notice } from "../components/progress.js";
 import { showAccepted, showFix } from "../components/fix-preview.js";
@@ -10,6 +10,7 @@ import { recommendFix, suggestTypo } from "../features/fix.js";
 import { fillRow } from "../features/highlight.js";
 import { listRows } from "./results.js";
 import { saveDecisions } from "../features/decisions.js";
+import { KIND_WORDS, stopKind, stoppable, taught, teach } from "../features/learned.js";
 import { fadeIn, morph, turnIn } from "../components/motion.js";
 import { plainError } from "../utils/errors.js";
 
@@ -44,7 +45,7 @@ async function openRow(i, selectInSheet, from, focus) { // from: the list's butt
   const r = state.lastRows[i], u = state.undos[i]; // u: its fix was accepted - the card offers Undo
   if (r && !SEV[r.severity] && !u && state.decided[i] === "fixed") return selectFixed(i); // fixed before: nothing to undo here
   if (!r || (!SEV[r.severity] && !u)) return;
-  const f = (state.fix = { i, sheet, changes: [], calc: null });
+  const f = (state.fix = { i, sheet, changes: [], calc: null, stop: stoppable(r?.kinds) }); // AH-205: the check the card can stop
   const at = from?.getBoundingClientRect();
   await morph(from?.querySelector(".row-head"), () => {
     $("fix-title").textContent = `Row ${startRow + i + 2}: ${SEV[r.severity]?.toLowerCase() ?? "fixed"}`;
@@ -59,6 +60,7 @@ async function openRow(i, selectInSheet, from, focus) { // from: the list's butt
     $("ai-fold").open = false; // AH-175: Ask AI is folded under the card's fix, opened below when there is none
     $("fix-changes").innerHTML = "";
     $("fix-explanation").textContent = "";
+    $("fix-mute").textContent = f.stop ? `Stop checking ${stopSaid(f.stop)}` : "";
     only("fix-view");
     scrollTo(0, 0); // AH-165: the card opens at the top of the pane, where the scan controls stepped aside
     busy("Opening row…"); // in the bar at the pane's foot (AH-165): said over the list, it pushed the list down as it left
@@ -99,29 +101,49 @@ async function selectFixed(i) {
   notice(`Row ${startRow + i + 2} was fixed and looks right now. There is nothing to undo here: its old values are no longer kept.`);
 }
 
+// AH-205: a stopped check in plain words: "the usual range in Units" (a shared header said as the sheet says it)
+const stopSaid = ([kind, col]) => `${KIND_WORDS[kind]} in ${shownAs(col, state.lastScan?.names)}`;
+
 // Dismiss = leave this row as it is: its highlight goes, like a dismissed Grammarly underline. Then the next row.
 // Kept in the workbook under the row's code, so the row stays dismissed after a reload or a re-scan.
 // AH-149: the pane answers at once: the row is Dismissed and the next card turns in while Excel takes the highlight off
 // (it waited for Excel first, a beat on every Dismiss). If keeping it or taking the highlight off fails, the row is put
 // back as it was, its card with it, and the card says so
-export async function dismissFix() {
+// AH-205: and the sheet learns at once: each value a check of one cell named is fine in its column from the next scan
+// (features/learned.js), saved with the decision. stop: the check "Stop checking ..." stops, saved the same way.
+// -> true when the row was dismissed
+export async function dismissFix(stop = null) {
   const f = state.fix;
-  if (!f) return;
+  if (!f) return false;
   const was = state.decided[f.i] || null, code = state.codes[f.i];
+  const learnt = { values: [], kinds: [] };
   state.decided[f.i] = "dismissed";
   const kept = (async () => {
+    learnt.values = teach(f.sheet, taught(state.lastRows[f.i]?.kinds, state.lastScan.columns, state.lastScan.rows[f.i]));
+    if (stop) learnt.kinds = stopKind(f.sheet, [stop]);
     saveDecisions(f.sheet, [[code, "dismissed"]]);
     await fillRow(f.i, false);
   })();
   const [saved, moved] = await Promise.allSettled([kept, nextFix()]);
-  if (saved.status === "rejected") return putBack(f, was, code, saved.reason);
+  if (saved.status === "rejected") return putBack(f, was, code, saved.reason, learnt).then(() => false);
   if (moved.status === "rejected") throw moved.reason;
   if (state.fix) notice(doneOf(state.order, state.decided), shareOf(state.order, state.decided)); // AH-171; with no row left, nextFix has said it
+  return true;
 }
 
-async function putBack(f, was, code, e) {
+// AH-205: "Stop checking spelling in Glass": that check stops in that column on this sheet, the row is dismissed, and the
+// foot bar says what was learned
+export async function muteFix() {
+  const stop = state.fix?.stop;
+  if (!stop || !(await dismissFix(stop))) return;
+  notice(`Arcas will not check ${stopSaid(stop)} on this sheet again. ${doneOf(state.order, state.decided)}`.trim(), shareOf(state.order, state.decided));
+}
+
+async function putBack(f, was, code, e, learnt) {
   if (was) state.decided[f.i] = was;
   else delete state.decided[f.i];
+  teach(f.sheet, learnt.values, true); // what this Dismiss taught goes with it
+  stopKind(f.sheet, learnt.kinds, true);
   saveDecisions(f.sheet, [[code, was]]);
   await fillRow(f.i, true).catch(() => {}); // whatever came off goes back on
   await openFix(f.i, false);

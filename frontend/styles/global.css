@@ -177,6 +177,10 @@ button:disabled { cursor: default; }
 .row-buttons { display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); gap: var(--s2) var(--gutter); margin-top: var(--s2); }
 .row-buttons > * { grid-column: span 2; min-width: 0; margin: 0; }
 .row-buttons > .primary { min-height: 44px; font-size: 13px; } /* "Accept" beside "Dismiss": one size, one case */
+/* AH-205: "Stop checking ... in Units" under the card's two buttons, its line held when the card has none to offer (an
+   accepted fix, a row whose checks name no column), so nothing moves when it comes or goes */
+.row-buttons > #fix-mute { grid-column: 1 / -1; justify-self: start; text-align: left; overflow-wrap: anywhere; }
+#fix-mute[data-off] { visibility: hidden; }
 /* a finger's height (AH-149: 44 px, where the 24 px floor of WCAG 2.5.8 is a minimum, not a target) */
 .link-btn { min-height: 44px; border: 0; background: none; color: var(--navy); padding: var(--s4) 0 0; font: 700 13px/1.4 var(--sans);
   text-decoration: underline; text-decoration-color: var(--gold); text-underline-offset: 4px; }

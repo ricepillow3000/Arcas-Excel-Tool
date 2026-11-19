@@ -1944,11 +1944,30 @@ def knobs(strength=5):
 
 
 ALONE = 7  # from this level, a value past its usual limit that few others pass is listed (Low), not only noted
+# AH-205: the kind of check behind each reason, one word, so the pane can stop one kind in one column ("Stop checking
+# spelling in Glass") and what a Dismiss teaches is said of the checks it can teach. The checks of one cell's own value:
+# a value the user dismissed there is accepted, in that column, on every row. Never a check of a row's arithmetic, an
+# order, a record, a formula, a duplicate, a blank or a value read against its row's key, label or neighbours: the same
+# value is wrong in the next row (accept must never silence a sum)
+KINDS = ("duplicate", "type", "blank", "placeholder", "code", "far_date", "sum", "spelling", "lost_zero", "date_form",
+         "formula", "order", "gene_date", "date_order", "record", "balance", "scale", "key", "own_scale", "shifted",
+         "fraction", "whole_number", "named_bound", "repeated_column", "limits", "series", "combination")
+ONE_CELL = frozenset(("limits", "spelling", "type", "code", "far_date", "date_form", "lost_zero", "placeholder",
+                      "gene_date", "fraction", "whole_number", "named_bound", "shifted"))
+DETECTOR_KINDS = {"limits": "limits", "sequence": "series", "ecod": "combination"}
 
 
-def score(df, column_types, errors_log, limits, order_by, strength=5, saved=(), grid=None):
+def _about(reason):
+    """The column a reason is about: the first it names (the cell the pane colours first), or None."""
+    return (getattr(reason, "cols", ()) or (None,))[0]
+
+
+def score(df, column_types, errors_log, limits, order_by, strength=5, saved=(), grid=None, learned=None):
     """-> (rows, status). Severity = votes: 1 Low, 2 Medium, 3+ High. Weird limit or hygiene hit = at least Medium.
-    Totals/summary rows are left out of every check (their numbers would distort the rest) and say so."""
+    Totals/summary rows are left out of every check (their numbers would distort the rest) and say so.
+    learned (AH-205): (accepted, ignored, dismissed): the cells {(row, column)} holding a value the user dismissed in that
+    column, the [kind, column] pairs the user stopped, and the rows left as they are (dismissed). A reason they mute is
+    dropped before severity is decided."""
     n, skip = len(df), summary_rows(df)
     empty = df[[c for c in df.columns if c != "source_file"]].apply(_blank).all(axis=1).to_numpy()  # before totals are blanked
     df = df.copy()
@@ -2017,15 +2036,41 @@ def score(df, column_types, errors_log, limits, order_by, strength=5, saved=(), 
     spell, spell_fix, missed, spell_maybe, spell_exact = spellings(df, column_types, skip)
     proven = coded_spellings(df, column_types, skip, spell_maybe)  # AH-198: "Acounts Payable" on Account 2000
     keyed = same_by_key(df, column_types, skip, computed)  # AH-198 fix round 2: a part's one unit cost
-    keyed = [k + o for k, o in zip(keyed, own_scale(df, column_types, skip, records, computed), strict=True)]  # ...a x10 in one entity
-    missed = [m + s + f + w + b + g for m, s, f, w, b, g in zip(missed, shifted(df, column_types, skip), fractions(df, column_types, skip),
-                                                                 whole_numbers(df, column_types, skip), named_bounds(df, column_types, skip),
-                                                                 spread, strict=True)]  # all "worth a check" (Low)
-    missed = [m + t + h + c + d + r + f + o for m, t, h, c, d, r, f, o in zip(missed, lim["top_reasons"], lim["held_reasons"], coded,
-                                                                               typ_coded, repeats, many_forms, coded_top, strict=True)]  # a lone top value (AH-29), one its row's arithmetic confirms (AH-74), a placeholder code (AH-45), many repeats (AH-48), a date column of many forms (AH-76)
-    missed = [m + c for m, c in zip(missed, repeated_columns(df, column_types, skip, grid), strict=True)]  # AH-182: a column pasted twice
+    own = own_scale(df, column_types, skip, records, computed)  # ...a x10 in one entity
+    # each list of reasons with its kind (AH-205), in the order the row's sentence says them
+    hyg = [("duplicate", dup), ("type", typ), ("blank", blank), ("placeholder", hole), ("code", code), ("far_date", far),
+           ("sum", add), ("spelling", spell), ("lost_zero", zeros), ("date_form", forms), ("formula", calc), ("order", above),
+           ("gene_date", genes), ("date_order", before), ("record", same), ("balance", owed), ("scale", scaled),
+           ("spelling", proven), ("key", keyed), ("own_scale", own)]
+    # all "worth a check" (Low): a lone top value (AH-29), one its row's arithmetic confirms (AH-74), a placeholder code
+    # (AH-45), many repeats (AH-48), a date column of many forms (AH-76), a column pasted twice (AH-182)
+    notes = [("spelling", missed), ("shifted", shifted(df, column_types, skip)), ("fraction", fractions(df, column_types, skip)),
+             ("whole_number", whole_numbers(df, column_types, skip)), ("named_bound", named_bounds(df, column_types, skip)),
+             ("blank", spread), ("limits", lim["top_reasons"]), ("limits", lim["held_reasons"]), ("placeholder", coded),
+             ("type", typ_coded), ("duplicate", repeats), ("date_form", many_forms), ("code", coded_top),
+             ("repeated_column", repeated_columns(df, column_types, skip, grid))]
     if s >= ALONE:
-        missed = [m + a for m, a in zip(missed, lim["alone_reasons"], strict=True)]
+        notes.append(("limits", lim["alone_reasons"]))
+    touched = set()  # rows a learned rule took a reason from: their fixes are kept only for the cells still named
+    if learned:
+        accepted, ignored, dismissed = learned
+
+        def keep(kind, i, said):
+            if i in dismissed:
+                return said
+            out = [r for r in said if not ((kind, _about(r)) in ignored or kind in ONE_CELL and (i, _about(r)) in accepted)]
+            if len(out) < len(said):
+                touched.add(i)
+            return out
+        hyg = [(kind, [keep(kind, i, said) for i, said in enumerate(lists)]) for kind, lists in hyg]
+        notes = [(kind, [keep(kind, i, said) for i, said in enumerate(lists)]) for kind, lists in notes]
+        lim["noted_reasons"] = [keep("limits", i, said) for i, said in enumerate(lim["noted_reasons"])]
+        for name, d in dets.items():  # a detector whose every reason on a row was muted no longer votes there
+            if d["ran"]:
+                left = [keep(DETECTOR_KINDS[name], i, said) for i, said in enumerate(d["reasons"])]
+                d["votes"] = np.array([bool(v) and (bool(k) or not said) for v, k, said in zip(d["votes"], left, d["reasons"], strict=True)])
+                d["reasons"] = left
+    missed = [[r for _, lists in notes for r in lists[i]] for i in range(n)]
     rows = []
 
     typed = df.attrs.get("typed", {})
@@ -2065,7 +2110,7 @@ def score(df, column_types, errors_log, limits, order_by, strength=5, saved=(), 
                          "magnitude": 0.0})
             continue
         voted = [d for d in ran if d["votes"][i]]
-        hygiene = dup[i] + typ[i] + blank[i] + hole[i] + code[i] + far[i] + add[i] + spell[i] + zeros[i] + forms[i] + calc[i] + above[i] + genes[i] + before[i] + same[i] + owed[i] + scaled[i] + proven[i] + keyed[i]
+        hygiene = [r for _, lists in hyg for r in lists[i]]
         if not voted and not hygiene and not missed[i]:
             noted = as_typed(lim["noted_reasons"][i], i)
             rows.append({"severity": "Noted" if noted else None, "bucket": None,
@@ -2073,16 +2118,23 @@ def score(df, column_types, errors_log, limits, order_by, strength=5, saved=(), 
             continue
         v, weird = len(voted), bool(lim["votes"][i])
         said = as_typed(list(dict.fromkeys(hygiene + missed[i] + [r for d in voted for r in d["reasons"][i]])), i)  # dedupe, keep order
+        # AH-205: [kind, column] for each reason, once, in the sentence's order (the column the reason is about, first)
+        kinds = list(dict.fromkeys((kind, _about(r)) for kind, r in
+                                   [(kind, r) for kind, lists in hyg + notes for r in lists[i]] +
+                                   [(DETECTOR_KINDS[name], r) for name, d in dets.items() if d["ran"] and d["votes"][i] for r in d["reasons"][i]]))
+        named = set(cells(said)) if i in touched else None  # a learned rule took a reason: fixes only for cells still named
+        only = lambda fixes, named=named: fixes if named is None else {c: x for c, x in fixes.items() if c in named}
         rows.append({  # a possible misspelling alone is "worth a check" (Low): it may be a real name
             "severity": "High" if v >= 3 else "Medium" if v == 2 or weird and not lone(i, v) or hygiene else "Low",
             "bucket": "Duplicates" if dup[i] else "Irregularities" if weird or hygiene or missed[i] else "Behavioral",
             "reason": (f"Flagged by {v} of {len(ran)}: " if v else "") + "; ".join(said),
             "cells": cells(said),
             "magnitude": float(max((d["magnitude"][i] for d in voted), default=0.0)),
-            "likely": {**lim["likely"][i], **solved[i], **spell_fix[i], **owed_fix[i]},  # the row's own arithmetic beats a typo pattern
-            "maybe": {**lim["maybe"][i], **spell_maybe[i]},  # misspelling, or a typo the numbers cannot prove: a guess the user confirms
-            "exact": spell_exact[i],  # capitals/spaces where the usual spelling is 5x as common: safe to auto-fix
-            "formula": calc_fix[i],  # AH-152: the column's own R1C1 formula for a cell that broke it: the card writes it back
+            "likely": only({**lim["likely"][i], **solved[i], **spell_fix[i], **owed_fix[i]}),  # the row's own arithmetic beats a typo pattern
+            "maybe": only({**lim["maybe"][i], **spell_maybe[i]}),  # misspelling, or a typo the numbers cannot prove: a guess the user confirms
+            "exact": only(spell_exact[i]),  # capitals/spaces where the usual spelling is 5x as common: safe to auto-fix
+            "formula": only(calc_fix[i]),  # AH-152: the column's own R1C1 formula for a cell that broke it: the card writes it back
+            "kinds": [list(p) for p in kinds],
         })
     status = {k: "ran" if d["ran"] else f"sat out: {d['sit_out_reason']}" for k, d in dets.items()}
     return rows, status

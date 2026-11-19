@@ -11,7 +11,7 @@ import { clearHighlights } from "./features/highlight.js";
 import { applyFix, undoFix } from "./features/fix.js";
 import { setAi, askFix, checkWords, checkRules } from "./features/ai.js";
 import { openLimitsEditor, saveLimitsAndRescan } from "./pages/limits.js";
-import { backToList, dismissFix, nextFix } from "./pages/fix.js";
+import { backToList, dismissFix, muteFix, nextFix } from "./pages/fix.js";
 import { initStrength } from "./pages/strength.js";
 import { autoOn, setAuto, autoUndo, undoAutoFix } from "./features/autofix.js";
 import { notice } from "./components/progress.js";
@@ -52,7 +52,8 @@ else {
     $("fix-back").onclick = () => { backToList().catch((e) => notice(plainError(e))); };
     $("fix-apply").onclick = thenFocus(act(() => state.fix && applyFix(state.fix, state.fix.changes, state.fix.sheet), CARD), () => fixDone() && $("fix-undo"));
     $("fix-undo").onclick = thenFocus(act(() => state.fix && undoFix(state.fix), CARD), () => state.fix && !fixDone() && $("fix-apply"));
-    $("fix-dismiss").onclick = act(dismissFix, CARD);
+    $("fix-dismiss").onclick = act(() => dismissFix(), CARD);
+    $("fix-mute").onclick = act(muteFix, CARD); // AH-205
     $("fix-next").onclick = act(nextFix, CARD);
     $("fix-ask").onclick = askFix;
     // AH-149: a starter request fills the box and sends nothing; Ask AI sends it

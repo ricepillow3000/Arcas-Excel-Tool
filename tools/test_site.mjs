@@ -815,7 +815,9 @@ function woff2(file) {
   // AH-203 raised each cap by its new mark's bytes (110 to 470): the coin in every page's header, its grain and its
   // ring's one-time sweep (John: "not just a static circle", "give it texture similar to our website"), and on the home
   // page the download's coin; cut first by leaving out the header copy's part names and rounding its edges to 0.1 px
-  const CAPS = { "index.html": 89900, "privacy.html": 85500, "support.html": 82400, "terms.html": 79400, "thanks.html": 78200, "checks.html": 79500, "cases.html": 79200, "code-signing.html": 78900 };
+  // AH-205 raised privacy.html's by 100: the twins' sentence that the workbook keeps codes of the values dismissed and
+  // the checks stopped, never the values (76 bytes gzipped; a promise test_privacy_promises.py holds word for word)
+  const CAPS = { "index.html": 89900, "privacy.html": 85600, "support.html": 82400, "terms.html": 79400, "thanks.html": 78200, "checks.html": 79500, "cases.html": 79200, "code-signing.html": 78900 };
   for (const p of PAGES) {
     const files = [p, ...new Set([...html[p].matchAll(/\s(?:src|href)="([a-z-]+\.(?:css|js))"/g)].map((m) => m[1]))];
     const sizes = files.map((f) => [f, zlib.gzipSync(fs.readFileSync(path.join(SITE, f)), { level: 9 }).length]);

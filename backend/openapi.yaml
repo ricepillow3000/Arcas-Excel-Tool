@@ -32,6 +32,16 @@ paths:
                       type: array
                       nullable: true
                       items: {type: array, items: {type: string, pattern: "^=", maxLength: 8192, nullable: true}}
+                    # AH-205: what this sheet learned: values the user dismissed ([column, value]) and checks they
+                    # stopped ([kind, column]); the route also checks each kind is one the engine names. Each flagged
+                    # row of the answer says its reasons' kinds: "kinds": [[kind, column or null], ...]
+                    learned:
+                      type: object
+                      nullable: true
+                      additionalProperties: false
+                      properties:
+                        accept: {type: array, maxItems: 500, items: {type: array, minItems: 2, maxItems: 2, items: {type: string, maxLength: 200}}}
+                        ignore: {type: array, maxItems: 500, items: {type: array, minItems: 2, maxItems: 2, items: {type: string, maxLength: 200}}}
       responses: {"200": {$ref: "#/components/responses/Json"}, "400": {$ref: "#/components/responses/Error"}}
   /profile:  # AH-169: what the sheet looks like and what a scan will check, before it; the pane sends its first 500 rows
     post:

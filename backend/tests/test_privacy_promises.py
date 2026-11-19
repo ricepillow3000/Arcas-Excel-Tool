@@ -303,3 +303,19 @@ def test_every_privacy_page_says_what_the_copied_tabs_check_and_check_as_you_wor
     constants = (ROOT / "frontend/constants/index.js").read_text(encoding="utf-8")
     assert '"anomalyHunterLive"' in constants and '"anomalyHunterSound"' in constants
     assert "scanRequest(s, false)" in (ROOT / "frontend/features/live.js").read_text(encoding="utf-8")  # no Power BI copy
+
+
+def test_every_privacy_page_says_the_workbook_keeps_codes_of_the_values_dismissed_and_the_checks_stopped():
+    """AH-205: a Dismiss teaches the sheet and "Stop checking ..." mutes a check, both kept in the workbook: codes and
+    [kind, column], never a value. The pages, the pane's own hint and Forget name them, and the pane keeps them under
+    the keys Forget removes."""
+    kept = ("a short code for each value you dismissed and the checks you stopped (the column and the kind of check, worked "
+            "out on your PC, never the values themselves, so the next scan of that sheet, and Check as you work, do not flag "
+            "them again)")
+    for page in PAGES:
+        said = words(page)
+        assert kept in said, page
+        assert "the code of each row you fixed or dismissed, the codes of the values you dismissed and the checks you stopped," in said, page
+    assert "a short code for each value you dismissed and the checks you stopped (never the values)" in words("frontend/taskpane.html")
+    forget = (ROOT / "frontend/features/forget.js").read_text(encoding="utf-8")
+    assert '[ACCEPTED_KEY, "the codes of the values you dismissed"]' in forget and '[IGNORED_KEY, "the checks you stopped"]' in forget

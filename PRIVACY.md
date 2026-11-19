@@ -45,6 +45,8 @@ A scan runs on your PC and sends nothing to the internet. Your sheet's data leav
   values and a copy of each fixed row (so Undo works), the old values and number formats of the cells you changed with **Accept**, and what Accept wrote in them (so
   Undo still works after the pane is closed and opened again), a short code for each row you fixed or dismissed (worked out
   from the row's values, never the values themselves, so the row is still Fixed or Dismissed when the pane opens
+  again), a short code for each value you dismissed and the checks you stopped (the column and the kind of check, worked
+  out on your PC, never the values themselves, so the next scan of that sheet, and Check as you work, do not flag them
   again), the fill colour each highlighted cell had before (so Remove highlights puts it back after the pane is closed
   and opened again), the numbers of the last check (the sheet's name, when it ran, the slider's level, and how many
   rows it read and flagged, never a value or a reason, so the pane can say them when the file opens again), and a
@@ -124,7 +126,8 @@ can be charged by Google for what AI help uses; without billing, the free tier c
 - You can delete `ai-cache`, `server.log` or `server.log.1` in the folder above whenever you like.
 - **Forget what this workbook saved** (in the pane, under Options > Saved in this workbook) removes everything the pane
   saved in the open workbook: the limits, the strength slider, the auto-fix list with its old values, the old values
-  Accept keeps for Undo, the code of each row you fixed or dismissed, the colours your highlighted cells had before,
+  Accept keeps for Undo, the code of each row you fixed or dismissed, the codes of the values you dismissed and the
+  checks you stopped, the colours your highlighted cells had before,
   the numbers of the last check, and the setting that opens the pane with the file. It changes no cell. Save the workbook
   afterwards to keep the change in the file.
 - **Forget what the AI learned** is in the pane, under Options > AI help. It removes every fix Ask AI remembers on this
