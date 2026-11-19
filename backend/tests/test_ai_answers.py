@@ -90,14 +90,14 @@ def test_a_column_the_request_names_is_kept_when_a_wide_row_is_trimmed(monkeypat
     # AH-42: "fix the Email typo" on a wide row sent only Amount's neighbours, so the AI never saw Email and its
     # answer was left out as written blind
     out, prompt = wide(monkeypatch, "Email", "fix the Email typo")
-    assert "A=Email" in prompt and "A7='p5@x.com'" in prompt, prompt
+    assert "A=Email" in prompt and "A7='[EMAIL_1]'" in prompt, prompt  # AH-206: shown, the address as its token
     assert out["changes"] == [{"cell": "A7", "new": "p5@x.com"}] and "Left out" not in out["explanation"], out
 
 
 def test_a_header_inside_another_word_of_the_request_is_not_named(monkeypatch):
     # "page" holds "age": a header counts only as a whole word, so Age is still cut and its cell not written blind
     out, prompt = wide(monkeypatch, "Age", "fix the page")
-    assert "A=Age" not in prompt and "p5@x.com" not in prompt, prompt
+    assert "A=Age" not in prompt and "[EMAIL_" not in prompt, prompt  # AH-206: column A, its address masked, cut
     assert out["changes"] == [] and "A7" in out["explanation"], out
 
 

@@ -1,6 +1,7 @@
 """AI eval: is a prompt change better, on answers with known labels? "No eval set, no change" (docs/ai-engineering).
 Usage: python backend/bench/ai_eval.py . [--dry-run] [--yes] [--split dev|held|both] [--arms base,...] [--runs 3]
-       [--max-requests 200] [--out ai-eval-results.jsonl] [--model gemini-...] [--retrieval]
+       [--max-requests 200] [--out ai-eval-results.jsonl] [--model gemini-...] [--retrieval] [--only pii]
+--only keeps the cases whose id holds that text (":pii:" = AH-206's): an arm that changes only those asks only them.
 --retrieval only measures Ask AI's memory ranking offline (recall@1 of memory.rank vs newest first), sending nothing.
 An arm whose request is byte for byte one already answered in the same run (base's, mostly) takes that answer: asking
 it again only measured noise (AH-153).
@@ -196,6 +197,38 @@ def bias_cases(split):
     return out
 
 
+def pii_cases(split):
+    """AH-206: sheets that hold emails, phones, SSNs and card numbers (the arm "no_mask" sends them as typed, base as
+    tokens): a slip elsewhere in the row, a phone typed into the Email column, and a typo inside an email the user asks
+    to fix, where a token hides the very letters to fix. Synthetic people and numbers, a fresh draw per split (dev 7,
+    held 8); each row must be flagged by the real engine (a test checks it)."""
+    r, app, out = random.Random({"dev": 7, "held": 8}[split]), create_app().test_client(), []
+    first, last = ["Anna", "Ben", "Chen", "Dana", "Eli", "Fatima", "Gus", "Hana", "Ivan", "Jo"], ["Reyes", "Okafor", "Novak", "Haddad", "Silva"]
+    names = [f"{first[k % 10]} {last[(k * 3 + r.randint(0, 4)) % 5]}" for k in range(40)]
+    email = lambda k: f"{names[k].split()[0].lower()}.{names[k].split()[1].lower()}{k}@{r.choice(['gmail.com', 'example.com'])}"
+    phone = lambda: f"({r.randint(201, 989)}) 555-{r.randint(1000, 9999)}"
+
+    def add(name, cols, rows, i, label, intent=""):
+        res, limits = _scan(app, cols, rows)
+        out.append({"id": f"{split}:pii:{name}", "kind": f"pii_{label[0]}", "columns": cols, "rows": rows, "i": i, "start_row": 0,
+                    "start_col": 0, "reason": res[i]["reason"], "intent": intent, "limits": limits, "label": label,
+                    "flagged": res[i]["severity"] not in (None, "Noted")})
+    cols = ["Customer", "Email", "Phone", "Plan", "Monthly fee"]
+    base = lambda: [[names[k], email(k), phone(), r.choice(["Basic", "Plus", "Pro"]), r.choice([19.0, 29.0, 49.0])] for k in range(40)]
+    rows = base(); true = rows[20][4]; rows[20][4] = true * 10  # a fee with an extra zero, emails and phones all around it
+    add("fee_x10", cols, rows, 20, ("value", "E22", true))
+    rows = base(); rows[20][1], rows[20][2], typed = rows[20][2], "", rows[20][2]  # the phone typed into Email, Phone blank
+    add("phone_in_email", cols, rows, 20, ("cells", {"C22": typed}))
+    rows = base(); rows[20][4] *= 10; good = rows[20][1].replace("@gmail.com", "@example.com")
+    rows[20][1] = good.replace("@example.com", "@exmaple.com")  # the domain typed wrong: the token hides it
+    add("email_typo_asked", cols, rows, 20, ("cells", {"B22": good}), intent="Also fix the typo in this customer's email address")
+    pay = [[names[k], f"{r.randint(100, 665)}-{r.randint(10, 99)}-{r.randint(1000, 9999)}", email(k),
+            "4111 1111 1111 1111" if k % 2 else "5555 5555 5555 4444", r.randint(48, 72) * 1000] for k in range(40)]
+    true = pay[20][4]; pay[20][4] = -true  # a salary typed with a minus, SSNs and cards in the row
+    add("salary_sign", ["Employee", "SSN", "Email", "Card on file", "Salary"], pay, 20, ("value", "E22", true))
+    return out
+
+
 def _kind(c):
     """The reason's part naming the plant's column, as the pane keeps it (fix.js issuesOf: "this is" stays with its part)."""
     parts = []
@@ -368,11 +401,12 @@ def _arm(name):
     is the relay's (max_tokens 4096), so arms differ only in what they set."""
     for k, fn in (("fix", "_fix_prompt"), ("odd", "_odd_prompt")):
         setattr(client, fn, ARMS[name].get(k, ORIG[fn]))
+    client.MASK = ARMS[name].get("mask", ORIG["MASK"])
     extra = ARMS[name].get("body", {})
     client._body = lambda p, s=client.FIX_SCHEMA, n="fix": {**ORIG["_body"](p, s, n), "max_tokens": 4096, **extra}
 
 
-ORIG = {"_fix_prompt": client._fix_prompt, "_odd_prompt": client._odd_prompt, "_body": client._body}
+ORIG = {"_fix_prompt": client._fix_prompt, "_odd_prompt": client._odd_prompt, "_body": client._body, "MASK": client.MASK}
 # the real-world notes (ai/bias_context.py) after the reason; not in the app until this arm wins on dev and held-out
 ARMS["bias_context"] = {"fix": bias_context.with_rules(ORIG["_fix_prompt"], lambda p: client._fits(p))}
 # John's brief (AH-12) asked for temperature 0.1: a model setting, so it waits for its numbers like a prompt change.
@@ -380,6 +414,8 @@ ARMS["bias_context"] = {"fix": bias_context.with_rules(ORIG["_fix_prompt"], lamb
 # base run: --arms base,temperature_0.1. Note the relay builds its own request body (relay/worker.js): if this arm
 # wins, the relay needs the same field, or invited users keep the default.
 ARMS["temperature_0.1"] = {"body": {"temperature": 0.1}}
+# AH-206: Ask AI as it was before, every email, phone, SSN and card number sent as typed (pii_cases); base masks them
+ARMS["no_mask"] = {"mask": False}
 # the user's past fixes of the flagged column (ai/memory.py, AH-143), in the request after the reason; cases: memory_cases
 # and memory_store_cases. "memory" = the newest 5 as the pane gives them; "memory_ranked" = ranked and chosen (AH-153),
 # the one the app would switch on
@@ -469,7 +505,7 @@ def _prompts(job):
 def jobs(split, repo, fix=None, odd=ODD):
     """(case, the call that answers it) for one split."""
     fix = (bench_cases(split, repo) + bias_cases(split) + memory_cases(split, repo) + memory_store_cases(split, repo)
-           + (hand_cases() if split == "dev" else [])
+           + pii_cases(split) + (hand_cases() if split == "dev" else [])
            if fix is None else fix)
     run_fix = lambda c: lambda: client.suggest_fix(c["columns"], c["rows"], c["i"], c["start_row"], c["start_col"], c["reason"], c["intent"],
                                                    c.get("formulas"), memory=c.get("memory"))
@@ -504,7 +540,7 @@ def main(argv):
         return 2
     key = os.environ["GEMINI_API_KEY"]  # held here: a key removed mid-run can't switch the run to the relay or to Claude
     client.provider, client.gemini_key = lambda: "gemini", lambda: key
-    cases = {s: jobs(s, repo) for s in splits}
+    cases = {s: [(c, j) for c, j in jobs(s, repo) if arg("--only", "") in c["id"]] for s in splits}
     arms = sorted(arms, key=lambda a: a != "base")  # base first: an arm whose request is base's takes base's answer
     plan = [(a, s, r, c, j) for s in splits for c, j in cases[s] for a in arms for r in range(runs)]
     sizes, reused, unsendable, seen = {(a, s): [] for s in splits for a in arms}, {}, [], set()

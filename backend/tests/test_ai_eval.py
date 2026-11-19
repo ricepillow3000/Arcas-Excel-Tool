@@ -25,7 +25,7 @@ ODD1 = [({"Item": ["Pen", "Desk", "London"]}, {"London"}, set(), {"Desk"})]
 @pytest.fixture
 def run(monkeypatch, tmp_path):
     """ai_eval.main on one fix case (and optionally one word check) against a fake Google -> (exit code, urls, out)."""
-    for name in ("_body", "_fix_prompt", "_odd_prompt", "provider", "gemini_key", "GEMINI_MODEL", "GEMINI_FALLBACKS"):
+    for name in ("_body", "_fix_prompt", "_odd_prompt", "provider", "gemini_key", "GEMINI_MODEL", "GEMINI_FALLBACKS", "MASK"):
         monkeypatch.setattr(client, name, getattr(client, name))  # main swaps these in its own process: put them back
     monkeypatch.setattr(client.urllib.request, "urlopen", client.urllib.request.urlopen)
     urls, todo, hooks, jobs, bodies, answer = [], [], [], ai_eval.jobs, [], [None]
@@ -355,3 +355,25 @@ def test_on_a_40_column_sheet_the_schema_arms_request_still_fits_and_names_only_
         assert len(client._wire(p)) <= client.BUDGET and len(line.encode()) <= 500, arm
         shown = next(x for x in p.splitlines() if x.startswith("Columns: "))
         assert {x.split("=")[0] for x in line.split(": ", 1)[1].split("; ")} <= {x.split("=")[0] for x in shown[9:].split(", ")}, arm
+
+
+def test_the_pii_cases_are_flagged_and_labelled_and_only_the_no_mask_arm_sends_their_emails_phones_ssns_and_cards():
+    # AH-206: base is the app (masked); no_mask is Ask AI before it, so their paired numbers are what masking costs
+    for split in ai_eval.SPLITS:
+        cases = ai_eval.pii_cases(split)
+        assert len(cases) == 4 and all(c["flagged"] and c["id"].startswith(f"{split}:pii:") for c in cases)
+        for c in cases:
+            run = lambda: client.suggest_fix(c["columns"], c["rows"], c["i"], 0, 0, c["reason"], c["intent"])
+            ai_eval._arm("no_mask")
+            try:
+                raw = ai_eval._prompts(run)[0]
+            finally:
+                ai_eval._arm("base")
+            masked = ai_eval._prompts(run)[0]
+            assert "@" in raw and "@" not in masked and "[EMAIL_1]" in masked, c["id"]
+            assert len(client._wire(raw)) <= client.BUDGET and len(client._wire(masked)) <= client.BUDGET
+            lab = c["label"]
+            good = [{"cell": lab[1], "new": str(lab[2])}] if lab[0] == "value" else [{"cell": k, "new": v} for k, v in lab[1].items()]
+            assert ai_eval.right(c, good) and not ai_eval.right(c, []), c["id"]
+    assert ai_eval.pii_cases("dev")[0]["rows"] != ai_eval.pii_cases("held")[0]["rows"]  # held-out is a fresh draw
+    assert client.MASK is True  # on in the app

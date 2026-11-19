@@ -19,7 +19,7 @@ from openpyxl.utils import column_index_from_string, get_column_letter
 from pydantic import BaseModel, ValidationError
 
 from anomaly_hunter import sealed
-from anomaly_hunter.ai import bias_context
+from anomaly_hunter.ai import bias_context, pii
 from anomaly_hunter.ai import memory as past
 from anomaly_hunter.ai.memory import with_memory
 
@@ -596,6 +596,26 @@ def subject_rules(headers):
     return keep, len(sent)
 
 
+# AH-206: emails, phones, SSNs and card numbers go to the AI as tokens and come back real (ai/pii.py). On in the app;
+# ai_eval.py's arm "no_mask" turns it off to measure what masking costs
+MASK = True
+
+
+def _masked(rows, row_index, formulas, reason, intent):
+    """What Ask AI may send, with its emails, phones, SSNs and card numbers as tokens -> (rows, formulas, reason,
+    intent, {token: value}). The flagged row first, then the rows the prompt may show around it (5 each side, the
+    most tries() shows), then its formulas, the reason and the request: the same input always gets the same tokens.
+    Never a header (the flagged column is found by its name in the real reason) and never the past fixes (memory, off).
+    Check words (odd_text) and Check subject rules are not masked: one judges what a label means, the other sends
+    headers alone."""
+    near = [row_index] + [k for k in range(max(0, row_index - 5), min(len(rows), row_index + 6)) if k != row_index]
+    flat, mapping = pii.mask([v for k in near for v in rows[k]] + list(formulas or []) + [reason or "", intent])
+    rows, at = list(rows), 0
+    for k in near:
+        rows[k], at = flat[at:at + len(rows[k])], at + len(rows[k])
+    return rows, (flat[at:-2] if formulas is not None else None), flat[-2], flat[-1], mapping
+
+
 def suggest_fix(columns, rows, row_index, start_row, start_col, reason, intent, formulas=None, memory=None):
     """-> {explanation, changes: [{cell, new}]}. Invalid cell addresses are dropped. Raises ValueError / anthropic errors.
     memory = up to 20 fixes the user accepted before in this column, newest first, as {h, k, o, n} (AH-143, AH-153)."""
@@ -607,6 +627,12 @@ def suggest_fix(columns, rows, row_index, start_row, start_col, reason, intent, 
     req = f" {words(intent)} "
     named = {j for j, c in enumerate(columns) if words(c) and f" {words(c)} " in req}
     nearest = sorted(range(len(columns)), key=lambda j: (j != flagged, j not in named, abs(j - flagged)))
+    real, said, mapping = rows, formulas, {}
+    if MASK:  # after the flagged and named columns are read from the real reason and request, before the fit
+        rows, formulas, reason, intent, mapping = _masked(rows, row_index, formulas, reason, intent)
+    address = lambda k, j: f"{get_column_letter(1 + start_col + j)}{start_row + 2 + k}"
+    secret = {address(k, j) for k, r in enumerate(rows) if r is not real[k] for j, v in enumerate(r) if v != real[k][j]}
+    secret |= {address(row_index, j) for j, f in enumerate(formulas or []) if f != said[j]}  # the cells sent as a stand-in
     def tries():  # fewer rows around it first (5, 2, 0), then the columns furthest from the flagged one
         yield from ((c, len(columns)) for c in (5, 2, 0))
         # AH-140: a prompt only grows with n, so the widest that fits is found by halving (one by one, 16,000 columns took 81 s)
@@ -627,7 +653,10 @@ def suggest_fix(columns, rows, row_index, start_row, start_col, reason, intent, 
             raise ValueError("Your request is too long to send to the free AI. Shorten it (a sentence or two is enough).")
         raise ValueError("This row is too big to send to the free AI in one piece. Shorten its longest cell, or fix it by hand.")
     _served.model = GEMINI_MODEL
+    # AH-206: the real values back before any guard below, so each judges what would be written (=[EMAIL_1] names
+    # nothing; the address it stands for is no SAFE function). A token this request never gave out stays as typed
     fix = _ask(prompt)
+    fix = Fix(explanation=pii.unmask(fix.explanation, mapping), changes=[CellChange(cell=c.cell, new=pii.unmask(c.new, mapping)) for c in fix.changes])
     # AH-34: a change the card can't show was dropped without a word under an explanation that claimed it
     # ("I set B4 to Sales" over an empty card for "Sheet1!B4"): each one is shown, or named in the explanation
     changes = [{"cell": c.cell.strip().replace("$", "").upper(), "new": c.new} for c in fix.changes]
@@ -648,19 +677,27 @@ def suggest_fix(columns, rows, row_index, start_row, start_col, reason, intent, 
     unknown = [c["cell"] for c in changes if c["cell"] not in outside and unsafe_call(c["new"])]
     away = [c["cell"] for c in changes if not _in_table(c["cell"], start_row, start_col, len(rows), len(columns))]
     part = [c["cell"] for c in changes if c["cell"] in cut]  # it saw only the start of that cell: a rewrite could lose text
+    # AH-206 fix round 1: asked to fix a typo in an email it saw only as [EMAIL_3], the AI made one up from the name in
+    # 9 of 10 runs. A cell that went out as a stand-in takes only a real value this request hid (moved or kept) or a
+    # blank, never a new one; and a stand-in the request never gave out is never written anywhere
+    held = set(mapping.values())
+    hidden = [c["cell"] for c in changes if c["cell"] not in set(loops + outside + unknown + away + part) and (
+        pii.TOKEN.search(c["new"]) or c["cell"] in secret and c["new"].strip() and c["new"] not in held)]
     at = lambda cell: re.fullmatch(r"([A-Z]+)(\d+)", cell).groups()
-    blind = [c["cell"] for c in changes if c["cell"] not in set(loops + outside + unknown + away + part)
+    blind = [c["cell"] for c in changes if c["cell"] not in set(loops + outside + unknown + away + part + hidden)
              and (at(c["cell"])[0] not in shown_cols or int(at(c["cell"])[1]) not in shown_rows)]
     # John, 2026-10-16: with no typed request, only the flagged row. An injected cell could talk a default Ask AI into
     # plain writes all over the table, and the pane's re-check looks at the flagged row only. A typed request may.
     row = str(start_row + 2 + row_index)
-    seen = set(loops + outside + unknown + away + part + blind)
+    seen = set(loops + outside + unknown + away + part + hidden + blind)
     others = [] if intent.strip() else [c["cell"] for c in changes
                                         if c["cell"] not in seen and re.fullmatch(r"[A-Z]+(\d+)", c["cell"]).group(1) != row]
     note = "".join(f" (Left out {', '.join(cells)}: {why}.)" for cells, why in (
         (loops, "the formula referred to its own cell, which Excel can't calculate"), (outside, "the formula reached outside this workbook"),
         (unknown, "the formula used a function that is not on this add-in's safe list"),
         (away, "outside the table"), (part, "only part of that cell could be sent to the AI, so it is left as it is"),
+        (hidden, "Ask AI never sees emails, phone numbers, Social Security or card numbers, so it can't write a new one "
+                 "there: fix it by hand"),
         (blind, "the AI is shown only the rows and columns near the flagged cell, so it can't know what is there - for a "
                 "change in every row, use Excel's Find and Replace (Ctrl+H)"),
         (others, "not in the flagged row - to change the rows shown around it too, say so in your request"),
@@ -673,5 +710,5 @@ def suggest_fix(columns, rows, row_index, start_row, start_col, reason, intent, 
     here = f"{get_column_letter(1 + start_col + flagged)}{start_row + 2 + row_index}"
     new = next((c["new"] for c in changes if c["cell"] == here), None)
     return {"explanation": fix.explanation + note, "changes": changes,
-            **(past.attribute(prompt, memory, rows[row_index][flagged], new) if new is not None else {}),
+            **(past.attribute(prompt, memory, real[row_index][flagged], new) if new is not None else {}),
             **({"model": _served.model} if _served.model != GEMINI_MODEL else {})}
