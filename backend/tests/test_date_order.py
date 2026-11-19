@@ -53,3 +53,54 @@ def test_fifty_rows_are_enough_and_forty_nine_are_not():
 
 def test_two_rows_against_the_order_are_how_the_dates_are_never_a_slip():
     assert said(scan(sheet(wrong=(20, 30)))) == {}
+
+
+# AH-210: what the tuning episodes found. A date already far outside its column (a year typed 2125) is that date's slip:
+# it was counted as a second row against the order, so a real "returned before checked out" two rows on went unsaid
+def test_a_date_far_outside_its_column_never_hides_another_row_against_the_order():
+    rows = sheet(51)
+    rows[10][1] = "2126-01-10"  # shipped a century out: its own slip, and also "delivered before it shipped"
+    out = scan(rows)
+    assert said(out) == {30: ("Medium", ["Delivered"])}
+    assert "far outside" in out[10]["reason"]
+
+
+def test_a_far_date_in_a_third_column_never_excuses_two_rows_against_the_order():
+    rows = [r + [(datetime.date.fromisoformat(r[2]) + datetime.timedelta(days=4)).isoformat()] for r in sheet(51, wrong=(20, 30))]
+    rows[20][4] = "2126-02-01"  # invoiced a century out: it says nothing of Shipped and Delivered
+    r = APP.post("/scan", json={"columns": COLS + ["Invoiced"], "rows": rows, "strength": 5})
+    assert {i for i, x in enumerate(r.get_json()["rows"]) if "Delivered" in x["reason"] and "is before Shipped" in x["reason"]} == set()
+
+
+# ...and one slip changes one date: a ticket closed a month before it was opened and first answered breaks two orders,
+# its other dates none between them, so Closed alone is named (First Response was coloured too)
+TICKET = ["Ticket", "Opened", "First Response", "Closed", "Minutes"]
+
+
+def tickets(n=60, wrong=None):
+    rows = []
+    for k in range(n):
+        opened = datetime.date(2026, 3, 1) + datetime.timedelta(days=(k * 7) % 40)  # no column runs up the sheet
+        first = opened + datetime.timedelta(days=k % 2)
+        rows.append([f"T{k:03}", opened.isoformat(), first.isoformat(),
+                     (first + datetime.timedelta(days=1 + k % 5)).isoformat(), 5 + k % 30])
+    if wrong is not None:
+        i, col, days = wrong
+        rows[i][col] = (datetime.date.fromisoformat(rows[i][1]) + datetime.timedelta(days=days)).isoformat()
+    return rows
+
+
+def ticket_said(rows):
+    r = APP.post("/scan", json={"columns": TICKET, "rows": rows, "strength": 5})
+    return {i: (x["severity"], x["cells"]) for i, x in enumerate(r.get_json()["rows"]) if "is before" in x["reason"]}
+
+
+def test_the_date_that_breaks_its_order_with_two_other_dates_of_the_row_is_named_alone():
+    assert ticket_said(tickets(wrong=(25, 3, -30))) == {25: ("Medium", ["Closed"])}
+
+
+def test_a_date_that_breaks_one_order_only_names_both_when_neither_is_the_sheets_order():
+    rows = tickets()
+    rows[25][3] = rows[25][1]  # closed the day it opened, but a day before its first response (opened the day before)
+    rows[25][2] = (datetime.date.fromisoformat(rows[25][1]) + datetime.timedelta(days=1)).isoformat()
+    assert ticket_said(rows) == {25: ("Medium", ["First Response", "Closed"])}

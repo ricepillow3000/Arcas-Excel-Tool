@@ -214,6 +214,9 @@ def _code(num):
     return None
 
 
+AS_TEXT = 0.01  # a number column's cells typed as text with a space beside them, at most max(2, this share): a slip each
+
+
 class _Shared(dict):
     """Set once, never changed: pandas deep-copies a frame's attrs on every operation, and copying 638 row numbers per
     column each time made a 20,000-row R export scan 2x slower (6 s -> 15 s, AH-27 build). Copies share this one."""
@@ -245,6 +248,7 @@ def _coerce(df, cols):
     # column -> its width: digit codes kept as typed, "02134" never 2134 (AH-75)
     padded = {c: w for c, t in types.items() if t in ("id", "text") and (w := _padded(df[c]))}
     written = {}  # column -> each date as typed: the form it was written in is lost once read (AH-76)
+    as_text = {}  # column -> {row: the cell as typed}: a number typed as text, a space beside it (AH-210)
     for c, t in types.items():
         if c in padded:
             continue
@@ -257,6 +261,13 @@ def _coerce(df, cols):
             bad = num.isna() & ~_blank(df[c])
             if t == "number":  # text in a measurement is an error...
                 errors += [(i, c, df.at[i, c]) for i in df.index[bad]]
+                # ...and so is a number typed as text: a number cell reaches the engine with no space beside it, a text
+                # cell "48 " with its space, and Excel's SUM and averages leave it out (Excel's own "number stored as
+                # text"). A few at most (AS_TEXT): a column padded on every row is how its export writes (AH-210)
+                raw = df[c].astype(str)
+                spaced = num.notna() & (raw != raw.str.strip())
+                if 0 < spaced.sum() <= max(2, AS_TEXT * num.notna().sum()):
+                    as_text[c] = {i: raw[i] for i in df.index[spaced]}
                 if found := _code(num):
                     codes[c] = (frozenset(found[1]), found[0])
                     num = num.mask(num.index.isin(found[1]))
@@ -274,6 +285,7 @@ def _coerce(df, cols):
     df.attrs["codes"] = _Shared(codes)
     df.attrs["padded"] = _Shared(padded)
     df.attrs["written"] = _Shared(written)
+    df.attrs["as_text"] = _Shared(as_text)
     return types, errors
 
 
