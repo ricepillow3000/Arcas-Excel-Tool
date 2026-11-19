@@ -82,9 +82,9 @@ h1, h2, h3 { color: var(--navy); }
 /* the navy band on top: the Spear and Banner straight on it and the name flush left, the sheet's name under a hairline */
 header { padding: var(--s3) var(--margin); background: var(--tex-navy), var(--navy); color: var(--on-navy); border-bottom: 1px solid var(--gold-hi); }
 header .brand { display: flex; align-items: center; gap: var(--s3); }
-.mark, .mk { display: block; flex: none; line-height: 0; } /* on the navy band the mark sits on its paper square, the ribbon's
-   own icon (crest4-32.png), so its wine, navy and gold keep their true colours: drawn in tints for navy they read too
-   bright and the gold not gold (John, 2026-11-19, AH-203) */
+.mark, .mk { display: block; flex: none; line-height: 0; height: 32px; padding-top: 1px; box-sizing: border-box; } /* no box
+   round the mark on the navy band (John, 2026-11-19: "no white box ... visible at 100%"): crest4-band.svg, its night steps
+   3:1 on navy, 29 px tall in the 32 px slot, its top on a whole pixel so its rows stay sharp (AH-203) */
 .mark img, .mk img { display: block; }
 h1 { margin: 0; font: 800 var(--fs-1)/1 var(--sans); color: var(--on-navy); }
 .sheet-name { margin: var(--s3) 0 0; padding-top: var(--s2); border-top: 1px solid var(--rule-navy); font: 700 var(--fs--1)/1.4 var(--sans);

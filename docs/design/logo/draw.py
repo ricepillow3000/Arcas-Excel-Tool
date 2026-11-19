@@ -11,6 +11,10 @@ HERE = Path(__file__).parent
 GOLD, PAPER = "#997D3A", "#F7F5F0"
 # wine to navy in even OKLab lightness steps, the middle steps' colour held up (a straight mix sagged to grey)
 STEPS = ["#6B1E2E", "#5B1E30", "#4B1C35", "#371C3A", "#211B3C", "#0C1938"]
+# the night steps, for a navy band with no box round the mark (John: "no white box ... visible at 100%"): the same wine
+# and navy lifted only to 3:1 on navy, WCAG's floor for a graphic, so the mark shows yet stays deep (pale tints at 4.5:1
+# and up read "way too bright" and the gold "not gold"); the base a slate navy, never a royal blue; the cell the true gold
+NIGHT = ["#B03D54", "#9F4B66", "#8C5477", "#795B87", "#5A6398", "#52659A"]
 # each row's tiles as spans of 6 columns; "G" is the gold tile, in the opening above the crossbar
 ROWS = [[(0, 2, ""), (2, 4, ""), (4, 6, "")], [(0, 2, ""), (4, 6, "")], [(0, 2, ""), (2, 4, "G"), (4, 6, "")],
         [(0, 2, ""), (2, 4, ""), (4, 6, "")], [(0, 2, ""), (4, 6, "")], [(0, 2, ""), (4, 6, "")]]
@@ -21,7 +25,7 @@ def num(v):
     return f"{round(v, 3):g}"
 
 
-def tiles(h, g, ox=0.0, oy=0):
+def tiles(h, g, ox=0.0, oy=0, steps=STEPS):
     """The A at row height h and gap g (whole pixels where it is shown), its top left at (ox, oy). Every slanted
     edge points at one vanishing point above the A, so the tiles lean as its sides do."""
     H = 6 * h + 5 * g
@@ -37,19 +41,18 @@ def tiles(h, g, ox=0.0, oy=0):
             dl, dr = (0 if c0 == 0 else g / 2), (0 if c1 == 6 else g / 2)
             pts = [(x(u0, y0) + dl, y0), (x(u1, y0) - dr, y0), (x(u1, y1) - dr, y1), (x(u0, y1) + dl, y1)]
             d = "M" + " L".join(f"{num(px)} {num(oy + py)}" for px, py in pts) + " Z"
-            part, fill = ("cell", GOLD) if kind == "G" else ("tile", STEPS[r])
+            part, fill = ("cell", GOLD) if kind == "G" else ("tile", steps[r])
             out.append(f'<path data-part="{part}" data-row="{r}" d="{d}" fill="{fill}"/>')
     return "".join(out), wb, H
 
 
-def mark(h, g):
-    body, wb, H = tiles(h, g)
+def mark(h, g, steps=STEPS):
+    body, wb, H = tiles(h, g, steps=steps)
     return f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {num(wb)} {H}">{body}</svg>\n'
 
 
 def icon(side, h, g):
-    """The mark on a paper square: on a dark ribbon or tab, and on the pane's navy band, it keeps its true colours
-    (wine is 1.6:1 on navy; tints drawn for navy read too bright and the gold not gold, John 2026-11-19)."""
+    """The mark on a paper square: on a dark ribbon or tab it keeps its true colours (wine is 1.6:1 on navy)."""
     body, wb, H = tiles(h, g, ox=(side - (6 * h + 5 * g) / TALL) / 2, oy=(side - (6 * h + 5 * g)) // 2)
     return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {side} {side}"><rect width="{side}" height="{side}" '
             f'fill="{PAPER}"/>{body}</svg>\n')
@@ -86,6 +89,7 @@ DRAWINGS = {
     "mark-157.svg": lambda: mark(22, 5),             # the download's logo, shown 157 px tall; the sharing card
     "mark-29.svg": lambda: mark(4, 1),               # the site header, 29 px tall (1.8 times its 16 px capitals)
     "mark-23.svg": lambda: mark(3, 1),               # the pane on paper (Check as you work's note), 23 px tall
+    "band-29.svg": lambda: mark(4, 1, NIGHT),        # the pane's navy bands, no box: 29 px, its old 32 px slot
     "icon-16.svg": lambda: pixel_icon(16),
     "icon-32.svg": lambda: pixel_icon(32),
     "icon-48.svg": lambda: icon(48, 6, 1),

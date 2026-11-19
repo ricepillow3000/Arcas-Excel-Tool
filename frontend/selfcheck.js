@@ -944,4 +944,23 @@ for (const f of readdirSync(new URL(".", import.meta.url)).filter((f) => f.endsW
   }
 }
 
+// AH-203: on navy (the pane's header and footer, its privacy and support pages) the mark has no box round it: John, "no
+// white box in the Excel pane header or footer ... visible at 100%". crest4-band.svg is the mark in its night steps, every
+// tile and the gold cell 3 to 3.6 times as light as the navy under it: seen at a glance (WCAG's 3:1 for a graphic), never
+// the pale tints John found "way too bright" (4.5:1 and up), and no shape that paints a plate behind it
+{
+  const lum = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255).map((c) => c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)
+    .reduce((s, c, i) => s + c * [0.2126, 0.7152, 0.0722][i], 0);
+  const ratio = (a, b) => (Math.max(lum(a), lum(b)) + 0.05) / (Math.min(lum(a), lum(b)) + 0.05);
+  const band = readFileSync(new URL("assets/crest4-band.svg", import.meta.url), "utf8"), fills = [...band.matchAll(/fill="(#[0-9A-Fa-f]{6})"/g)].map((m) => m[1]);
+  assert.ok(fills.length === 15 && !/<rect\b/.test(band), "crest4-band.svg: not 14 tiles and a gold cell, or a plate behind them");
+  for (const f of new Set(fills)) { const r = ratio(f, "#0C1938"); assert.ok(r >= 3 && r <= 4.5, `crest4-band.svg: ${f} is ${r.toFixed(2)}:1 on navy, not 3 to 4.5`); }
+  const deep = fills.filter((f) => f !== "#997D3A").map((f) => ratio(f, "#0C1938"));
+  assert.ok(Math.max(...deep) <= 3.6, `crest4-band.svg: a tile ${Math.max(...deep).toFixed(2)}:1 on navy reads too bright (3.6 at most)`);
+  for (const page of ["taskpane.html", "privacy.html", "support.html"]) {
+    const html = readFileSync(new URL(page, import.meta.url), "utf8");
+    assert.ok(!/crest4-(32|64)\.png/.test(html.replace(/<link[^>]*>/g, "")), `${page}: the mark on navy sits on its paper square (a white box)`);
+  }
+}
+
 console.log("panel self-check passed");
