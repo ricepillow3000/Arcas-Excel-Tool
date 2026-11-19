@@ -914,10 +914,9 @@ for (const f of readdirSync(new URL(".", import.meta.url)).filter((f) => f.endsW
   assert.equal(noteSaid("Sales", findingsAt(rows, s, {}, ["B3"])[0], 3, {}), 'Sheet "Sales", cell B3: Probably wrong. Units is 900, above its usual limit of 90 (likely 90). And 3 more in what you changed.');
 }
 
-// AH-203: the 16 and 32 px icons (ribbon, favicon, the exe's), read pixel by pixel. Each pixel is paper, gold or one of the
-// six steps from wine to navy (a blend between two read as a smudge at 16 px); every row is its own mirror image; the
-// mark keeps a paper edge round it; and the gold is one solid cell, 2 x 2 at 16 and 6 x 4 at 32 (a gold bar fused to the
-// crossbar at 16 px read as an arch with a lantern, not an A)
+// AH-203: the 16 and 32 px icons (ribbon, favicon, the exe's) are the mark's coin, read pixel by pixel: round (its corners
+// empty), every row its own mirror image, the gold only in the ring (the A has no gold tile), and the A's rows in the true
+// wine and navy; at 16 px every pixel is one of the coin's colours (it is placed pixel by pixel)
 {
   const rgba = (file) => { // an 8-bit RGB or RGBA PNG, as Chromium writes it (RGB when every pixel is opaque)
     const b = readFileSync(new URL(file, import.meta.url)), w = b.readUInt32BE(16), h = b.readUInt32BE(20), parts = [];
@@ -930,36 +929,40 @@ for (const f of readdirSync(new URL(".", import.meta.url)).filter((f) => f.endsW
       const p = a + up - c, pr = Math.abs(p - a) <= Math.abs(p - up) && Math.abs(p - a) <= Math.abs(p - c) ? a : Math.abs(p - up) <= Math.abs(p - c) ? up : c;
       out[y * row + x] = (v + [0, a, up, (a + up) >> 1, pr][f]) & 255;
     }
-    const PAL = { "247,245,240,255": "p", "153,125,58,255": "g", "107,30,46,255": "1", "91,30,48,255": "2", "75,28,53,255": "3", "55,28,58,255": "4", "33,27,60,255": "5", "12,25,56,255": "6" };
-    return { w, h, at: (x, y) => PAL[[...out.subarray((y * w + x) * n, (y * w + x) * n + 3), n === 4 ? out[(y * w + x) * n + 3] : 255].join()] || "?" };
+    return { w, h, px: (x, y) => [...out.subarray((y * w + x) * n, (y * w + x) * n + 3), n === 4 ? out[(y * w + x) * n + 3] : 255] };
   };
-  for (const [n, cw, ch] of [[16, 2, 2], [32, 6, 4]]) {
-    const { w, h, at } = rgba(`assets/crest4-${n}.png`), rows = [];
-    for (let y = 0; y < h; y++) { let r = ""; for (let x = 0; x < w; x++) r += at(x, y); rows.push(r); }
-    assert.ok(!rows.join("").includes("?"), `crest4-${n}.png: a pixel outside the palette`);
-    rows.forEach((r, y) => assert.equal(r, [...r].reverse().join(""), `crest4-${n}.png: row ${y} is not its own mirror image`));
-    assert.ok(/^p+$/.test(rows[0] + rows[h - 1] + rows.map((r) => r[0] + r[w - 1]).join("")), `crest4-${n}.png: the mark touches the icon's edge`);
-    const gold = rows.flatMap((r, y) => [...r].map((c, x) => c === "g" ? [x, y] : null).filter(Boolean)), xs = gold.map(([x]) => x), ys = gold.map(([, y]) => y);
-    assert.ok(gold.length === cw * ch && Math.max(...xs) - Math.min(...xs) + 1 === cw && Math.max(...ys) - Math.min(...ys) + 1 === ch, `crest4-${n}.png: the gold is not one ${cw} x ${ch} cell`);
+  const hex = (p) => "#" + p.slice(0, 3).map((v) => v.toString(16).padStart(2, "0")).join("").toUpperCase();
+  const STEPS = ["#6B1E2E", "#5B1E30", "#4B1C35", "#371C3A", "#211B3C", "#0C1938"], GOLD = "#997D3A";
+  for (const n of [16, 32]) {
+    const { w, h, px } = rgba(`assets/crest4-${n}.png`), c = w / 2, seen = new Set();
+    for (const [x, y] of [[0, 0], [w - 1, 0], [0, h - 1], [w - 1, h - 1]]) assert.equal(px(x, y)[3], 0, `crest4-${n}.png: a corner is not empty`);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const p = px(x, y), q = px(n === 16 ? w - 1 - x : w - 1 - x, y);
+      if (n === 16) assert.deepEqual(p, q, `crest4-16.png: row ${y} is not its own mirror image`);
+      if (p[3] === 255) seen.add(hex(p));
+      if (hex(p) === GOLD && p[3] === 255) assert.ok(Math.hypot(x + 0.5 - c, y + 0.5 - c) > c * 0.75, `crest4-${n}.png: gold inside the ring at ${x},${y}`);
+    }
+    assert.ok(seen.has(GOLD) && seen.has(STEPS[0]) && seen.has(STEPS[5]), `crest4-${n}.png: no gold ring, wine top or navy foot`);
+    if (n === 16) assert.deepEqual([...seen].filter((k) => k !== GOLD && k !== "#F3F1EA" && !STEPS.includes(k)), [], "crest4-16.png: a pixel outside the coin's colours");
   }
 }
 
-// AH-203: on navy (the pane's header and footer, its privacy and support pages) the mark has no box round it: John, "no
-// white box in the Excel pane header or footer ... visible at 100%". crest4-band.svg is the mark in its night steps, every
-// tile and the gold cell 3 to 3.6 times as light as the navy under it: seen at a glance (WCAG's 3:1 for a graphic), never
-// the pale tints John found "way too bright" (4.5:1 and up), and no shape that paints a plate behind it
+// AH-203: on navy (the pane's header and footer, its privacy and support pages) no box round the mark: John, "no white box
+// in the Excel pane header or footer ... visible at 100%". The mark is its paper coin in a gold ring (crest4-coin.svg): the
+// tiles in their true steps, wine to navy (tints drawn for navy read "way too bright"), a gold ring, no square plate; the
+// header draws it inline (its ring sweeps once) and every other place shows the file, never a paper icon
 {
-  const lum = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255).map((c) => c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)
-    .reduce((s, c, i) => s + c * [0.2126, 0.7152, 0.0722][i], 0);
-  const ratio = (a, b) => (Math.max(lum(a), lum(b)) + 0.05) / (Math.min(lum(a), lum(b)) + 0.05);
-  const band = readFileSync(new URL("assets/crest4-band.svg", import.meta.url), "utf8"), fills = [...band.matchAll(/fill="(#[0-9A-Fa-f]{6})"/g)].map((m) => m[1]);
-  assert.ok(fills.length === 15 && !/<rect\b/.test(band), "crest4-band.svg: not 14 tiles and a gold cell, or a plate behind them");
-  for (const f of new Set(fills)) { const r = ratio(f, "#0C1938"); assert.ok(r >= 3 && r <= 4.5, `crest4-band.svg: ${f} is ${r.toFixed(2)}:1 on navy, not 3 to 4.5`); }
-  const deep = fills.filter((f) => f !== "#997D3A").map((f) => ratio(f, "#0C1938"));
-  assert.ok(Math.max(...deep) <= 3.6, `crest4-band.svg: a tile ${Math.max(...deep).toFixed(2)}:1 on navy reads too bright (3.6 at most)`);
+  const STEPS = ["#6B1E2E", "#5B1E30", "#4B1C35", "#371C3A", "#211B3C", "#0C1938"];
+  const coin = readFileSync(new URL("assets/crest4-coin.svg", import.meta.url), "utf8");
+  const tiles = [...coin.matchAll(/data-part="tile" data-row="(\d)"[^>]*fill="(#[0-9A-F]{6})"/g)];
+  assert.ok(tiles.length === 14 && tiles.every(([, r, f]) => f === STEPS[+r]), "crest4-coin.svg: not 14 tiles in their true steps, wine to navy");
+  assert.ok(/data-part="ring"[^>]*stroke="#997D3A"/.test(coin) && /data-part="disc"/.test(coin) && !/<rect\b(?![^>]*height="31")[^>]*fill="#F7F5F0"/.test(coin), "crest4-coin.svg: no gold ring or disc, or a square plate");
+  const pane = readFileSync(new URL("taskpane.html", import.meta.url), "utf8");
+  const head = /<span class="mark">(<svg class="coin"[\s\S]*?<\/svg>)<\/span>/.exec(pane);
+  assert.ok(head && head[1].replace(/^<svg [^>]*>/, "") === coin.trim().replace(/^<svg [^>]*>/, ""), "taskpane.html: the header's mark is not crest4-coin.svg");
   for (const page of ["taskpane.html", "privacy.html", "support.html"]) {
-    const html = readFileSync(new URL(page, import.meta.url), "utf8");
-    assert.ok(!/crest4-(32|64)\.png/.test(html.replace(/<link[^>]*>/g, "")), `${page}: the mark on navy sits on its paper square (a white box)`);
+    const html = readFileSync(new URL(page, import.meta.url), "utf8").replace(/<link[^>]*>/g, "");
+    assert.ok(!/crest4-(16|32|64|80)\.png/.test(html), `${page}: a paper icon on the navy band (a white box)`);
   }
 }
 
