@@ -12,6 +12,7 @@ import { onSelect } from "../pages/fix.js";
 import { strength } from "../pages/strength.js";
 import { autoFix, autoOn, autoUndo } from "./autofix.js";
 import { codes, decisionsFor, rowHash } from "./decisions.js";
+import { learnedFor } from "./learned.js";
 import { undosFor } from "./undo-store.js";
 import { hideProfile } from "./profile.js";
 import { bookNotes } from "./tabs.js";
@@ -108,7 +109,7 @@ async function scan(auto, held, t0) {
 
 // The /scan request for a sheet as read, the same for Find problems and for checking as you work (AH-181): the slider's
 // level, the limits the user saved, the rows fixed or dismissed before, each cell's formula. power_bi: only Find problems
-// keeps a copy for Power BI
+// keeps a copy for Power BI. AH-205: and what this sheet learned (values dismissed, checks stopped), so both use it
 export async function scanRequest(s, powerBi) {
   const level = strength(), limits = await getLimits(); // getLimits re-reads the workbook's settings first
   // the rows fixed or dismissed before, in any session: found again by their codes, wherever a sort moved them
@@ -119,7 +120,8 @@ export async function scanRequest(s, powerBi) {
   const request = { columns: s.columns, rows: s.rows, limits, order_by: null, strength: level,
     power_bi: powerBi, start_row: s.startRow, sheet: String(s.sheet).slice(0, 31),
     decisions: Object.keys(decided).length ? s.rows.map((_, i) => decided[i] || null) : null,
-    formulas: s.calc.some((r) => r.some(Boolean)) ? s.calc : null }; // AH-152: each cell's formula, only if any
+    formulas: s.calc.some((r) => r.some(Boolean)) ? s.calc : null, // AH-152: each cell's formula, only if any
+    learned: learnedFor(s) };
   return { level, hashes, keys, decided, request };
 }
 

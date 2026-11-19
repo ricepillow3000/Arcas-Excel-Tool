@@ -3638,5 +3638,195 @@
    "e2e"
   ],
   "modes": "live"
+ },
+ {
+  "id": "learned-cap-loosen",
+  "guard": "/scan learned: at most 500 of each",
+  "file": "backend/anomaly_hunter/server.py",
+  "old": "LEARNED = 500  # AH-205",
+  "new": "LEARNED = 501  # AH-205",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_learned.py::test_a_learned_list_of_the_wrong_shape_or_too_long_is_a_clear_400"
+  ]
+ },
+ {
+  "id": "learned-cap-tighten",
+  "guard": "/scan learned: at most 500 of each",
+  "file": "backend/anomaly_hunter/server.py",
+  "old": "LEARNED = 500  # AH-205",
+  "new": "LEARNED = 499  # AH-205",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_learned.py::test_a_learned_list_at_its_very_limits_is_allowed"
+  ]
+ },
+ {
+  "id": "learned-text-loosen",
+  "guard": "/scan learned: text of at most 200 characters",
+  "file": "backend/anomaly_hunter/server.py",
+  "old": "LEARNED_TEXT = 200  #",
+  "new": "LEARNED_TEXT = 201  #",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_learned.py::test_a_learned_list_of_the_wrong_shape_or_too_long_is_a_clear_400"
+  ]
+ },
+ {
+  "id": "learned-text-tighten",
+  "guard": "/scan learned: text of at most 200 characters",
+  "file": "backend/anomaly_hunter/server.py",
+  "old": "LEARNED_TEXT = 200  #",
+  "new": "LEARNED_TEXT = 199  #",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_learned.py::test_a_learned_list_at_its_very_limits_is_allowed"
+  ]
+ },
+ {
+  "id": "learned-kind-loosen",
+  "guard": "/scan learned: a stopped kind is one the engine names",
+  "file": "backend/anomaly_hunter/server.py",
+  "old": "lambda k: type(k) is str and k in KINDS)",
+  "new": "lambda k: type(k) is str)",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_learned.py::test_a_learned_list_of_the_wrong_shape_or_too_long_is_a_clear_400"
+  ]
+ },
+ {
+  "id": "learned-kind-tighten",
+  "guard": "/scan learned: a stopped kind is one the engine names",
+  "file": "backend/anomaly_hunter/server.py",
+  "old": "lambda k: type(k) is str and k in KINDS)",
+  "new": "lambda k: type(k) is str and k in KINDS[:-1])",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_learned.py::test_every_kind_the_engine_names_may_be_stopped"
+  ]
+ },
+ {
+  "id": "learned-one-cell-loosen",
+  "guard": "A dismissed value silences only the checks of one cell's own value, never a sum",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "ONE_CELL = frozenset((\"limits\", \"spelling\",",
+  "new": "ONE_CELL = frozenset((\"sum\", \"limits\", \"spelling\",",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_learned.py::test_accepting_a_value_never_silences_a_check_of_the_rows_arithmetic"
+  ]
+ },
+ {
+  "id": "learned-one-cell-tighten",
+  "guard": "A dismissed value silences only the checks of one cell's own value, never a sum",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "ONE_CELL = frozenset((\"limits\", \"spelling\",",
+  "new": "ONE_CELL = frozenset((\"limits\",",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_learned.py::test_a_value_dismissed_in_a_column_is_never_flagged_again_in_that_column_and_nothing_else_moves"
+  ]
+ },
+ {
+  "id": "learned-pane-sent-loosen",
+  "guard": "The pane sends at most the 500 learned values the engine takes",
+  "file": "frontend/features/learned.js",
+  "old": "accept: accept.slice(-SENT)",
+  "new": "accept: accept.slice(-SENT - 1)",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "learned-pane-sent-tighten",
+  "guard": "The pane sends at most the 500 learned values the engine takes",
+  "file": "frontend/features/learned.js",
+  "old": "accept: accept.slice(-SENT)",
+  "new": "accept: accept.slice(1 - SENT)",
+  "kind": "tighten",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "learned-pane-text-loosen",
+  "guard": "The pane learns no value longer than the engine takes (200)",
+  "file": "frontend/features/learned.js",
+  "old": "const text = (x) => typeof x === \"string\" && x.length <= TEXT;",
+  "new": "const text = (x) => typeof x === \"string\" && x.length <= TEXT + 1;",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "learned-pane-text-tighten",
+  "guard": "The pane learns no value longer than the engine takes (200)",
+  "file": "frontend/features/learned.js",
+  "old": "const text = (x) => typeof x === \"string\" && x.length <= TEXT;",
+  "new": "const text = (x) => typeof x === \"string\" && x.length < TEXT;",
+  "kind": "tighten",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "learned-forget-values-loosen",
+  "guard": "Forget removes what a Dismiss taught",
+  "file": "frontend/features/forget.js",
+  "old": "  [ACCEPTED_KEY, \"the codes of the values you dismissed\"],\n",
+  "new": "",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "learned-forget-kinds-loosen",
+  "guard": "Forget removes the checks stopped",
+  "file": "frontend/features/forget.js",
+  "old": "  [IGNORED_KEY, \"the checks you stopped\"],\n",
+  "new": "",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "learned-scan-tighten",
+  "guard": "Find problems and Check as you work send what the sheet learned: one scanRequest (AH-205)",
+  "file": "frontend/features/scan.js",
+  "old": "    learned: learnedFor(s) };",
+  "new": "    learned: null };",
+  "kind": "tighten",
+  "tests": [
+   "e2e"
+  ],
+  "modes": "live"
+ },
+ {
+  "id": "learned-teach-tighten",
+  "guard": "A Dismiss teaches the sheet the value it leaves (AH-205)",
+  "file": "frontend/pages/fix.js",
+  "old": "    learnt.values = teach(f.sheet, taught(",
+  "new": "    learnt.values = (() => [])(f.sheet, taught(",
+  "kind": "tighten",
+  "tests": [
+   "e2e"
+  ],
+  "modes": "live"
+ },
+ {
+  "id": "learned-stop-tighten",
+  "guard": "Stop checking keeps the check stopped for the next scan (AH-205)",
+  "file": "frontend/pages/fix.js",
+  "old": "    if (stop) learnt.kinds = stopKind(f.sheet, [stop]);",
+  "new": "    if (stop) learnt.kinds = [];",
+  "kind": "tighten",
+  "tests": [
+   "e2e"
+  ],
+  "modes": "live"
  }
 ]

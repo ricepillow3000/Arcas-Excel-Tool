@@ -17,6 +17,7 @@ import * as K from "./constants/index.js";
 import { remember, forget, recall, clearAll, MAX_KEPT, OFFERED } from "./features/memory.js";
 import { measures, copiedTabs, copiedSaid, lastRowSaid } from "./features/tabs.js";
 import { findingsAt, inRange, ignored, liveable, liveOn, soundOn, noteSaid, checkedSaid, LIVE_ROWS } from "./features/live.js";
+import { asLearned, learnIn, taught, learnedOf, stoppable, KIND_WORDS, ONE_CELL, PER_SHEET as LEARN_CAP, SENT, TEXT } from "./features/learned.js";
 
 // Fixed / Dismissed are kept in the workbook under a code per row, so they outlive the pane (2026-10-20: a dismissed
 // row came back flagged after a reload, an accepted fix vanished). Same values = same code, on any PC, every time.
@@ -911,6 +912,41 @@ for (const f of readdirSync(new URL(".", import.meta.url)).filter((f) => f.endsW
   assert.equal(checkedSaid("Series 3", ["B2:B500"]), 'Checked B2:B500 on "Series 3": nothing unusual.');
   assert.equal(checkedSaid("S", ["A1", "B2", "A1", "C3", "D4", "E5"]), 'Checked A1, B2, C3 and 2 more on "S": nothing unusual.', "each address once, 3 named");
   assert.equal(noteSaid("Sales", findingsAt(rows, s, {}, ["B3"])[0], 3, {}), 'Sheet "Sales", cell B3: Probably wrong. Units is 900, above its usual limit of 90 (likely 90). And 3 more in what you changed.');
+}
+
+
+// AH-205: a Dismiss teaches the sheet the values its one-cell checks named, as codes, never the values; "Stop checking"
+// keeps [kind, column]; both turned back into the /scan's `learned` from the sheet itself, capped as the engine takes it
+{
+  const s = { columns: ["Glass", "Units", "Total"], rows: [["Highball Glass", 7777, 10], ["Highball glass", 5, 10], ["Highball Glass", 7777, 1234.5], ["", 5, 10]] };
+  const kinds = [["spelling", "Glass"], ["limits", "Units"], ["sum", "Total"], ["blank", "Glass"], ["limits", null]];
+  const pairs = taught(kinds, s.columns, s.rows[0]);
+  assert.deepEqual(pairs, [["Glass", hash("Highball Glass")], ["Units", hash("7777")]], "only the one-cell checks of a value teach: never a sum, a blank, a column-less reason");
+  assert.ok(!JSON.stringify(pairs).includes("Highball") && !JSON.stringify(pairs).includes("7777"), "codes, never the values");
+  assert.deepEqual(taught([["spelling", "Glass"]], s.columns, s.rows[3]), [], "a blank is never learned");
+  assert.deepEqual(taught([["spelling", "Glass"]], s.columns, ["x".repeat(TEXT + 1)]), [], "nor a value longer than the engine takes");
+  assert.deepEqual(taught([["spelling", "Glass"]], s.columns, ["x".repeat(TEXT)]).length, 1, "one at the very limit is");
+  assert.deepEqual(learnedOf(s, pairs, []), { accept: [["Glass", "Highball Glass"], ["Units", "7777"]], ignore: [] }, "each code back to the value it was made from, once");
+  assert.equal(learnedOf(s, [], []), null, "nothing learned: nothing sent");
+  assert.equal(learnedOf({ columns: ["Units"], rows: [[5]] }, pairs, []), null, "a value no longer in the sheet is not sent");
+  assert.deepEqual(learnedOf(s, [], [["limits", "Units"], ["limits", "Gone"]]), { accept: [], ignore: [["limits", "Units"]] }, "a column no longer in the sheet is not sent");
+  const many = { columns: ["V"], rows: Array.from({ length: SENT + 1 }, (_, k) => [`v${k}`]) };
+  assert.equal(learnedOf(many, many.rows.map(([v]) => ["V", hash(v)]), []).accept.length, SENT, "at most what the engine takes");
+  assert.deepEqual(stoppable([["limits", null], ["spelling", "Glass"]]), ["spelling", "Glass"]);
+  assert.equal(stoppable([["nonsense", "Glass"]]), null);
+  assert.equal(stoppable(undefined), null);
+  assert.ok([...ONE_CELL].every((k) => KIND_WORDS[k]) && !["sum", "order", "date_order", "record", "balance", "duplicate", "formula", "blank", "key"].some((k) => ONE_CELL.has(k)),
+    "a one-cell check never silences a row's arithmetic, an order, a record, a formula, a duplicate or a blank");
+  // the book: once each, newest last, capped, a sheet named __proto__ kept apart; a crafted workbook's junk dropped
+  let book = learnIn(Object.create(null), "S", [["A", "abc"], ["A", "abc"]]);
+  assert.deepEqual(book.S, [["A", "abc"]]);
+  book = learnIn(book, "S", [["A", "abc"]], true);
+  assert.ok(!("S" in book), "Undo of a Dismiss takes out what it taught");
+  book = learnIn(Object.create(null), "S", Array.from({ length: LEARN_CAP + 1 }, (_, k) => ["A", k.toString(36)]));
+  assert.equal(book.S.length, LEARN_CAP, "capped per sheet");
+  const junk = asLearned({ __proto__: [["A", "abc"]], S: [["A", "abc"], ["A", 7], [1, "x"], "x", ["A", "b", "c"]], T: "x" }, (x) => typeof x === "string", (c) => typeof c === "string");
+  assert.deepEqual(Object.keys(junk), ["S"]);
+  assert.deepEqual(junk.S, [["A", "abc"]]);
 }
 
 console.log("panel self-check passed");

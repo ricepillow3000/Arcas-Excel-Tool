@@ -1663,6 +1663,69 @@ if (mode === "live") { // AH-180, AH-181
     const said = await page.evaluate(() => [document.getElementById("strength-both")?.textContent, document.getElementById("live-hint").textContent]);
     ok(said[0] === "Find problems and Check as you work both use this level." && said[1].endsWith(" It uses the level you set under Find problems."),
       "AH-207: the slider's fold and Check as you work's fold say the one level is used by both - " + JSON.stringify(said)); }
+  // AH-205 (John, 2026-11-19: "learn really fast so the tool can fully help the user in one session"): a Dismiss teaches
+  // the sheet at once, and "Stop checking ..." mutes one kind of check in one column; both kept in the workbook as codes
+  // and [kind, column], never a value, sent with the next scan, and gone with Forget. "Cnetral" typed on rows 32 and 62,
+  // a second blank Units on row 151 beside row 121's. Here in mode live, which has the time flow mode no longer has
+  { const bar = rows.map((r) => [...r]);
+    bar[31][1] = bar[61][1] = "Cnetral"; bar[150][2] = "";
+    await page.evaluate((bar) => __load("Bar", bar, [0]), bar);
+    await find();
+    const tagOn = (r) => page.locator(`#flagged-list button:has-text("Row ${r} ") .sev`).textContent({ timeout: 2000 }).catch(() => null);
+    ok((await tagOn(32)) && (await tagOn(62)) && (await tagOn(121)) && (await tagOn(151)), "AH-205: both Cnetral rows and both blank Units are flagged first");
+    await openRow(32);
+    const mute = await page.evaluate(() => { const b = document.getElementById("fix-mute"); return { said: b.textContent, shown: b.checkVisibility({ visibilityProperty: true }), h: b.getBoundingClientRect().height }; });
+    ok(mute.said === "Stop checking spelling in Region" && mute.shown && mute.h >= 44, "AH-205: the card offers to stop the row's check in its column, 44 px tall - " + JSON.stringify(mute));
+    await contrast("a card with Stop checking");
+    // the line is held: an Accept hides it and nothing under it moves (row 11's -5, then Undo)
+    await back(); await openRow(11);
+    const at = () => page.evaluate(() => { const b = document.getElementById("fix-mute"); return [b.offsetHeight, b.checkVisibility({ visibilityProperty: true })]; });
+    const before = await at();
+    await page.click("#fix-apply"); await idle();
+    const after = await at();
+    ok(before[1] && !after[1] && before[0] === after[0], "AH-205: after Accept the Stop checking line is hidden and keeps its height, so nothing under it moves - " + JSON.stringify({ before, after }));
+    await page.click("#fix-undo"); await idle(); await back();
+    await openRow(32);
+    await page.click("#fix-dismiss"); await idle();
+    const book = await page.evaluate(() => JSON.stringify(__settings.anomalyHunterAccepted || null));
+    ok(/"Bar":\[\["Region","[0-9a-z]{1,11}"\]\]/.test(book) && !book.includes("Cnetral"), "AH-205: Dismiss keeps a code of the value it accepted, in its column, never the value - " + book);
+    if (await page.isVisible("#fix-back")) await back();
+    const s0 = scans.length;
+    await find();
+    ok(JSON.stringify(scans.slice(s0)[0]?.learned) === JSON.stringify({ accept: [["Region", "Cnetral"]], ignore: [] }),
+      "AH-205: the next Find problems sends what the sheet learned - " + JSON.stringify(scans.slice(s0)[0]?.learned));
+    ok((await tagOn(62)) === null && (await tagOn(32)) === "Dismissed" && (await tagOn(11)) && (await tagOn(121)),
+      `AH-205: the next Find problems no longer flags row 62's Cnetral; row 32 stays Dismissed and the rest are still there - ${await tagOn(62)}, ${await tagOn(32)}, ${await tagOn(11)}, ${await tagOn(121)}`);
+    await openRow(121);
+    ok((await text("#fix-mute")) === "Stop checking blanks in Units", "AH-205: a blank's card offers to stop checking blanks in its column - " + (await text("#fix-mute")));
+    await page.click("#fix-mute"); await idle();
+    ok((await text("#notice")).startsWith("Arcas will not check blanks in Units on this sheet again."), "AH-205: the foot bar says what was learned - " + (await text("#notice")));
+    ok((await page.evaluate(() => JSON.stringify(__settings.anomalyHunterIgnored))) === '{"Bar":[["blank","Units"]]}', "AH-205: the stopped check is kept as its kind and column");
+    if (await page.isVisible("#fix-back")) await back();
+    await find();
+    ok((await tagOn(151)) === null && (await tagOn(121)) === "Dismissed" && (await tagOn(11)) && (await tagOn(22)),
+      `AH-205: the next scan no longer flags row 151's blank Units, and another kind in Units (rows 11 and 22) still shows - ${await tagOn(151)}, ${await tagOn(11)}`);
+    { const m = await matchesEngine(); ok(m.ok, "AH-205: the list still shows exactly what the engine answered - " + m.why); }
+    await page.locator("details.more:has(#forget-book)").evaluate((d) => (d.open = true));
+    await page.click("#forget-book"); await idle();
+    ok((await text("#forget-state")).includes("the codes of the values you dismissed; the checks you stopped"), "AH-205: Forget names both - " + (await text("#forget-state")));
+    await find();
+    ok((await tagOn(62)) && (await tagOn(151)) && !scans.at(-1).learned, "AH-205: after Forget the next scan learns nothing and flags rows 62 and 151 again"); }
+  // AH-205: Check as you work uses what a Dismiss taught: "Cnetral" typed is flagged, dismissed, then typed again on
+  // another row and only said checked
+  { await page.evaluate(() => __activate("Sales"));
+    await page.evaluate(() => __edit("Sales", "B50", "Cnetral"));
+    await waitNote('cell B50');
+    ok((await note()).includes('Sheet "Sales", cell B50: '), "AH-205: Cnetral typed is said as you work - " + (await note()));
+    await page.click("#live-close");
+    await find(); await openRow(50);
+    await page.click("#fix-dismiss"); await idle();
+    if (await page.isVisible("#fix-back")) await back();
+    const s0 = scans.length;
+    await page.evaluate(() => __edit("Sales", "B60", "Cnetral"));
+    await page.waitForFunction(() => document.getElementById("notice").textContent.startsWith('Checked B60 on "Sales"') || document.getElementById("live-note").checkVisibility(), null, { timeout: 8000 }).catch(() => {});
+    ok((await text("#notice")) === 'Checked B60 on "Sales": nothing unusual.' && !(await note()) && JSON.stringify(scans.slice(s0)[0]?.learned?.accept) === '[["Region","Cnetral"]]',
+      "AH-205: a value dismissed once, typed on another row, is not called wrong as you work - " + JSON.stringify({ notice: await text("#notice"), note: await note(), learned: scans.slice(s0)[0]?.learned })); }
 }
 
 // proof for people, at rest: the pointer off every button first (the full-page picture moved the page under it, and a

@@ -40,4 +40,6 @@ export function setApplied(applied) {
   show("fix-undo", applied);
   show("fix-dismiss", !applied);
   show("fix-next", applied);
+  // AH-205: "Stop checking ..." only beside Dismiss, its line held either way (global.css #fix-mute)
+  $("fix-mute").toggleAttribute("data-off", applied || !state.fix?.stop);
 }

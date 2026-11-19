@@ -30,7 +30,7 @@ from anomaly_hunter.agents import checker, scan_agent
 from anomaly_hunter.ai import care, client
 from anomaly_hunter.engine import rules
 from anomaly_hunter.engine.load import load_from_records
-from anomaly_hunter.engine.pipeline import knobs
+from anomaly_hunter.engine.pipeline import KINDS, knobs
 from anomaly_hunter.engine.profile import profile
 from anomaly_hunter.sealed import write_private as _write_private
 
@@ -68,12 +68,25 @@ WSGIRequestHandler.timeout = 60
 MAX_CELLS = 2_000_000  # same as the pane's maxCells (frontend/utils/sheet.js): it never sends more in one scan
 EXCEL_ROWS = 1_048_576  # a sheet's rows: the header can't sit lower
 EXCEL_FORMULA = 8_192  # Excel's longest formula: a cell's formula sent with /scan is at most this long (AH-152)
+LEARNED = 500  # AH-205: what a sheet learned, sent with each scan: at most this many accepted values and stopped checks
+LEARNED_TEXT = 200  # ...each column and value at most this long (the pane learns nothing longer)
 EXCEL_COLUMNS = 16_384  # a sheet's columns. AH-140: rows [] made the cell cap 0, and 500,000 names held a thread for hours
 # an invite code to John's relay, the shape relay/new-invite.mjs writes: one check for a pasted code (/key) and for an
 # invite kit's own invite-code.txt (app.keep_invite, AH-185), so the two can never drift apart
 INVITE_CODE = re.compile(r"inv_[A-Za-z0-9_\-]{20,64}")
 # two workbooks scanning at once shared one temp file: a replace found it gone and a file could mix both (2026-10-16)
 _CSV_LOCK = threading.Lock()
+
+
+def _learned(v):
+    """AH-205: {accept: [[column, value]], ignore: [[kind, column]]}, each list at most LEARNED pairs of text of at most
+    LEARNED_TEXT characters, a kind one of the engine's own (pipeline.KINDS), nothing else -> True. A kind outside the
+    list mutes nothing, and a body of a million pairs would be read a cell at a time: both refused before any work."""
+    text = lambda x: type(x) is str and len(x) <= LEARNED_TEXT
+    pairs = lambda xs, first: isinstance(xs, list) and len(xs) <= LEARNED and all(
+        isinstance(p, list) and len(p) == 2 and first(p[0]) and text(p[1]) for p in xs)
+    return isinstance(v, dict) and set(v) <= {"accept", "ignore"} and pairs(v.get("accept", []), text) and pairs(
+        v.get("ignore", []), lambda k: type(k) is str and k in KINDS)
 
 
 def _cell(v):
@@ -222,8 +235,14 @@ def create_app(scan_csv=None):
                     f is None or type(f) is str and f.startswith("=") and len(f) <= EXCEL_FORMULA for f in r) for r in formulas)):
             return {"error": f"'formulas' must be shaped like 'rows', each cell null or its formula (\"=...\", at most "
                              f"{EXCEL_FORMULA:,} characters)"}, 400
+        # AH-205: what this sheet learned: values the user dismissed, kept in their column, and the checks they stopped
+        learned = body.get("learned")
+        if learned is not None and not _learned(learned):
+            return {"error": f"'learned' must be {{\"accept\": [[column, value]], \"ignore\": [[kind, column]]}}, at most "
+                             f"{LEARNED} of each, text of at most {LEARNED_TEXT} characters, each kind one of the engine's"}, 400
         # Agent 1, one scan, no stop. A bug in the engine is json_error's 500: our words, the traceback to server.log
-        df, out, suggested, used, status, fair = scan_agent.scan(cols, rows, limits, order_by, _strength(body), formulas=formulas)
+        df, out, suggested, used, status, fair = scan_agent.scan(cols, rows, limits, order_by, _strength(body), formulas=formulas,
+                                                                 learned=learned, decisions=decisions)
         saved = None  # Power BI copy: None = off, True = written, False = it failed (the pane says so)
         if scan_csv and body.get("power_bi") is not True:  # opt-in (2026-10-16): no plain-text copy of the sheet unasked
             with _CSV_LOCK:
