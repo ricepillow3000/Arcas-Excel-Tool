@@ -82,7 +82,22 @@ h1, h2, h3 { color: var(--navy); }
 /* the navy band on top: the Spear and Banner straight on it and the name flush left, the sheet's name under a hairline */
 header { padding: var(--s3) var(--margin); background: var(--tex-navy), var(--navy); color: var(--on-navy); border-bottom: 1px solid var(--gold-hi); }
 header .brand { display: flex; align-items: center; gap: var(--s3); }
-.mark, .mk { display: block; flex: none; line-height: 0; } /* no tile: the mark's gold rim and spear carry it on the navy band (John, 2026-10-30) */
+.mark, .mk { display: block; flex: none; line-height: 0; height: 32px; } /* the mark in its gold ring (AH-203): no box on the navy
+   band (John: "no white box ... visible at 100%"), its paper coin carrying its true wine and navy; 31 px, odd round an odd A so the
+   A is dead centre on whole pixels, its top on the 32 px slot's */
+.mark .coin { display: block; }
+/* the header's ring draws itself once as the pane opens, clockwise from 12 (John: "not just a static circle"): two half discs in
+   its mask turn into place, transform only, then the seamless ring shows; at rest, under reduced motion or with no CSS the ring
+   is simply there */
+.mark .coin :is(.sweep-a, .sweep-b) { transform-box: view-box; transform-origin: 15.5px 15.5px; }
+@media (prefers-reduced-motion: no-preference) {
+  .mark .coin .sweep-a { animation: ring-a 1100ms cubic-bezier(.65, 0, 1, 1) 300ms backwards; } /* in, then out: the sweep never stops at 6 */
+  .mark .coin .sweep-b { animation: ring-b 1100ms cubic-bezier(0, 0, .35, 1) 300ms backwards; }
+  .mark .coin .ring-whole { animation: ring-whole 1100ms 300ms backwards; }
+}
+@keyframes ring-a { from { transform: rotate(-180deg); } 50%, to { transform: rotate(0deg); } }
+@keyframes ring-b { from, 50% { transform: rotate(-180deg); } to { transform: rotate(0deg); } }
+@keyframes ring-whole { from, 99% { opacity: 0; } to { opacity: 1; } }
 .mark img, .mk img { display: block; }
 h1 { margin: 0; font: 800 var(--fs-1)/1 var(--sans); color: var(--on-navy); }
 .sheet-name { margin: var(--s3) 0 0; padding-top: var(--s2); border-top: 1px solid var(--rule-navy); font: 700 var(--fs--1)/1.4 var(--sans);

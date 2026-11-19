@@ -10,6 +10,7 @@ import { read as readLimit } from "./pages/limits.js";
 import { strengthHint, asStrength, levelAt, levelWord } from "./pages/strength.js";
 import { exactFixes, safeUndo } from "./features/autofix.js";
 import { readdirSync, readFileSync } from "node:fs";
+import { inflateSync } from "node:zlib";
 import { hash, rowHash, codes, codeAt, asBook, decide, PER_SHEET, SHEETS } from "./features/decisions.js";
 import { WORKBOOK_KEYS } from "./features/forget.js";
 import { asHighlights, KEPT } from "./features/highlight.js";
@@ -911,6 +912,58 @@ for (const f of readdirSync(new URL(".", import.meta.url)).filter((f) => f.endsW
   assert.equal(checkedSaid("Series 3", ["B2:B500"]), 'Checked B2:B500 on "Series 3": nothing unusual.');
   assert.equal(checkedSaid("S", ["A1", "B2", "A1", "C3", "D4", "E5"]), 'Checked A1, B2, C3 and 2 more on "S": nothing unusual.', "each address once, 3 named");
   assert.equal(noteSaid("Sales", findingsAt(rows, s, {}, ["B3"])[0], 3, {}), 'Sheet "Sales", cell B3: Probably wrong. Units is 900, above its usual limit of 90 (likely 90). And 3 more in what you changed.');
+}
+
+// AH-203: the 16 and 32 px icons (ribbon, favicon, the exe's) are the mark's coin, read pixel by pixel: round (its corners
+// empty), every row its own mirror image, the gold only in the ring (the A has no gold tile), and the A's rows in the true
+// wine and navy; at 16 px every pixel is one of the coin's colours (it is placed pixel by pixel)
+{
+  const rgba = (file) => { // an 8-bit RGB or RGBA PNG, as Chromium writes it (RGB when every pixel is opaque)
+    const b = readFileSync(new URL(file, import.meta.url)), w = b.readUInt32BE(16), h = b.readUInt32BE(20), parts = [];
+    assert.ok(b[24] === 8 && (b[25] === 2 || b[25] === 6) && b[28] === 0, `${file}: not an 8-bit RGB or RGBA PNG`);
+    const n = b[25] === 6 ? 4 : 3;
+    for (let i = 8; i < b.length; i += 12 + b.readUInt32BE(i)) if (b.toString("latin1", i + 4, i + 8) === "IDAT") parts.push(b.subarray(i + 8, i + 8 + b.readUInt32BE(i)));
+    const raw = inflateSync(Buffer.concat(parts)), out = Buffer.alloc(w * h * n), row = w * n;
+    for (let y = 0; y < h; y++) for (let x = 0; x < row; x++) {
+      const f = raw[y * (row + 1)], v = raw[y * (row + 1) + 1 + x], a = x >= n ? out[y * row + x - n] : 0, up = y ? out[(y - 1) * row + x] : 0, c = x >= n && y ? out[(y - 1) * row + x - n] : 0;
+      const p = a + up - c, pr = Math.abs(p - a) <= Math.abs(p - up) && Math.abs(p - a) <= Math.abs(p - c) ? a : Math.abs(p - up) <= Math.abs(p - c) ? up : c;
+      out[y * row + x] = (v + [0, a, up, (a + up) >> 1, pr][f]) & 255;
+    }
+    return { w, h, px: (x, y) => [...out.subarray((y * w + x) * n, (y * w + x) * n + 3), n === 4 ? out[(y * w + x) * n + 3] : 255] };
+  };
+  const hex = (p) => "#" + p.slice(0, 3).map((v) => v.toString(16).padStart(2, "0")).join("").toUpperCase();
+  const STEPS = ["#6B1E2E", "#5B1E30", "#4B1C35", "#371C3A", "#211B3C", "#0C1938"], GOLD = "#997D3A";
+  for (const n of [16, 32]) {
+    const { w, h, px } = rgba(`assets/crest4-${n}.png`), c = w / 2, seen = new Set();
+    for (const [x, y] of [[0, 0], [w - 1, 0], [0, h - 1], [w - 1, h - 1]]) assert.equal(px(x, y)[3], 0, `crest4-${n}.png: a corner is not empty`);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const p = px(x, y), q = px(n === 16 ? w - 1 - x : w - 1 - x, y);
+      if (n === 16) assert.deepEqual(p, q, `crest4-16.png: row ${y} is not its own mirror image`);
+      if (p[3] === 255) seen.add(hex(p));
+      if (hex(p) === GOLD && p[3] === 255) assert.ok(Math.hypot(x + 0.5 - c, y + 0.5 - c) > c * 0.75, `crest4-${n}.png: gold inside the ring at ${x},${y}`);
+    }
+    assert.ok(seen.has(GOLD) && seen.has(STEPS[0]) && seen.has(STEPS[5]), `crest4-${n}.png: no gold ring, wine top or navy foot`);
+    if (n === 16) assert.deepEqual([...seen].filter((k) => k !== GOLD && k !== "#EEE9DD" && !STEPS.includes(k)), [], "crest4-16.png: a pixel outside the coin's colours");
+  }
+}
+
+// AH-203: on navy (the pane's header and footer, its privacy and support pages) no box round the mark: John, "no white box
+// in the Excel pane header or footer ... visible at 100%". The mark is its paper coin in a gold ring (crest4-coin.svg): the
+// tiles in their true steps, wine to navy (tints drawn for navy read "way too bright"), a gold ring, no square plate; the
+// header draws it inline (its ring sweeps once) and every other place shows the file, never a paper icon
+{
+  const STEPS = ["#6B1E2E", "#5B1E30", "#4B1C35", "#371C3A", "#211B3C", "#0C1938"];
+  const coin = readFileSync(new URL("assets/crest4-coin.svg", import.meta.url), "utf8");
+  const tiles = [...coin.matchAll(/data-part="tile" data-row="(\d)"[^>]*fill="(#[0-9A-F]{6})"/g)];
+  assert.ok(tiles.length === 14 && tiles.every(([, r, f]) => f === STEPS[+r]), "crest4-coin.svg: not 14 tiles in their true steps, wine to navy");
+  assert.ok(/data-part="ring"[^>]*stroke="#997D3A"/.test(coin) && /data-part="disc"/.test(coin) && !/<rect\b(?![^>]*height="31")[^>]*fill="#F7F5F0"/.test(coin), "crest4-coin.svg: no gold ring or disc, or a square plate");
+  const pane = readFileSync(new URL("taskpane.html", import.meta.url), "utf8");
+  const head = /<span class="mark">(<svg class="coin"[\s\S]*?<\/svg>)<\/span>/.exec(pane);
+  assert.ok(head && head[1].replace(/^<svg [^>]*>/, "") === coin.trim().replace(/^<svg [^>]*>/, ""), "taskpane.html: the header's mark is not crest4-coin.svg");
+  for (const page of ["taskpane.html", "privacy.html", "support.html"]) {
+    const html = readFileSync(new URL(page, import.meta.url), "utf8").replace(/<link[^>]*>/g, "");
+    assert.ok(!/crest4-(16|32|64|80)\.png/.test(html), `${page}: a paper icon on the navy band (a white box)`);
+  }
 }
 
 console.log("panel self-check passed");

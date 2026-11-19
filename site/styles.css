@@ -175,7 +175,17 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .bar .cols { min-height: 64px; align-items: center; }
 .brand { grid-column: 1 / span 4; display: inline-flex; align-items: center; gap: 12px; justify-self: start; color: var(--ink); text-decoration: none;
   font: 800 var(--fs-1)/1 var(--sans); letter-spacing: normal; white-space: nowrap; }
-.brand .logo { width: auto; height: 40px; aspect-ratio: 32 / 40; flex: none; } /* drawn for this size: 40 px tall, one unit a CSS pixel, so its edges land on whole pixels (John, AH-103; AH-121) */
+.brand .logo { width: auto; height: 41px; aspect-ratio: 1; flex: none; margin-block: 0 -1px; } /* coin-41.svg, 1 unit a pixel */
+/* the ring draws itself once (AH-203); whole at rest, reduced motion or no CSS */
+.brand .logo :is(.sweep-a, .sweep-b) { transform-box: view-box; transform-origin: 20.5px 20.5px; }
+@media (prefers-reduced-motion: no-preference) {
+  .brand .logo .sweep-a { animation: ring-a 1100ms cubic-bezier(.65, 0, 1, 1) 400ms backwards; }
+  .brand .logo .sweep-b { animation: ring-b 1100ms cubic-bezier(0, 0, .35, 1) 400ms backwards; }
+  .brand .logo .ring-whole { animation: ring-whole 1100ms 400ms backwards; }
+}
+@keyframes ring-a { from { transform: rotate(-180deg); } 50%, to { transform: rotate(0deg); } }
+@keyframes ring-b { from, 50% { transform: rotate(-180deg); } to { transform: rotate(0deg); } }
+@keyframes ring-whole { from, 99% { opacity: 0; } to { opacity: 1; } }
 .links { grid-column: 5 / -1; display: flex; justify-content: flex-end; align-items: center; gap: var(--s3); flex-wrap: wrap; }
 .links a { color: var(--ink); text-decoration: none; font: 600 var(--fs--1)/1 var(--sans); padding: 10px 0; border-bottom: 2px solid transparent; }
 .links a:is(:hover, :focus-visible) { border-bottom-color: var(--ink); }
@@ -506,7 +516,7 @@ td.why i.ok { display: inline-block; width: 10px; height: 10px; margin-right: 8p
 #download .sec-lede { grid-column: 1 / span 5; grid-row: 2; }
 /* the logo rises beside the lede and the facts, not under them */
 .stage { grid-column: 1 / span 5; grid-row: 3; margin-top: var(--s4); display: grid; gap: var(--s3); justify-items: start; }
-.logo-lg { width: min(100%, 10rem); height: auto; aspect-ratio: 1; color: var(--ink); }
+.logo-lg { width: auto; height: 157px; aspect-ratio: 1; margin-block-end: 3px; color: var(--ink); } /* coin-157.svg, 1 unit a pixel */
 .stage .btn { min-height: 64px; width: min(100%, 22rem); font-size: var(--fs-0); }
 /* the browser's "isn't commonly downloaded" warning, said under the button it follows (AH-135) */
 .stage-note { max-width: 22rem; font-size: var(--fs--1); color: var(--ink-2); }
@@ -941,7 +951,7 @@ html[data-moving] #field { z-index: 2; }
   html { scroll-padding-top: 0; }
   .bar { position: relative; } /* on a phone the bar wraps to two rows: it scrolls away instead of covering the screen */
   .bar .cols { padding-block: 12px; row-gap: 8px; }
-  .brand .logo { margin-block: -4px; } /* drawn 40 px tall in the 32 px the old logo took, so the two-row bar keeps its height */
+  .brand .logo { margin-block: -4px -5px; } /* in the 32 px the phone's two-row bar gives it, so the bar keeps its height (AH-203) */
   .cols > *, .steps > *, .steps .aside, table.card, .foot span, .foot nav, .page-head h1, .page-head p { grid-column: 1 / -1; }
   .links { justify-content: flex-start; gap: 4px var(--s2); }
   .section, .hero, .page-head, .doc { padding-block: var(--s6); }
