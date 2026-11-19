@@ -3614,5 +3614,29 @@
   "tests": [
    "e2e"
   ]
+ },
+ {
+  "id": "live-strength-loosen",
+  "guard": "Check as you work scans at the slider's level",
+  "file": "frontend/features/live.js",
+  "old": "  const { decided, request } = await scanRequest(s, false);\n",
+  "new": "  const { decided, request } = await scanRequest(s, false);\n  request.strength = 5;\n",
+  "kind": "loosen",
+  "tests": [
+   "e2e"
+  ],
+  "modes": "live"
+ },
+ {
+  "id": "live-strength-tighten",
+  "guard": "Check as you work scans at the slider's level",
+  "file": "frontend/features/live.js",
+  "old": "  const { decided, request } = await scanRequest(s, false);\n",
+  "new": "  const { decided, request } = await scanRequest(s, false);\n  request.strength = 10;\n",
+  "kind": "tighten",
+  "tests": [
+   "e2e"
+  ],
+  "modes": "live"
  }
 ]

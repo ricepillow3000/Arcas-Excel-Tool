@@ -2,7 +2,7 @@
 
 John's rule (2026-11-10): don't trust green checks. A guard is held only when (1) a test keeps the wrong out and a test
 lets the right in, at the very limit, (2) both are named here, and (3) a planted bug turns them red. `tools/mutate.py`
-plants each mutant of `tools/mutations.json` (326 of them) in a throwaway copy of the repo and runs its tests; one they
+plants each mutant of `tools/mutations.json` (328 of them) in a throwaway copy of the repo and runs its tests; one they
 survive fails the run (`python tools/check.py --mutate`, CI's `mutation` job on every push and pull request).
 
 A loosen mutant lets the wrong in (a check removed, a limit widened); a tighten mutant keeps the right out (a limit cut
@@ -126,3 +126,4 @@ Paths in the Code column are where each mutant's text sits (line numbers from th
 | 109 | 11 | Check subject rules says at most CAP lines, then one line for the rest; the AI's words only as text (AH-202) | `frontend/features/ai.js` `rulesLines`, `checkRules` | selfcheck.js AH-202 (61 lines); e2e/run.mjs ai "AH-202: the AI's words are text, never markup" | selfcheck.js AH-202 (exactly CAP lines) | rules-lines-loosen (loosen)<br>rules-lines-tighten (tighten) |
 | 110 | 6 | An order the AI names is believed only where at most max(1, 0.1%) of its rows break it (ORDER_OFF, the bar of `date_order`): a few rows against an order are the subject's own exception (AH-202) | `backend/anomaly_hunter/engine/rules.py` `check`, `ORDER_OFF` | test_subject_rules.py::test_an_order_two_rows_break_in_1000_is_the_subjects_exception_and_in_2000_each_row_is_flagged (2 of 1,000) | same test (2 of 2,000) | rules-order-loosen (loosen)<br>rules-order-tighten (tighten)<br>rules-order-bar-loosen (loosen) |
 | 111 | 11 | The findings list draws at most CAP (50) rows and one "+ N more" line however many a scan flags: a 150,000-row sheet flagging 6,134 drew 51 items, 301 nodes (AH-204) | `frontend/pages/results.js` `listRows`; `frontend/constants/index.js` `CAP` | e2e/run.mjs flow "AH-204" (6,000 rows: 50 drawn and "+ 5,950 more", under 400 nodes; 51 rows: 50 and "+ 1 more") | same e2e (exactly 50 rows: all 50 drawn, no more line) | list-cap-loosen (loosen)<br>list-cap-tighten (tighten) |
+| 112 | 11 | Check as you work scans at the slider's level, as Find problems does: one `scanRequest` for both (John, 2026-11-19: "the automatic scanning while the user is working is at full strength", AH-207) | `frontend/features/live.js` `check`; `frontend/features/scan.js` `scanRequest` | e2e/run.mjs live "AH-207" (slider at 10: the live /scan carries 10, never 5) | same e2e (slider at 0: the live /scan carries 0, never 10) | live-strength-loosen (loosen)<br>live-strength-tighten (tighten) |
