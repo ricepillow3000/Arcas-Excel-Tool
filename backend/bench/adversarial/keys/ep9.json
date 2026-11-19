@@ -1,0 +1,488 @@
+{
+ "station_log": {
+  "domain": "Hourly weather-station log from four field sites at different heights and climates; offline hours carry no readings, a battery swap shows as Maintenance.",
+  "errors": [
+   {
+    "row": 367,
+    "cols": [
+     "Humidity (%)"
+    ],
+    "kind": "humidity above 100%",
+    "domain_specific": true,
+    "proof": "Relative humidity cannot exceed 100%."
+   },
+   {
+    "row": 274,
+    "cols": [
+     "Pressure (hPa)"
+    ],
+    "kind": "pressure in kPa",
+    "domain_specific": false,
+    "proof": "Pressure written in kPa (one tenth) under an hPa header."
+   },
+   {
+    "row": 496,
+    "cols": [
+     "Temperature (C)",
+     "Temperature (F)"
+    ],
+    "kind": "temperature sign flipped",
+    "domain_specific": false,
+    "proof": "A minus sign on an ordinary hour at this site."
+   },
+   {
+    "row": 315,
+    "cols": [
+     "Battery (V)"
+    ],
+    "kind": "battery decimal slip",
+    "domain_specific": false,
+    "proof": "A 12 V battery read as 10x."
+   },
+   {
+    "row": 508,
+    "cols": [
+     "Timestamp"
+    ],
+    "kind": "timestamp a day off",
+    "domain_specific": true,
+    "proof": "This station's hourly readings run in order; this one is stamped the day before its neighbours."
+   },
+   {
+    "row": 202,
+    "cols": [
+     "Humidity (%)"
+    ],
+    "kind": "reading missing while OK",
+    "domain_specific": true,
+    "proof": "A blank humidity on an hour whose Status is OK and every other reading is there."
+   },
+   {
+    "row": 358,
+    "cols": [
+     "Rainfall (mm)"
+    ],
+    "kind": "negative rainfall",
+    "domain_specific": false,
+    "proof": "Rainfall cannot be negative."
+   },
+   {
+    "row": 534,
+    "cols": [
+     "Station",
+     "Site",
+     "Elevation (m)",
+     "Timestamp",
+     "Temperature (C)",
+     "Temperature (F)",
+     "Humidity (%)",
+     "Pressure (hPa)",
+     "Wind Speed (m/s)",
+     "Rainfall (mm)",
+     "Battery (V)",
+     "Status"
+    ],
+    "kind": "reading logged twice",
+    "domain_specific": false,
+    "proof": "The same station and hour logged twice."
+   }
+  ],
+  "traps": [
+   {
+    "row": 359,
+    "col": "Rainfall (mm)",
+    "why": "A coastal storm: over 10 mm in an hour among mostly dry hours, and valid."
+   },
+   {
+    "row": 219,
+    "col": "Pressure (hPa)",
+    "why": "At 1,480 m the air pressure is about 850 hPa: valid for the ridge station."
+   },
+   {
+    "row": 429,
+    "col": "Battery (V)",
+    "why": "The battery was swapped in this maintenance hour, so the voltage jumps back up."
+   },
+   {
+    "row": 250,
+    "col": "Temperature (C)",
+    "why": "The station was offline: no readings is correct."
+   },
+   {
+    "row": 419,
+    "col": "Temperature (C)",
+    "why": "A desert afternoon over 38 C is valid."
+   }
+  ]
+ },
+ "payroll_register": {
+  "domain": "Biweekly payroll register: one row per employee per pay period, hourly and salaried staff, gross to net with federal and state withholding and a 401(k) deferral.",
+  "errors": [
+   {
+    "row": 248,
+    "cols": [
+     "Regular Hours",
+     "Federal Tax",
+     "State Tax",
+     "Regular Pay",
+     "Gross Pay",
+     "401(k)",
+     "Net Pay"
+    ],
+    "kind": "hours typed x10",
+    "domain_specific": false,
+    "proof": "800 regular hours in a two-week period (80 is full time)."
+   },
+   {
+    "row": 61,
+    "cols": [
+     "Hourly Rate",
+     "Federal Tax",
+     "State Tax",
+     "Regular Pay",
+     "Overtime Pay",
+     "Gross Pay",
+     "401(k)",
+     "Net Pay"
+    ],
+    "kind": "rate digits swapped",
+    "domain_specific": true,
+    "proof": "Hourly Rate 12.25 where this employee's every other period is 21.25."
+   },
+   {
+    "row": 217,
+    "cols": [
+     "Net Pay"
+    ],
+    "kind": "net pay typed over its formula",
+    "domain_specific": true,
+    "proof": "Net Pay is typed and is not Gross - taxes - 401(k)."
+   },
+   {
+    "row": 193,
+    "cols": [
+     "Department"
+    ],
+    "kind": "misspelt department",
+    "domain_specific": false,
+    "proof": "Department 'Enginering' is a misspelling."
+   },
+   {
+    "row": 277,
+    "cols": [
+     "Federal Tax",
+     "Net Pay"
+    ],
+    "kind": "withholding sign flipped",
+    "domain_specific": false,
+    "proof": "Negative federal tax withheld on an ordinary period."
+   },
+   {
+    "row": 121,
+    "cols": [
+     "State Tax",
+     "Net Pay"
+    ],
+    "kind": "state tax in a state without one",
+    "domain_specific": true,
+    "proof": "TX has no state income tax; every other TX row withholds 0."
+   },
+   {
+    "row": 95,
+    "cols": [
+     "Pay Period End"
+    ],
+    "kind": "year typo",
+    "domain_specific": false,
+    "proof": "A pay period end years away from every other period."
+   },
+   {
+    "row": 31,
+    "cols": [
+     "Pay Period End",
+     "Employee ID",
+     "Department",
+     "Work State",
+     "Pay Type",
+     "Hourly Rate",
+     "Annual Salary",
+     "Regular Hours",
+     "Overtime Hours",
+     "Regular Pay",
+     "Overtime Pay",
+     "Bonus",
+     "Gross Pay",
+     "Federal Tax",
+     "State Tax",
+     "401(k) %",
+     "401(k)",
+     "Net Pay",
+     "Note"
+    ],
+    "kind": "employee paid twice for one period",
+    "domain_specific": false,
+    "proof": "The same employee, period and amounts entered twice."
+   }
+  ],
+  "traps": [
+   {
+    "row": 384,
+    "col": "Bonus",
+    "why": "An executive's annual bonus, paid once a year and named in Note: far above the spot bonuses, and valid."
+   },
+   {
+    "row": 10,
+    "col": "Bonus",
+    "why": "A negative adjustment recovers an earlier overpayment, as Note says; gross still adds up."
+   },
+   {
+    "row": 359,
+    "col": "Regular Hours",
+    "why": "Unpaid leave for the whole period: 0 hours and 0 gross are correct."
+   },
+   {
+    "row": 85,
+    "col": "State Tax",
+    "why": "TX has no state income tax, so 0 withheld is correct."
+   },
+   {
+    "row": 4,
+    "col": "Regular Hours",
+    "why": "A new hire's first period starts mid-period: 40 hours is correct."
+   }
+  ]
+ },
+ "store_inventory": {
+  "domain": "Weekly store inventory by SKU: opening + received - sold + returned - shrinkage = closing, the next week opening where the last closed; promo weeks sell at a discount.",
+  "errors": [
+   {
+    "row": 419,
+    "cols": [
+     "Unit Cost",
+     "Stock Value"
+    ],
+    "kind": "cost decimal slip x10",
+    "domain_specific": false,
+    "proof": "Unit Cost is 10x this SKU's cost on every other row."
+   },
+   {
+    "row": 449,
+    "cols": [
+     "Opening Stock",
+     "Closing Stock",
+     "Stock Value"
+    ],
+    "kind": "opening is not last week's closing",
+    "domain_specific": true,
+    "proof": "Opening Stock differs from the same SKU and store's Closing Stock the week before."
+   },
+   {
+    "row": 456,
+    "cols": [
+     "Closing Stock",
+     "Stock Value"
+    ],
+    "kind": "closing typed over its formula",
+    "domain_specific": true,
+    "proof": "Closing Stock is typed and is not opening + received - sold + returned - shrinkage."
+   },
+   {
+    "row": 483,
+    "cols": [
+     "Units Sold",
+     "Closing Stock",
+     "Sales Value",
+     "Stock Value"
+    ],
+    "kind": "sold sign flipped",
+    "domain_specific": false,
+    "proof": "A negative number of units sold."
+   },
+   {
+    "row": 117,
+    "cols": [
+     "Category"
+    ],
+    "kind": "misspelt category",
+    "domain_specific": false,
+    "proof": "Category 'Groocery' is a misspelling."
+   },
+   {
+    "row": 165,
+    "cols": [
+     "Product"
+    ],
+    "kind": "another product's name on this SKU",
+    "domain_specific": true,
+    "proof": "Product 'Paper Towels' on SKU-79931, whose every other row names another product."
+   },
+   {
+    "row": 77,
+    "cols": [
+     "Unit Cost",
+     "Unit Price",
+     "Stock Value",
+     "Sales Value"
+    ],
+    "kind": "cost and price swapped",
+    "domain_specific": true,
+    "proof": "Unit Cost above Unit Price on a full-price week: the two are swapped."
+   },
+   {
+    "row": 413,
+    "cols": [
+     "Received",
+     "Closing Stock",
+     "Stock Value"
+    ],
+    "kind": "received x100",
+    "domain_specific": false,
+    "proof": "Received is 100x a delivery of this SKU's case size."
+   }
+  ],
+  "traps": [
+   {
+    "row": 359,
+    "col": "Unit Price",
+    "why": "A promo week sells at 25% off, as Promo = Y says: the SKU's other weeks' price is not this one's."
+   },
+   {
+    "row": 232,
+    "col": "Unit Cost",
+    "why": "Electronics cost tens to hundreds of dollars a unit beside groceries at a few: valid for its category."
+   },
+   {
+    "row": 318,
+    "col": "Units Sold",
+    "why": "A week with no sales of a slow item: 0 sold is valid."
+   },
+   {
+    "row": 388,
+    "col": "Received",
+    "why": "A seasonal restock of 20 cases at once: far above the usual delivery, and valid (closing adds up)."
+   }
+  ]
+ },
+ "claims_register": {
+  "domain": "Insurance claims register across four lines: closed claims are approved and paid net of the deductible, denied ones approve 0, open ones have no close date or approval yet.",
+  "errors": [
+   {
+    "row": 224,
+    "cols": [
+     "Report Date",
+     "Incident Date",
+     "Days to Report"
+    ],
+    "kind": "reported before it happened",
+    "domain_specific": true,
+    "proof": "Report Date is before Incident Date (Days to Report negative)."
+   },
+   {
+    "row": 62,
+    "cols": [
+     "Close Date",
+     "Status"
+    ],
+    "kind": "close date on an open claim",
+    "domain_specific": true,
+    "proof": "An open claim with a close date."
+   },
+   {
+    "row": 159,
+    "cols": [
+     "Approved Amount",
+     "Paid Amount"
+    ],
+    "kind": "approved more than claimed",
+    "domain_specific": true,
+    "proof": "Approved Amount above Claimed Amount."
+   },
+   {
+    "row": 361,
+    "cols": [
+     "Claimed Amount"
+    ],
+    "kind": "claimed x100",
+    "domain_specific": false,
+    "proof": "Claimed Amount 100x its line's usual size (a lost decimal point)."
+   },
+   {
+    "row": 244,
+    "cols": [
+     "Region"
+    ],
+    "kind": "misspelt region",
+    "domain_specific": false,
+    "proof": "Region 'Esat' is a misspelling."
+   },
+   {
+    "row": 85,
+    "cols": [
+     "Deductible",
+     "Paid Amount"
+    ],
+    "kind": "deductible on a health claim",
+    "domain_specific": true,
+    "proof": "Every other Health claim has a deductible of 0."
+   },
+   {
+    "row": 181,
+    "cols": [
+     "Paid Amount"
+    ],
+    "kind": "paid typed without the deductible",
+    "domain_specific": true,
+    "proof": "Paid Amount is typed as the full approval, the deductible not taken off."
+   },
+   {
+    "row": 358,
+    "cols": [
+     "Claim ID",
+     "Policy No",
+     "Line",
+     "Region",
+     "Incident Date",
+     "Report Date",
+     "Days to Report",
+     "Close Date",
+     "Status",
+     "Claimed Amount",
+     "Deductible",
+     "Approved Amount",
+     "Paid Amount",
+     "Adjuster"
+    ],
+    "kind": "claim entered twice",
+    "domain_specific": false,
+    "proof": "The same claim ID and values entered twice."
+   }
+  ],
+  "traps": [
+   {
+    "row": 17,
+    "col": "Claimed Amount",
+    "why": "A house lost to fire: a claim far above the line's usual, approved and valid."
+   },
+   {
+    "row": 289,
+    "col": "Approved Amount",
+    "why": "A denied claim approves 0."
+   },
+   {
+    "row": 121,
+    "col": "Close Date",
+    "why": "An open claim has no close date yet."
+   },
+   {
+    "row": 270,
+    "col": "Deductible",
+    "why": "Health claims carry no per-claim deductible on these policies: 0 is valid."
+   },
+   {
+    "row": 344,
+    "col": "Days to Report",
+    "why": "A late report months after the incident: rare but within the policy's filing window."
+   }
+  ]
+ }
+}
