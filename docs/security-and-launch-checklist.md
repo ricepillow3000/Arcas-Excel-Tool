@@ -72,7 +72,7 @@ engine runs on each user's own PC beside their Excel, so items written for a web
 ### Speed
 | Item | Status | Where / evidence |
 |---|---|---|
-| Images in WebP or AVIF | N/A | Every image is under 3 KB and in the format its reader requires: Office's ribbon and manifest need PNG (`frontend/assets/crest2-*.png`), the site's only images are two PNG favicons, its logo is inline SVG, the grain is SVG. WebP would save bytes nobody downloads twice. |
+| Images in WebP or AVIF | N/A | Every image is under 3 KB and in the format its reader requires: Office's ribbon and manifest need PNG (`frontend/assets/crest4-*.png`), the site's only images are two PNG favicons, its logo is inline SVG, the grain is SVG. WebP would save bytes nobody downloads twice. |
 | Prevent duplicate API calls | Enforced (fixed in AH-87) | Every pane action runs through `act()`, which ignores a second click while one is in flight (`hooks/use-action.js`); Ask AI has its own guard; the engine's AI lock answers "still working" and its cache never asks Google the same question twice. Save key and Remove key were outside it: now inside (`e2e/run.mjs`: a double click sends one `/key`). |
 | Debounce search and autocomplete inputs | N/A | There is no search or autocomplete input. The strength slider, the one live control, commits on release and folds rapid changes into one re-check (`pages/strength.js`). |
 | Paginate API results | N/A (deliberate) | `/scan` answers one entry per row because the pane highlights every flagged cell by its position; it travels over loopback, capped at 2M cells (`MAX_CELLS`); measured 2M-cell P99 32 s (`docs/SYSTEMS-MAP.md`). The pane lists 50 rows and says how many more are highlighted. |
@@ -325,8 +325,8 @@ one, and it now holds that.
 | 16. A thank-you after the form | Built | `#thanks` (`role="status"`, toggled with `hidden`) once the link to GitHub is followed: it says the question reaches John only after Submit on GitHub. The link is described by the ready text (`aria-describedby`). |
 | 17. Terms of use | Built | `site/terms.html`: free and MIT licensed, as is with no warranty, check before you rely on it, AI can be wrong, invite codes personal and capped, privacy page for data, dated, contact through support. In the sitemap and every footer. |
 | 18. Footer on every page | Built | Privacy, Terms, Support and the public repository, and "No cookies, no tracking of you.", on all five pages. |
-| 19. A sharing image | Built | `site/assets/og-card.png`, 1200 x 630, 18 KB, rendered from `docs/design/logo/mark-80.svg`; `og:image` with its size and alt, `twitter:card` `summary_large_image` and `twitter:image` on every page but the 404. |
-| 20. A full set of icons | Built | `crest2-180.png` (apple-touch-icon, on paper), `crest2-192.png` and `crest2-512.png` from `mark-80.svg`; the 180 and 192 linked on every page. Sizes checked from the files. |
+| 19. A sharing image | Built | `site/assets/og-card.png`, 1200 x 630, 20 KB, its logo panel drawn by `docs/design/logo/draw.py` (AH-203); `og:image` with its size and alt, `twitter:card` `summary_large_image` and `twitter:image` on every page but the 404. |
+| 20. A full set of icons | Built | `crest4-180.png` (apple-touch-icon), `crest4-192.png` and `crest4-512.png`, each `docs/design/logo/icon-*.svg` at its size; the 180 and 192 linked on every page. Sizes checked from the files. |
 | 21. Alt text | Built (test) | Every `<img>` described or `alt=""` with `aria-hidden`, every inline svg hidden or named, on every page. |
 | 22. No placeholder text | Built (test) | No lorem, ipsum, TODO, TBD, example.com, Your Name, placeholder text or XXX in what a user reads (the checks table's "N/A and TBD placeholders" names what the app finds). |
 | 23. Outside links allowlisted | Built (test) | github.com/ricepillow3000 only on GitHub, aistudio.google.com, 988lifeline.org, findahelpline.com, signpath.io, signpath.org, the site's own address and goatcounter.com's privacy page. |

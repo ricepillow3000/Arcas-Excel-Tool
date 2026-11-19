@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" shape-rendering="crispEdges">
-  <!-- the 16 px drawing (favicon, ribbon 16, the exe's 16), placed by hand pixel by pixel: every pixel is gold, navy, paper or
-       empty, never a blend (AH-121 round 2: a smooth ring and V hem were grey at 16). A 1 px shaft and tip with a small
-       crossguard, the bar and caps, the banner and rim with its hem as one step, and the ring as a 1 px circle with the slash
-       a 1 px diagonal poking past it: a 2 px ring buried the slash and read as a white square. Centred on column 7 -->
-  <path fill="#997D3A" d="M7 0h1v1h-1zM6 1h3v1h-3zM0 2h2v1h-2zM7 2h1v1h-1zM13 2h2v1h-2zM0 3h15v1h-15zM0 4h15v1h-15zM0 5h3v1h-3zM12 5h3v1h-3zM2 6h1v1h-1zM12 6h1v1h-1zM2 7h1v1h-1zM12 7h1v1h-1zM2 8h1v1h-1zM12 8h1v1h-1zM2 9h1v1h-1zM12 9h1v1h-1zM2 10h1v1h-1zM12 10h1v1h-1zM2 11h1v1h-1zM12 11h1v1h-1zM2 12h1v1h-1zM12 12h1v1h-1zM2 13h1v1h-1zM12 13h1v1h-1zM2 14h3v1h-3zM10 14h3v1h-3zM4 15h7v1h-7z"/>
-  <path fill="#0C1938" d="M3 5h9v1h-9zM3 6h9v1h-9zM3 7h9v1h-9zM3 8h9v1h-9zM3 9h9v1h-9zM3 10h9v1h-9zM3 11h9v1h-9zM3 12h9v1h-9zM3 13h9v1h-9zM5 14h5v1h-5z"/>
-  <path fill="#F7F5F0" d="M6 6h3v1h-3zM10 6h1v1h-1zM5 7h1v1h-1zM9 7h1v1h-1zM4 8h1v1h-1zM8 8h1v1h-1zM10 8h1v1h-1zM4 9h1v1h-1zM7 9h1v1h-1zM10 9h1v1h-1zM4 10h1v1h-1zM6 10h1v1h-1zM10 10h1v1h-1zM5 11h1v1h-1zM9 11h1v1h-1zM4 12h1v1h-1zM6 12h3v1h-3z"/>
-</svg>
