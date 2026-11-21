@@ -2,6 +2,7 @@ import { EXCEL_ERRORS } from "../constants/index.js";
 import { state } from "../hooks/use-state.js";
 import { $, show } from "../utils/dom.js";
 import { cellAt, colLetter, r1c1ToA1, readAs, sameRow, typedAsFormula } from "../utils/sheet.js";
+import { local, place, sentOf } from "../utils/layout.js";
 import { setApplied } from "../components/fix-preview.js";
 import { busy, notice } from "../components/progress.js";
 import { post } from "../services/api.js";
@@ -39,7 +40,7 @@ const addUps = (reason) => String(reason || "").replace(/^Flagged by \d+ of \d+:
 // limits = {col: [baseLo, baseHi, weirdLo, weirdHi]}.
 // calc = this row's formulas: a cell holding a formula is never overwritten - its inputs are what's wrong.
 // formula = {column: R1C1}: the column's own formula for a cell that broke it (AH-152), written back ahead of anything else.
-export function recommendFix(columns, rows, i, limits, reason, startRow, startCol, likely, calc, maybe, formula) {
+export function recommendFix(columns, rows, i, limits, reason, startRow, startCol, likely, calc, maybe, formula, o = 0) {
   const row = startRow + 2 + i;
   const changes = [], typos = [], slips = [], calcCells = [], seen = new Set(); // seen: columns already explained
   let guessed = false; // a misspelling's fix is a guess too
@@ -115,9 +116,9 @@ export function recommendFix(columns, rows, i, limits, reason, startRow, startCo
   if (calcCells.length) notes.push(`${calcCells.join(", ")} ${calcCells.length > 1 ? "are" : "is"} calculated by a formula. ` +
     "Fix the cells it uses rather than typing over it.");
   if (typos.length) notes.push(`${typos.join("; ")}. Check it against the original receipt, invoice or report before you click Accept.`);
-  const dup = /Duplicate of row (\d+)/.exec(reason); // engine counts from a header in row 1
+  const dup = /Duplicate of row (\d+)/.exec(reason); // engine counts from a header in row 1 (o: AH-212, a table's offset in the sheet's rows)
   // which copy is the stray one the sheet's order says, not the engine: 5 of 14 blind pairs had the copy first
-  if (dup) notes.push(`This row repeats row ${+dup[1] + startRow} in every column. If one of them is a double entry, delete ` +
+  if (dup) notes.push(`This row repeats row ${+dup[1] + startRow + o} in every column. If one of them is a double entry, delete ` +
     "the one that's out of place in the sheet's order: right-click its row number > Delete.");
   for (const [, raw, kind, col] of reason.matchAll(/Text "([^"]*)" in (number|date) column ([^;]+)/g))
     notes.push(`${col} holds the text "${raw}" where a ${kind} belongs. Retype it as a ${kind}.`);
@@ -228,11 +229,13 @@ export function unusualColumn(reason, columns) {
 // A row that is only unusual gets no instant fix. Agent 3 hunts for the one typing slip (digits swapped, extra digit,
 // decimal point, sign) that makes the row normal again; none or two = the advice stays, nothing is guessed.
 export async function suggestTypo(f, r, rec) {
-  const { columns, rows, startRow, startCol } = state.lastScan;
+  const t = place(state.lastScan, f.i), { columns, rows, startRow, startCol } = t;
   const col = unusualColumn(r.reason, columns), j = columns.indexOf(col);
   if (rec.changes.length || !col || String(f.calc?.[j] ?? "").startsWith("=")) return rec;
   busy("Looking for a likely typo…");
-  const s = await post("/suggest", { columns, rows, limits: state.lastLimits, strength: state.lastStrength, row_index: f.i, column: col });
+  // the row's own table as the scan sent it (AH-212): its rows alone, row f.i its row f.i - o
+  const s = await post("/suggest", { columns, rows: sentOf(local(t)).rows, limits: t.limits || state.lastLimits, strength: state.lastStrength,
+    row_index: f.i - (t.o || 0), column: col });
   if (s.value === undefined) return rec;
   const v = rows[f.i][j];
   return { typo: true, guess: true, changes: [{ cell: `${colLetter(startCol + j)}${startRow + 2 + f.i}`, new: String(s.value) }],
@@ -253,11 +256,11 @@ export const afterFix = (row, changes, startCol, rowNum) => changes.reduce((r, c
 // Agent 3 (in the engine): would these changes make row f.i look right? The engine scans the whole table again with
 // the first scan's limits. -> {clean, severity, reason}, or null when it can't be judged yet (a formula, a cell off the row).
 export async function checkFix(f, changes) {
-  const { columns, rows, startRow, startCol } = state.lastScan;
+  const t = place(state.lastScan, f.i), { columns, startRow, startCol } = t;
   const at = changes.map((c) => ({ ...cellAt(c.cell), value: typed(c.new) }));
   const off = (a) => a.row !== startRow + 2 + f.i || a.col < startCol || a.col >= startCol + columns.length || String(a.value).startsWith("=");
   if (!at.length || at.some(off)) return null;
-  return post("/check", { columns, rows, limits: state.lastLimits, strength: state.lastStrength, row_index: f.i,
+  return post("/check", { columns, rows: sentOf(local(t)).rows, limits: t.limits || state.lastLimits, strength: state.lastStrength, row_index: f.i - (t.o || 0),
     changes: at.map((a) => ({ col: a.col - startCol, value: a.value })) }, 300); // a full re-scan: as long as /scan gets
 }
 
@@ -286,7 +289,7 @@ export async function applyFix(f, changes, sheet) { // the fix, its changes and 
   status("Writing to your sheet…");
   try {
     // the scan's addresses are only right while the rows are where the scan saw them: never write into a moved row
-    const { startRow, startCol, columns, rows } = state.lastScan;
+    const { startRow, startCol, columns, rows, dates } = place(state.lastScan, f.i);
     const ks = [...new Set(changes.map((c) => cellAt(c.cell).row - startRow - 2))].filter((k) => rows[k]);
     const now = await readRows(sheet, ks.map((k) => ({ row: startRow + 1 + k, col: startCol, width: columns.length })));
     const moved = ks.find((k, m) => !sameRow(now[m].values, rows[k], now[m].calc));
@@ -298,7 +301,7 @@ export async function applyFix(f, changes, sheet) { // the fix, its changes and 
     const after = await readCells(sheet, cells); // exactly what Excel made of it ("12%" -> 0.12): Undo checks against this
     // the row as the next scan will read it: its code is what "fixed" is kept under in the workbook
     const [fixed] = await readRows(sheet, [{ row: startRow + 1 + f.i, col: startCol, width: columns.length }]);
-    const code = codeAt(state.hashes, f.i, rowHash(readAs(fixed.values, state.lastScan.dates)));
+    const code = codeAt(state.hashes, f.i, rowHash(readAs(fixed.values, dates)));
     // all read before any write; the cells (with their number formats), the row and its verdict as they were, for Undo
     state.undos[f.i] = { sheet, changes, after, writes: cells.map((cell, k) => ({ cell, value: olds[k], format: formats[k] })),
       row: state.lastScan.rows[f.i], verdict: state.lastRows[f.i], was: state.decided[f.i], code, before: state.codes[f.i] }; // dismissed: stays so
@@ -323,7 +326,7 @@ export async function applyFix(f, changes, sheet) { // the fix, its changes and 
     return status(`Accepted. Couldn't check it again${why}. Click Find problems to check the sheet.`);
   }
   if (!v) return status("Accepted. A formula is checked when you click Find problems again.");
-  const { startRow, startCol } = state.lastScan, row = [...state.lastScan.rows[f.i]];
+  const { startRow, startCol } = place(state.lastScan, f.i), row = [...state.lastScan.rows[f.i]];
   changes.forEach((c) => (row[cellAt(c.cell).col - startCol] = typed(c.new)));
   state.lastScan.rows[f.i] = row; // later checks and fixes see the fixed row
   state.lastRows[f.i] = { ...state.lastRows[f.i], severity: v.severity, reason: v.reason };
@@ -344,7 +347,7 @@ export async function undoFix(f) {
     // Undo only types into the same record it fixed: the row's other cells must still be what the scan read (a sort or
     // an inserted row moves another record under these addresses), and each fixed cell must still hold exactly what
     // Excel made of the fix - a cell edited by hand since is the user's now
-    const { startRow, startCol, columns } = state.lastScan, rowNum = startRow + 2 + f.i;
+    const { startRow, startCol, columns } = place(state.lastScan, f.i), rowNum = startRow + 2 + f.i;
     const [row] = await readRows(u.sheet, [{ row: rowNum - 1, col: startCol, width: columns.length }]);
     const now = await readCells(u.sheet, u.writes.map((w) => w.cell));
     const edited = u.writes.filter((w, k) => now[k] !== u.after[k]).map((w) => w.cell);

@@ -1,5 +1,6 @@
 import { ACCEPT_UNDO_KEY } from "../constants/index.js";
 import { A1, cellAt, readAs, typedAsFormula } from "../utils/sheet.js";
+import { place } from "../utils/layout.js";
 
 // Accept's Undo outlives the pane (AH-118). Auto-fix kept its old values in the workbook, but an accepted fix kept them
 // only in the pane's memory (state.undos), so closing or reloading the pane lost the user's old values for good. Each
@@ -65,11 +66,12 @@ export const forgetUndo = (sheet, code) => save(dropUndo(kept(), sheet, code));
 // After a scan: the Undo records of rows that are still the rows they fixed and still where the fix was written ->
 // {row index: Undo record as fix.js keeps it}. A row sorted elsewhere since keeps its record but offers no Undo: its
 // cells' addresses would name another record
-export function undosFor(scan, codes) {
+export function undosFor(sheet, codes) {
   const out = {}, at = new Map(codes.map((c, i) => [c, i]));
   for (const r of kept()) {
     const i = at.get(r.code);
-    if (r.sheet !== scan.sheet || i === undefined) continue;
+    if (r.sheet !== sheet.sheet || i === undefined) continue;
+    const scan = place(sheet, i); // the row's own table (AH-212)
     const spots = r.cells.map(([cell]) => cellAt(cell));
     if (spots.some((p) => p.row !== scan.startRow + 2 + i || p.col < scan.startCol || p.col >= scan.startCol + scan.columns.length)) continue;
     const row = [...scan.rows[i]]; // the row as it was before the fix: the scanned row with the old values back

@@ -6,6 +6,7 @@ import { checkFix } from "./fix.js";
 import { busy, counting } from "../components/progress.js";
 import { plainReason } from "./scan.js";
 import { colLetter } from "../utils/sheet.js";
+import { biggest, local, place } from "../utils/layout.js";
 import { isOurs, plainError } from "../utils/errors.js";
 import { recall } from "./memory.js";
 import { CAP } from "../constants/index.js";
@@ -63,13 +64,14 @@ export async function askFix() { // talks to the engine only; the sheet is touch
   show("fix-care", false);
   show("fix-label");
   try {
-    const { columns, rows, startRow, startCol } = state.lastScan, reason = state.lastRows[f.i].reason;
+    // the row's own table (AH-212): its rows alone, row f.i its row f.i - o
+    const t = place(state.lastScan, f.i), { columns, rows, startRow, startCol } = local(t), reason = state.lastRows[f.i].reason;
     // AH-143: the fixes the user accepted before in the flagged column, the one the engine reads from the reason (the
     // longest header it names: "Column 31" over "Column 3"); the engine ranks them and picks which go (AH-153)
     const flagged = columns.map(String).filter((c) => c.trim() && String(reason ?? "").includes(c)).sort((a, b) => b.length - a.length)[0];
     const memory = flagged ? recall(flagged) : [];
     const out = await post("/fix", {
-      columns, rows, row_index: f.i, start_row: startRow, start_col: startCol,
+      columns, rows, row_index: f.i - (t.o || 0), start_row: startRow, start_col: startCol,
       reason, intent: $("fix-intent").value, formulas: f.calc, ...(memory.length ? { memory } : {}),
     }, 300);
     // AH-125: the engine read the request as someone in crisis and sent nothing to the AI. Its helpline message goes
@@ -127,7 +129,7 @@ function careSaid(f, words) {
 // The AI word check: a value that is a different KIND of thing from the rest of its column ("London" among products).
 // The engine sends only each text column's distinct words. Worth a look, not proof: nothing is changed in the sheet.
 export async function checkWords() {
-  const { columns, rows, startRow, startCol } = state.lastScan;
+  const { columns, rows, startRow, startCol } = biggest(state.lastScan); // a sheet of several tables: its biggest (AH-212)
   const item = (text) => Object.assign(document.createElement("li"), { textContent: text }); // AI text is never HTML
   busy("Asking the AI about your words…"); // AH-157: with its seconds; act() takes it off. The pane sat silent up to 300 s
   counting();
@@ -166,7 +168,7 @@ export function oddLines(odd, columns, startRow, startCol) {
 // AH-202: Check subject rules with AI. The engine sends the AI only the sheet's headers and each column's kind, never a
 // cell; the AI names rules its subject makes true (Net = Debit − Credit) and the engine checks each on every row
 export async function checkRules() {
-  const { columns, rows, startRow, startCol } = state.lastScan;
+  const { columns, rows, startRow, startCol } = biggest(state.lastScan); // a sheet of several tables: its biggest (AH-212)
   const item = (text) => Object.assign(document.createElement("li"), { textContent: text }); // AI text is never HTML
   busy("Asking the AI about your headers…");
   counting();

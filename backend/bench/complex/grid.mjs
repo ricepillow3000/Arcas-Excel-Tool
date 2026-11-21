@@ -1,0 +1,33 @@
+// AH-212: one sheet as Find problems reads it (frontend/services/excel.js readSheet), with no Office. stdin: one sheet
+// of a complex workbook, {values, formats, formulas, merged} from A1 (FORMAT.md). stdout: {tables, unread} as the pane's
+// layout reader gives them, each table with `sent` (its rows and formulas as the engine gets them), or null.
+// usage: node grid.mjs < sheet.json
+import { readFileSync } from "node:fs";
+import { maxCells } from "../../../frontend/utils/sheet.js";
+import { formatRows, sentOf, tablesFromGrid } from "../../../frontend/utils/layout.js";
+
+const { values, formats, formulas, merged } = JSON.parse(readFileSync(0, "utf8"));
+const used = (r, c) => (values[r][c] !== "" && values[r][c] !== null) || !!formulas?.[r]?.[c];
+// Excel's used range starts at its first used row and column, not at A1
+const rows = values.map((_, r) => r).filter((r) => values[r].some((_, c) => used(r, c)));
+const cols = (values[0] || []).map((_, c) => c).filter((c) => values.some((_, r) => used(r, c)));
+let out = null;
+if (rows.length) {
+  const r0 = rows[0], c0 = cols[0], w = cols.at(-1) + 1 - c0;
+  const total = Math.min(rows.at(-1) + 1 - r0, Math.floor(maxCells() / w));
+  const cut = (grid, from, n) => grid.slice(r0 + from, r0 + from + n).map((r) => r.slice(c0, c0 + w));
+  // readSheet loads number formats for the top 30 rows, then each lower table's first rows; a formula only where the
+  // cell's R1C1 text starts with "="; the merged areas where Excel has ExcelApi 1.13
+  const calc = cut(formulas || values.map((r) => r.map(() => null)), 0, total)
+    .map((r) => r.map((f) => (typeof f === "string" && f.startsWith("=") ? f : null)));
+  const vals = cut(values, 0, total), fmts = formats ? cut(formats, 0, Math.min(total, 30)) : null;
+  const opts = { merged: merged || [] };
+  let read = tablesFromGrid(vals, fmts, r0, c0, calc, opts);
+  const more = fmts ? formatRows(read.tables, r0, fmts.length) : [];
+  if (more.length) {
+    for (const [k, n] of more) cut(formats, k, Math.min(n, total - k)).forEach((row, x) => (fmts[k + x] = row));
+    read = tablesFromGrid(vals, fmts, r0, c0, calc, opts);
+  }
+  if (read.tables.length) out = { tables: read.tables.map((t) => ({ ...t, sent: sentOf(t) })), unread: read.unread };
+}
+process.stdout.write(JSON.stringify(out));

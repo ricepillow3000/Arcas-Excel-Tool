@@ -1,7 +1,8 @@
 import { SEV } from "../constants/index.js";
 import { state } from "../hooks/use-state.js";
 import { $, dated, only, show } from "../utils/dom.js";
-import { rowFromAddress, shownAs } from "../utils/sheet.js";
+import { shownAs } from "../utils/sheet.js";
+import { place, rowAt } from "../utils/layout.js";
 import { act } from "../hooks/use-action.js";
 import { busy, notice } from "../components/progress.js";
 import { showAccepted, showFix } from "../components/fix-preview.js";
@@ -17,7 +18,7 @@ import { plainError } from "../utils/errors.js";
 // One row's card: what's wrong, the suggested fix (Accept / Dismiss, then Undo / Next row), and Ask AI.
 export function onSelect(e) {
   if (state.working || !state.lastScan || (state.view !== "results" && state.view !== "fix-view")) return; // never yank the user out of the limits editor
-  const i = rowFromAddress(e.address, state.lastScan.startRow);
+  const i = rowAt(state.lastScan, e.address); // the row of the table that holds the cell (AH-212)
   // a dismissed row stays quiet when clicked in the sheet (the list still opens it); a fixed one offers Undo
   const open = (SEV[state.lastRows[i]?.severity] && !state.decided[i]) || state.undos[i];
   if (i !== null && open && !(state.fix && state.fix.i === i)) act(() => openFix(i, false))();
@@ -41,7 +42,7 @@ export async function openFix(i, selectInSheet, from = null, focus = !!from) {
 }
 
 async function openRow(i, selectInSheet, from, focus) { // from: the list's button pressed, if one was
-  const { columns, rows, startRow, startCol, sheet } = state.lastScan;
+  const t = place(state.lastScan, i), { columns, rows, startRow, startCol, sheet } = t;
   const r = state.lastRows[i], u = state.undos[i]; // u: its fix was accepted - the card offers Undo
   if (r && !SEV[r.severity] && !u && state.decided[i] === "fixed") return selectFixed(i); // fixed before: nothing to undo here
   if (!r || (!SEV[r.severity] && !u)) return;
@@ -79,7 +80,7 @@ async function openRow(i, selectInSheet, from, focus) { // from: the list's butt
     f.calc = range.formulas[0]; // a cell holding a formula is never typed over
   });
   if (u) return showAccepted(f, u);
-  let rec = recommendFix(columns, rows, i, state.lastLimits, r.reason, startRow, startCol, r.likely, f.calc, r.maybe, r.formula);
+  let rec = recommendFix(columns, rows, i, t.limits || state.lastLimits, r.reason, startRow, startCol, r.likely, f.calc, r.maybe, r.formula, t.o);
   if (state.fix === f) rec = await suggestTypo(f, r, rec).catch(() => rec); // no typo found or engine busy: the advice stays
   const label = !rec.changes.length ? "What to check" : rec.typo ? "Possible typo: check it before you accept"
     : rec.guess ? "Best guess: check it before you accept" : "Suggested fix";
@@ -91,7 +92,7 @@ async function openRow(i, selectInSheet, from, focus) { // from: the list's butt
 // A row fixed before this scan that looks right now, with no Undo kept for it (Forget, an edit or a sort since, a cell
 // too long to keep, or a formula's old value, which only the pane that made the fix held): the list selects it.
 async function selectFixed(i) {
-  const { columns, startRow, startCol, sheet } = state.lastScan;
+  const { columns, startRow, startCol, sheet } = place(state.lastScan, i);
   await Excel.run(async (ctx) => {
     const ws = ctx.workbook.worksheets.getItem(sheet);
     ws.activate();
@@ -119,7 +120,7 @@ export async function dismissFix(stop = null) {
   const learnt = { values: [], kinds: [] };
   state.decided[f.i] = "dismissed";
   const kept = (async () => {
-    learnt.values = teach(f.sheet, taught(state.lastRows[f.i]?.kinds, state.lastScan.columns, state.lastScan.rows[f.i]));
+    learnt.values = teach(f.sheet, taught(state.lastRows[f.i]?.kinds, place(state.lastScan, f.i).columns, state.lastScan.rows[f.i]));
     if (stop) learnt.kinds = stopKind(f.sheet, [stop]);
     saveDecisions(f.sheet, [[code, "dismissed"]]);
     await fillRow(f.i, false);
@@ -147,7 +148,7 @@ async function putBack(f, was, code, e, learnt) {
   saveDecisions(f.sheet, [[code, was]]);
   await fillRow(f.i, true).catch(() => {}); // whatever came off goes back on
   await openFix(f.i, false);
-  $("fix-status").textContent = `Row ${state.lastScan.startRow + f.i + 2} was not dismissed, so it is back on your list. ${plainError(e)}`;
+  $("fix-status").textContent = `Row ${place(state.lastScan, f.i).startRow + f.i + 2} was not dismissed, so it is back on your list. ${plainError(e)}`;
 }
 
 // Back to the list: the card's title flies home to its row (AH-149), or the list fades in where that can't be

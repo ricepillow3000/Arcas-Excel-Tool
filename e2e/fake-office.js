@@ -40,6 +40,9 @@
         get formulas() { return grid((k) => k.f ?? k.v); }, set formulas(v) { set(v, true); },
         get formulasR1C1() { return grid((k, r, c) => (k.f ? r1c1(k.f, r, c) : k.v)); },
         set formulasR1C1(v) { set(v.map((row, i) => row.map((f, j) => (typeof f === "string" && f.startsWith("=") ? a1(f, r0 + i, c0 + j) : f))), true); },
+        // AH-212: the merged areas inside this range, as Excel 1.13 gives them ("Sheet!A1:F1,Sheet!C3:E3"), set by __merge
+        getMergedAreasOrNullObject() { const m = (ws.merged || []).filter((a) => { const [x, y = x] = a.split(":").map(parse); return x[0] >= r0 && x[1] >= c0 && y[0] < r0 + nr && y[1] < c0 + nc; });
+          return { isNullObject: !m.length, address: m.map((a) => `${name}!${a}`).join(","), load() { return this; } }; },
         getCellProperties() { return { value: grid((k) => ({ format: { fill: { color: k.fill || "#FFFFFF" } } })) }; },
         get numberFormat() { return grid((k) => k.nf); }, set numberFormat(v) { v.forEach((row, i) => row.forEach((f, j) => (cell(r0 + i, c0 + j).nf = f))); },
         format: { fill: { load() { return this; }, get color() { const all = grid((k) => k.fill ?? null).flat(); return all.every((x) => x === all[0]) ? all[0] ?? "#FFFFFF" : null; },
@@ -111,6 +114,7 @@
   window.__changed = (n) => sheets[n].changed.length;
   window.__drop = (n) => { delete sheets[n]; };
   window.__fill = (name, a, color) => { const [r, c] = parse(a); sheets[name].cell(r, c).fill = color; };
+  window.__merge = (name, areas) => { sheets[name].merged = areas; }; // AH-212: kept in this page only
   window.__formula = (name, a, f) => { const [r, c] = parse(a); sheets[name].cell(r, c).f = f; }; // value stays as loaded
   window.__cell = (name, a) => { const [r, c] = parse(a); const k = sheets[name].cells[r + "," + c] || {}; return { v: k.v, f: k.f, fill: k.fill }; };
   window.__userSelect = (name, address) => sheets[name].selected.forEach((h) => h({ address }));

@@ -2,6 +2,7 @@ import { $, show } from "../utils/dom.js";
 import { esc } from "../utils/text.js";
 import { post } from "../services/api.js";
 import { readSheet } from "../services/excel.js";
+import { biggest } from "../utils/layout.js";
 
 // AH-169 (John, 2026-11-16, "on the PC only"): before Find problems, what the sheet looks like and what the scan will
 // check, worked out by the engine on this PC (/profile: no AI, no network). It reads the header and the first 500 rows
@@ -16,8 +17,9 @@ export async function sayProfile() {
   lines.textContent = "Reading your sheet…"; // nothing waits in silence (AH-157)
   show("before-scan");
   try {
-    const s = await readSheet(() => {}, ROWS + TOP);
-    if (!s) throw new Error("no table");
+    const read = await readSheet(() => {}, ROWS + TOP);
+    if (!read) throw new Error("no table");
+    const s = biggest(read); // a sheet of several tables: its biggest (AH-212)
     const { lines: said } = await post("/profile", { columns: s.columns, rows: s.rows.slice(0, ROWS) }, 30);
     if (me !== asked) return;
     lines.innerHTML = said.map((line) => `<p>${esc(line)}</p>`).join("");

@@ -3621,8 +3621,8 @@
   "id": "live-strength-loosen",
   "guard": "Check as you work scans at the slider's level",
   "file": "frontend/features/live.js",
-  "old": "  const { decided, request } = await scanRequest(s, false);\n",
-  "new": "  const { decided, request } = await scanRequest(s, false);\n  request.strength = 5;\n",
+  "old": "  const { decided, requests } = await scanRequest(s, false);\n",
+  "new": "  const { decided, requests } = await scanRequest(s, false);\n  requests.forEach((r) => (r.strength = 5));\n",
   "kind": "loosen",
   "tests": [
    "e2e"
@@ -3633,8 +3633,8 @@
   "id": "live-strength-tighten",
   "guard": "Check as you work scans at the slider's level",
   "file": "frontend/features/live.js",
-  "old": "  const { decided, request } = await scanRequest(s, false);\n",
-  "new": "  const { decided, request } = await scanRequest(s, false);\n  request.strength = 10;\n",
+  "old": "  const { decided, requests } = await scanRequest(s, false);\n",
+  "new": "  const { decided, requests } = await scanRequest(s, false);\n  requests.forEach((r) => (r.strength = 10));\n",
   "kind": "tighten",
   "tests": [
    "e2e"
@@ -3799,8 +3799,8 @@
   "id": "learned-scan-tighten",
   "guard": "Find problems and Check as you work send what the sheet learned: one scanRequest (AH-205)",
   "file": "frontend/features/scan.js",
-  "old": "    learned: learnedFor(s) };",
-  "new": "    learned: null };",
+  "old": "      learned: learnedFor(t) };",
+  "new": "      learned: null };",
   "kind": "tighten",
   "tests": [
    "e2e"
@@ -4759,5 +4759,216 @@
   "tests": [
    "backend/tests/test_coded_spellings.py::test_one_other_code_with_two_names_still_lets_the_codes_prove_it_and_two_do_not"
   ]
+ },
+ {
+  "id": "layout-summed-loosen",
+  "guard": "A summary formula of the rows above is a subtotal only where its column writes it on at most a quarter of its rows (AH-212)",
+  "file": "frontend/utils/layout.js",
+  "old": "seen.get(`${j}\\u0000${f}`) <= Math.max(2, 0.25 * n));",
+  "new": "seen.get(`${j}\\u0000${f}`) <= Infinity);",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "layout-summed-tighten",
+  "guard": "A summary formula of the rows above is a subtotal only where its column writes it on at most a quarter of its rows (AH-212)",
+  "file": "frontend/utils/layout.js",
+  "old": "seen.get(`${j}\\u0000${f}`) <= Math.max(2, 0.25 * n));",
+  "new": "seen.get(`${j}\\u0000${f}`) <= 1);",
+  "kind": "tighten",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "layout-append-loosen",
+  "guard": "Rows under a table past 1-2 blank rows are more of it only when 3/4 as full as its rows (AH-212)",
+  "file": "frontend/utils/layout.js",
+  "old": "if (4 * median(now) >= 3 * median(was)) { t.r2 = b.r2; continue; }",
+  "new": "if (2 * median(now) >= median(was)) { t.r2 = b.r2; continue; }",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "layout-append-tighten",
+  "guard": "Rows under a table past 1-2 blank rows are more of it only when 3/4 as full as its rows (AH-212)",
+  "file": "frontend/utils/layout.js",
+  "old": "if (4 * median(now) >= 3 * median(was)) { t.r2 = b.r2; continue; }",
+  "new": "if (median(now) >= median(was)) { t.r2 = b.r2; continue; }",
+  "kind": "tighten",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "layout-gap-loosen",
+  "guard": "Three blank rows end a table; one or two do not (AH-212)",
+  "file": "frontend/utils/layout.js",
+  "old": "x.r2 < b.r1 && b.r1 - x.r2 <= 3);",
+  "new": "x.r2 < b.r1 && b.r1 - x.r2 <= 4);",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "layout-gap-tighten",
+  "guard": "Three blank rows end a table; one or two do not (AH-212)",
+  "file": "frontend/utils/layout.js",
+  "old": "x.r2 < b.r1 && b.r1 - x.r2 <= 3);",
+  "new": "x.r2 < b.r1 && b.r1 - x.r2 <= 2);",
+  "kind": "tighten",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "layout-header-loosen",
+  "guard": "A header row holds only words, years or dates (AH-212)",
+  "file": "frontend/utils/layout.js",
+  "old": "covered >= 0.6 * width && cols.every((c) => label(r, c))) return r;",
+  "new": "covered >= 0.6 * width) return r;",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "layout-header-tighten",
+  "guard": "A header row holds only words, years or dates (AH-212)",
+  "file": "frontend/utils/layout.js",
+  "old": "covered >= 0.6 * width && cols.every((c) => label(r, c))) return r;",
+  "new": "covered >= 0.6 * width && cols.every((c) => typeof values[r][c] === \"string\")) return r;",
+  "kind": "tighten",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "layout-sub-loosen",
+  "guard": "A row under a header names its columns when half its cells sit under a merged group label (AH-212)",
+  "file": "frontend/utils/layout.js",
+  "old": "c <= m.c2 && m.c2 > m.c1)).length >= cols.length) return true;",
+  "new": "c <= m.c2 && m.c2 > m.c1)).length >= 0) return true;",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "layout-sub-tighten",
+  "guard": "A row under a header names its columns when half its cells sit under a merged group label (AH-212)",
+  "file": "frontend/utils/layout.js",
+  "old": "c <= m.c2 && m.c2 > m.c1)).length >= cols.length) return true;",
+  "new": "c <= m.c2 && m.c2 > m.c1)).length >= 2 * cols.length) return true;",
+  "kind": "tighten",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "layout-total-loosen",
+  "guard": "A row that says Total is a subtotal only when sparser than most of its table's rows (AH-212)",
+  "file": "frontend/utils/layout.js",
+  "old": "const total = filled[i] < usual && words.some((v) => TOTAL.test(v));",
+  "new": "const total = words.some((v) => TOTAL.test(v));",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "layout-total-tighten",
+  "guard": "A row that says Total is a subtotal only when sparser than most of its table's rows (AH-212)",
+  "file": "frontend/utils/layout.js",
+  "old": "const total = filled[i] < usual && words.some((v) => TOTAL.test(v));",
+  "new": "const total = filled[i] < usual - 9 && words.some((v) => TOTAL.test(v));",
+  "kind": "tighten",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "layout-note-loosen",
+  "guard": "A row of one cell is a notes row only when its words run 25 letters or more, or say Note (AH-212)",
+  "file": "frontend/utils/layout.js",
+  "old": "(words[0].length >= 25 || NOTE.test(words[0]));",
+  "new": "(words[0].length >= 1 || NOTE.test(words[0]));",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "layout-note-tighten",
+  "guard": "A row of one cell is a notes row only when its words run 25 letters or more, or say Note (AH-212)",
+  "file": "frontend/utils/layout.js",
+  "old": "(words[0].length >= 25 || NOTE.test(words[0]));",
+  "new": "(words[0].length >= 2500 || NOTE.test(words[0]));",
+  "kind": "tighten",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "layout-plain-loosen",
+  "guard": "A plain sheet (one block, no merged area) is read exactly as tableFromGrid read it (AH-212)",
+  "file": "frontend/utils/layout.js",
+  "old": "plain = one && !merges.length && headerAt(values) >= 0;",
+  "new": "plain = one && headerAt(values) >= 0;",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "layout-plain-tighten",
+  "guard": "A plain sheet (one block, no merged area) is read exactly as tableFromGrid read it (AH-212)",
+  "file": "frontend/utils/layout.js",
+  "old": "plain = one && !merges.length && headerAt(values) >= 0;",
+  "new": "plain = false;",
+  "kind": "tighten",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "layout-pick-loosen",
+  "guard": "A cell picked in the sheet opens the row of the table that holds its column too (AH-212)",
+  "file": "frontend/utils/layout.js",
+  "old": "(col === null || (col >= v.startCol && col < v.startCol + v.columns.length));",
+  "new": "true;",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "layout-scan-tighten",
+  "guard": "Each table on a sheet is its own /scan, sent as the engine reads it: merged labels filled, subtotals blank (AH-212)",
+  "file": "frontend/features/scan.js",
+  "old": "  for (const r of requests) bodies.push(await post(\"/scan\", r, 300));",
+  "new": "  for (const r of requests.slice(0, 1)) bodies.push(await post(\"/scan\", r, 300));",
+  "kind": "tighten",
+  "tests": [
+   "e2e"
+  ],
+  "modes": "flow2"
+ },
+ {
+  "id": "layout-sent-tighten",
+  "guard": "Each table on a sheet is its own /scan, sent as the engine reads it: merged labels filled, subtotals blank (AH-212)",
+  "file": "frontend/features/scan.js",
+  "old": "    return { columns: t.columns, rows: sent.rows, limits,",
+  "new": "    return { columns: t.columns, rows: t.rows, limits,",
+  "kind": "tighten",
+  "tests": [
+   "e2e"
+  ],
+  "modes": "flow2"
  }
 ]

@@ -4,9 +4,9 @@ import { $, show } from "../utils/dom.js";
 import { notice } from "../components/progress.js";
 import { n } from "../utils/text.js";
 import { cellAt, colLetter, spots } from "../utils/sheet.js";
-import { post } from "../services/api.js";
 import { readSheet, showCell } from "../services/excel.js";
-import { flaggedRows, plainReason, scanRequest } from "./scan.js";
+import { flaggedRows, plainReason, scanAll, scanRequest } from "./scan.js";
+import { place } from "../utils/layout.js";
 import { copiedSaid, dropTab, newPairs } from "./tabs.js";
 
 // AH-181 (John, 2026-11-17): check alongside the user as they type, on any tab, and say at once when a cell they changed
@@ -41,7 +41,7 @@ export function inRange(address, cell) {
   });
 }
 
-// Pure: a cell a flagged row's reasons name, as highlight.js colours it
+// Pure: a cell a flagged row's reasons name, as highlight.js colours it (s: the row's own table, utils/layout.js place)
 const cellOf = (r, s, j) => colLetter(s.startCol + j) + (s.startRow + 2 + r.i);
 
 // Pure: the rows a check flagged in a cell that was changed (edited: Excel's addresses), never one fixed or dismissed:
@@ -49,8 +49,8 @@ const cellOf = (r, s, j) => colLetter(s.startCol + j) + (s.startRow + 2 + r.i);
 // wants every change answered, wrong or "nothing unusual", and a cell retyped still wrong said nothing at all
 export function findingsAt(rows, s, decided = {}, edited = []) {
   return flaggedRows(rows).filter((r) => !decided[r.i]).flatMap((r) => {
-    const k = spots(r, s.columns).find((j) => edited.some((a) => inRange(a, cellOf(r, s, j))));
-    return k === undefined ? [] : [{ ...r, cell: cellOf(r, s, k), column: s.columns[k] }];
+    const t = place(s, r.i), k = spots(r, t.columns).find((j) => edited.some((a) => inRange(a, cellOf(r, t, j))));
+    return k === undefined ? [] : [{ ...r, cell: cellOf(r, t, k), column: t.columns[k] }];
   });
 }
 
@@ -106,8 +106,8 @@ async function check(id, cells) {
     return;
   }
   big.delete(s.sheet);
-  const { decided, request } = await scanRequest(s, false);
-  const body = await post("/scan", request, 300);
+  const { decided, requests } = await scanRequest(s, false);
+  const body = await scanAll(s, requests);
   const found = findingsAt(body.rows, s, decided, cells);
   const pairs = await newPairs(s.sheet).catch(() => []);
   const lines = [found.length ? noteSaid(s.sheet, found[0], found.length - 1, s.names) : "", ...pairs.map(copiedSaid)].filter(Boolean);

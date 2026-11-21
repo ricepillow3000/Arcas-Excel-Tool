@@ -1,6 +1,7 @@
 import { KEY, READ_CELLS } from "../constants/index.js";
 import { state } from "../hooks/use-state.js";
 import { maxCells, tableFromGrid } from "../utils/sheet.js";
+import { asSheet, formatRows, tablesFromGrid } from "../utils/layout.js";
 
 // Talking to Excel (Office.js): read and write the sheet, workbook settings, clicks in the sheet.
 export const getLimits = () =>
@@ -26,7 +27,8 @@ export async function activeSheet() {
 // each cell's R1C1 formula (null where it holds none) goes to the engine too, so a typed 250 among a column's
 // =RC[-2]*RC[-1] is seen; half the rows a slice keep each call the size it was. most: the rows read from the top at most
 // (AH-169: what the pane says before a scan reads only the header and the first 500 rows). AH-181: `sheetKey` (a name or
-// an id) reads that tab instead of the active one, and a sheet whose used rows `fits` refuses is not read: {sheet, big: true}
+// an id) reads that tab instead of the active one, and a sheet whose used rows `fits` refuses is not read: {sheet, big: true}.
+// AH-212: a sheet of several tables comes back as one object, its rows one after another (utils/layout.js asSheet)
 export async function readSheet(onSlice, most = Infinity, sheetKey = null, fits = () => true) {
   return Excel.run(async (ctx) => {
     const sheet = (sheetKey ? ctx.workbook.worksheets.getItem(sheetKey) : ctx.workbook.worksheets.getActiveWorksheet()).load("name");
@@ -36,6 +38,10 @@ export async function readSheet(onSlice, most = Infinity, sheetKey = null, fits 
     const { rowIndex: r0, columnIndex: c0, columnCount: w } = used;
     const total = Math.min(used.rowCount, Math.floor(maxCells() / w), most);
     const top = sheet.getRangeByIndexes(r0, c0, Math.min(total, 30), w).load("numberFormat");
+    // AH-212: the merged areas tell a header of two rows and a label merged down its group (ExcelApi 1.13; an older
+    // Excel reads the sheet without them)
+    const areas = Office.context.requirements?.isSetSupported?.("ExcelApi", "1.13")
+      ? sheet.getRangeByIndexes(r0, c0, total, w).getMergedAreasOrNullObject().load("isNullObject, address") : null;
     const step = Math.max(1, Math.floor(READ_CELLS / (2 * w))), values = [], formulas = [];
     for (let k = 0; k < total; k += step) {
       const part = sheet.getRangeByIndexes(r0 + k, c0, Math.min(step, total - k), w).load("values, formulasR1C1");
@@ -45,9 +51,20 @@ export async function readSheet(onSlice, most = Infinity, sheetKey = null, fits 
       onSlice(values.length / total);
     }
     await ctx.sync();
-    const t = tableFromGrid(values, top.numberFormat, r0, c0, formulas);
+    // AH-212: every table on the sheet (utils/layout.js), and the number formats of a table that starts below the top 30
+    // rows, read then: its dates go to the engine as dates
+    const merged = areas && !areas.isNullObject ? String(areas.address).split(",") : [], formats = [...top.numberFormat];
+    let read = tablesFromGrid(values, formats, r0, c0, formulas, { merged });
+    const more = formatRows(read.tables, r0, formats.length);
+    if (more.length) {
+      const parts = more.map(([k, n]) => sheet.getRangeByIndexes(r0 + k, c0, Math.min(n, total - k), w).load("numberFormat"));
+      await ctx.sync();
+      parts.forEach((p, m) => p.numberFormat.forEach((row, x) => (formats[more[m][0] + x] = row)));
+      read = tablesFromGrid(values, formats, r0, c0, formulas, { merged });
+    }
     // last: the sheet's last used row, 1-based (AH-180: one on Excel's last row was likely cut off when it opened)
-    return t && { ...t, sheet: sheet.name, cut: total < used.rowCount && [r0 + total, r0 + used.rowCount], last: r0 + used.rowCount };
+    return read.tables.length ? asSheet(read.tables, { sheet: sheet.name, cut: total < used.rowCount && [r0 + total, r0 + used.rowCount],
+      last: r0 + used.rowCount, unread: read.unread }) : null;
   });
 }
 

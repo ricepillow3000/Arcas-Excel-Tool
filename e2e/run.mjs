@@ -1585,6 +1585,67 @@ if (mode === "flow2") {
       `AH-204: ${count} flagged rows draw 50 rows${more ? ` and "${more}"` : " and no more line"} - ` + JSON.stringify({ ...got, slips }));
   }
   await many.close();
+
+  // AH-212: a power user's sheet of two tables: a header of two rows (Jan, Feb, Mar under a merged Costs), a Region merged
+  // down each group, subtotal rows, then a second table stacked below two blank rows, and a label with its number under
+  // it. Each table is its own /scan, merged labels filled and subtotals blank for the engine only; a planted cell in each
+  // table is listed, coloured and opened at its own sheet row; Accept writes the right cell; the note names what was not read
+  {
+    const lay = await browser.newPage({ ignoreHTTPSErrors: true, viewport: { width: 360, height: 900 } });
+    const slipped = [], sent = [];
+    lay.on("pageerror", (e) => slipped.push(e.message));
+    lay.on("request", (r) => r.url().endsWith("/scan") && sent.push(JSON.parse(r.postData())));
+    await lay.route("https://appsforoffice.microsoft.com/**", (r) => r.fulfill({ contentType: "text/javascript", body: fs.readFileSync(DIR + "fake-office.js", "utf8") }));
+    await lay.goto("https://127.0.0.1:5055/taskpane.html");
+    await lay.waitForSelector("#main-ui", { state: "visible" });
+    const sheet = [["Shop costs", "", "", "", "", ""], ["", "", "", "", "", ""], ["Item", "Region", "Costs", "", "", "Total"], ["", "", "Jan", "Feb", "Mar", ""]];
+    const sums = [];
+    for (const region of ["North", "South"]) {
+      for (let i = 0; i < 12; i++) { const a = 100 + 7 * i, b = 200 + 3 * i, c = 150 + 5 * i; sheet.push([`${region[0]}-${i + 1}`, i ? "" : region, a, b, c, a + b + c]); }
+      sums.push(sheet.length + 1);
+      sheet.push(["", `Subtotal ${region}`, 0, 0, 0, 0]);
+    }
+    sheet[7][5] += 900; // F8: a total that does not add up, under the two-row header
+    sheet.push(["", "", "", "", "", ""], ["", "", "", "", "", ""], ["Leave requests", "", "", "", "", ""], ["Request", "Employee", "Days", "Approved", "", ""]);
+    for (let i = 0; i < 30; i++) sheet.push([`R-${i + 1}`, `E-${100 + i}`, 1 + (i % 5), i % 3 ? "Yes" : "No", "", ""]);
+    sheet[49][2] = "two"; // C50: text in the second table's number column
+    sheet[54][3] = "yes"; // D55: a capitals slip, a fix the card can write
+    sheet.push(["", "", "", "", "", ""], ["Pass mark", 40, "", "", "", ""]);
+    await lay.evaluate(([rows, sums]) => {
+      __load("Layout", rows);
+      for (const r of sums) for (const c of "CDEF") __formula("Layout", `${c}${r}`, `=SUM(${c}${r - 12}:${c}${r - 1})`);
+      __merge("Layout", ["A1:F1", "A3:A4", "B3:B4", "C3:E3", "F3:F4", "B5:B16", "B18:B29"]);
+    }, [sheet, sums]);
+    await lay.click("#scan");
+    await lay.waitForFunction(() => !document.getElementById("scan").disabled && !__state.working);
+    const got = await lay.evaluate(() => ({ list: [...document.querySelectorAll("#flagged-list button")].map((b) => b.innerText.split("\n")[0]),
+      fills: ["F8", "C50", "F17", "B6", "A8"].map((a) => !!__cell("Layout", a).fill), notes: document.getElementById("book-notes").innerText }));
+    const [one, two] = sent;
+    ok(sent.length === 2 && JSON.stringify(one.columns) === '["Item","Region","Costs Jan","Costs Feb","Costs Mar","Total"]' && one.start_row === 3
+      && one.rows[1][1] === "North" && one.rows[12].every((v) => v === "") && !one.formulas && JSON.stringify(two.columns) === '["Request","Employee","Days","Approved"]'
+      && two.start_row === 33 && two.rows.length === 30 && one.power_bi === false && two.power_bi === false,
+      "AH-212: two stacked tables are two /scans: names from both header rows, the merged Region filled down, the subtotal blank, never in a cell - "
+      + JSON.stringify({ n: sent.length, one: one && [one.columns, one.start_row, one.rows[1], one.rows[12], !!one.formulas], two: two && [two.columns, two.start_row, two.rows.length] }));
+    ok(got.list.some((t) => /^Row 8\b/.test(t)) && got.list.some((t) => /^Row 50\b/.test(t)) && got.list.some((t) => /^Row 55\b/.test(t))
+      && JSON.stringify(got.fills) === "[true,true,false,false,false]",
+      "AH-212: the planted cell in each table is listed and coloured at its own sheet row, the subtotal and the merged label never - " + JSON.stringify(got));
+    ok(got.notes.includes("Cells A66:B66 on this sheet were not checked: they hold no table Arcas can read."),
+      "AH-212: the cells no table holds are said under the results, in a notice - " + JSON.stringify(got.notes));
+    // a cell of the second table picked in the sheet opens its own row's card; Accept there writes its own cell, D55
+    await lay.evaluate(() => __userSelect("Layout", "C50"));
+    await lay.waitForFunction(() => /^Row 50:/.test(document.getElementById("fix-title").textContent) && !__state.working);
+    await lay.click("#fix-back");
+    await lay.click('#flagged-list button:has-text("Row 55 ")');
+    await lay.waitForFunction(() => !__state.working && document.getElementById("fix-apply").checkVisibility());
+    await lay.click("#fix-apply");
+    await lay.waitForFunction(() => !__state.working && document.getElementById("fix-undo").checkVisibility());
+    await lay.waitForFunction(() => /looks right now|still sees/.test(document.getElementById("fix-status").textContent));
+    const after = await lay.evaluate(() => ({ d55: __cell("Layout", "D55").v, status: document.getElementById("fix-status").textContent,
+      c50: __cell("Layout", "C50").v, f8: __cell("Layout", "F8").v }));
+    ok(after.d55 === "Yes" && after.c50 === "two" && after.f8 === 1395 && after.status === "Accepted and checked again: row 55 looks right now." && slipped.length === 0,
+      "AH-212: Accept in the second table writes its own cell, and the row is checked again in its own table - " + JSON.stringify({ ...after, slipped }));
+    await lay.close();
+  }
 }
 
 if (mode === "live") { // AH-180, AH-181

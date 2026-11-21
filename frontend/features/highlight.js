@@ -3,6 +3,7 @@ import { state } from "../hooks/use-state.js";
 import { n } from "../utils/text.js";
 import { busy, notice } from "../components/progress.js";
 import { A1, colLetter, spots } from "../utils/sheet.js";
+import { place } from "../utils/layout.js";
 
 const ours = (color) => Object.values(COLOR).includes(String(color).toUpperCase());
 
@@ -46,7 +47,8 @@ export async function paint(rows, s, skip = {}) { // skip: rows fixed or dismiss
       const sheet = ctx.workbook.worksheets.getItem(s.sheet);
       for (let k = 0; k < flagged.length; k += CHUNK) {
         busy(`Step 3 of 3: highlighting rows to check… ${n(k)} of ${n(flagged.length)}`, k / flagged.length);
-        const part = flagged.slice(k, k + CHUNK).flatMap((i) => spots(rows[i], s.columns).map((j) => [i, colLetter(s.startCol + j) + (s.startRow + 2 + i)]));
+        // each row's cells in its own table (AH-212: a sheet of several tables)
+        const part = flagged.slice(k, k + CHUNK).flatMap((i) => { const t = place(s, i); return spots(rows[i], t.columns).map((j) => [i, colLetter(t.startCol + j) + (t.startRow + 2 + i)]); });
         const fills = part.map(([, a]) => sheet.getRange(a).format.fill.load("color"));
         await ctx.sync();
         // a cell already in our colour that the workbook kept no fill for is an earlier highlight (its record forgotten,
