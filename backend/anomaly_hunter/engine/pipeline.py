@@ -4,6 +4,7 @@ import collections
 import datetime
 import hashlib
 import itertools
+import os
 import re
 
 import numpy as np
@@ -2284,6 +2285,216 @@ def formulas(df, column_types, skip, grid=None):
     return out, fix
 
 
+# AH-214: Excel's own "inconsistent formula" idea, read across a row as well as down a column, in a summary block too
+SIBLINGS = 3  # cells of a row or column that share one formula before the one that breaks it is a slip
+CALLS = re.compile(r"([A-Z][A-Z0-9.]*)\((\d+,)?")  # the functions a formula calls, in order: its shape
+CHAIN = {"row": re.compile(r"(?<![\w\]])RC\[-1\]"), "col": re.compile(r"(?<![\w\]])R\[-1\]C(?![\[\d])")}  # the cell before
+ABS_ROW = re.compile(r"(?<![\w\].$'\[])R(\d+)(?=C|:|[^\w\[]|$)")  # R6C6, R4C: an absolute row, never R[1], a name or a table
+
+
+def _read(f):
+    """A formula -> (its shape, its text with each absolute row a blank, those rows). Its shape is the functions it calls,
+    a SUBTOTAL's or AGGREGATE's function number with them: SUBTOTAL(3,..) counts, SUBTOTAL(9,..) adds (a roster's
+    subtotal row counts its IDs and adds its pay). Strings are never read."""
+    shape = tuple(name + (num if name in ("SUBTOTAL", "AGGREGATE") else "")
+                  for name, num in CALLS.findall(re.sub(r'"[^"]*"', '""', f)))
+    rows = []
+    blank = lambda m: (rows.append(int(m[1])), "R{}")[1]
+    text = "".join(p if k % 2 else ABS_ROW.sub(blank, p) for k, p in enumerate(re.split(r'("[^"]*")', f)))
+    return shape, text, tuple(rows)
+
+
+def _distance(read, f, i):
+    """=R6C6 on row 0 and =R7C6 on row 1 read as one formula, the cell 6 rows down: a column of links to the rows of
+    another block (Budget FY =R6C6, =R7C6, ...) holds no two cells alike as typed."""
+    _, text, rows = read[f]
+    return (text, tuple(r - i for r in rows)) if rows else f
+
+
+def _line(cells, chain):
+    """cells: [(position, text)] of one shape in one row or column -> (the odd position or None, the pattern's text or
+    None): the odd one where all the others, SIBLINGS or more, share one text; the pattern where over half do (2+). A
+    chain (a running total, =RC[-1]+R[-1]C: `chain` finds the cell before it) has nothing before its first cell to
+    add, so that cell has a formula of its own and sits out."""
+    if len(cells) < 2:  # a cell alone: neither a pattern nor an odd one (a crafted column of 20,000 shapes stays quick)
+        return None, None
+    rest = collections.Counter(t for _, t in cells[1:]).most_common(1)
+    if rest and cells[0][1] != rest[0][0] and chain.search(rest[0][0] if isinstance(rest[0][0], str) else rest[0][0][0]):
+        cells = cells[1:]
+    top = collections.Counter(t for _, t in cells).most_common(1)
+    if not top or top[0][1] < 2 or 2 * top[0][1] <= len(cells):
+        return None, None
+    odd = [p for p, t in cells if t != top[0][0]]
+    return (odd[0] if len(odd) == 1 and top[0][1] >= SIBLINGS else None), top[0][0]
+
+
+def _runs(pos):
+    """Positions of a line's formula cells, in order -> [(first position, positions)] of each unbroken run."""
+    out = []
+    for p in pos:
+        if out and p == out[-1][1][-1] + 1:
+            out[-1][1].append(p)
+        else:
+            out.append((p, [p]))
+    return out
+
+
+def formula_siblings(df, skip, grid=None):
+    """AH-214: a formula whose row or column siblings, SIBLINGS or more of the same shape (the functions it calls), all
+    share one formula that it breaks: a SUMIFS by region and quarter whose criteria point one row or column off, a
+    COUNTIFS of the row above's code, a grand total that adds its "of which" rows. Down a column a formula is read as
+    typed and with its absolute rows as distances (_distance), and a totals row sits out, as in formulas(). A cell that
+    keeps the pattern of its other line is that line's way (the first month of a running balance, a corner total adding
+    across) and never a break. Siblings are those of one unbroken run of formulas along the line: a blank or typed cell
+    ends it (a cost per m2 past a blank row and a typed floor area, under a run of links, fix round 1 on the fresh
+    held-out set). 6 planted on the complex bench's tuning episodes; the column check of AH-152 needs 5 rows
+    and one text. Each formula text is read once: 600,000 cells of one SUMIFS stay quick. -> reasons per row, never a
+    fix (which one is meant is unknown)."""
+    n = len(df)
+    out = [[] for _ in range(n)]
+    if not grid:
+        return out
+    m = len(df.columns)
+    f = [[str(row[j]) if row[j] else None for j in range(m)] for row in grid]
+    read = {t: _read(t) for t in {t for row in f for t in row if t}}
+    shape = [[read[t][0] if t else None for t in row] for row in f]
+    # each line cut into runs at every cell with no formula, blank or typed: a cell is judged only against the siblings of
+    # its own run (a cost per m2 past a blank row and a typed floor area is no sibling of the links above them)
+    lines, run = {}, {}  # (axis, index, run's first position) -> {shape: (odd position, the pattern's texts)}; cell -> runs
+    for i in range(n):
+        for start, pos in _runs([j for j in range(m) if f[i][j]]):
+            by = collections.defaultdict(list)
+            for j in pos:
+                by[shape[i][j]].append((j, f[i][j]))
+                run[i, j] = {"row": ("row", i, start)}
+            lines["row", i, start] = {s: (lambda o, p: (o, {p}))(*_line(c, CHAIN["row"])) for s, c in by.items()}
+    for j in range(m):
+        for start, pos in _runs([i for i in range(n) if f[i][j]]):
+            lines["col", j, start], by = {}, collections.defaultdict(list)
+            for i in pos:
+                by[shape[i][j]].append(i)
+                run[i, j]["col"] = ("col", j, start)
+            for s, idx in by.items():
+                got = []  # as typed (a SUMIFS copied down, its criteria row fixed) and read as distances (=R6C6, =R7C6)
+                for how in (lambda t, i: t, lambda t, i: _distance(read, t, i)):
+                    cells = [(i, how(f[i][j], i)) for i in idx]
+                    # its pattern from every row, a totals row too; its odd cell only among the rows that are no total
+                    got.append((_line([c for c in cells if not skip[c[0]]], CHAIN["col"])[0], _line(cells, CHAIN["col"])[1]))
+                    if not any(read[f[i][j]][2] for i in idx):
+                        break  # no absolute row: the distances are the text
+                lines["col", j, start][s] = (next((o for o, _ in got if o is not None), None), {p for _, p in got})
+    for i in range(n):
+        for j in range(m):
+            if not (t := f[i][j]):
+                continue
+            s, col, here = shape[i][j], df.columns[j], run[i, j]
+            row_odd, col_odd = lines[here["row"]][s][0] == j, lines[here["col"]][s][0] == i
+            if row_odd and not lines[here["col"]][s][1] & {t, _distance(read, t, i)}:
+                names = [str(df.columns[k]) for k in range(m) if k != j and run.get((i, k), {}).get("row") == here["row"]
+                         and shape[i][k] == s]
+                more = f" and {len(names) - 3} more" if len(names) > 3 else ""
+                out[i].append(Why(f"{col} is worked out differently from the {len(names)} other cells of its row that "
+                                  f"share one formula ({', '.join(names[:3])}{more})", col))
+            elif col_odd and not lines[here["row"]][s][1] & {t}:
+                k = sum(1 for r in range(n) if r != i and not skip[r] and run.get((r, j), {}).get("col") == here["col"]
+                        and shape[r][j] == s)
+                out[i].append(Why(f"{col} is worked out differently from the {k} other rows of its column, which "
+                                  "follow one pattern", col))
+    return out
+
+
+GROUP_ROWS = 5  # rows of a group, its odd one among them, before the start its other codes share is the group's own
+GROUPS = 50  # labels a column holds at most to be read as the groups of a list
+GROUP_COLS, CODE_COLS = 3, 16  # grouped columns and code columns read, in sheet order: a crafted wide sheet stays fast
+
+
+def _code(v):
+    """A cell as a code: text stripped, a whole number as its digits (an account 4000.0 as "4000"), else None."""
+    if isinstance(v, str):
+        return v.strip() or None
+    if pd.api.types.is_number(v) and not isinstance(v, (bool, np.bool_)) and np.isfinite(v) and float(v).is_integer():
+        return str(int(v))
+    return None
+
+
+def _start(prefix, digits):
+    """The start some codes share (`prefix`, their os.path.commonprefix), cut back to before a run of digits it ends in
+    (HTL-1001..HTL-1271 share "HTL-1": their start is "HTL-"); codes of digits alone (`digits`) keep theirs (accounts
+    6000-6800 start with 6, their class)."""
+    return prefix if digits or not prefix[-1:].isdigit() else prefix.rstrip("0123456789")
+
+
+def _group_start(cs):
+    """cs: [(row, code)] of one group -> (its start, (row, code) of the one code that alone breaks it, or None). The
+    start without each code in turn, from the starts of the codes before and after it: a group of GROUP_ROWS+ rows
+    whose codes but one share a longer start than all of them (8D-08..8D-32 and 8C-11 share only "8")."""
+    c = [x for _, x in cs]
+    digits = sum(x.isdigit() for x in c)
+    whole = _start(os.path.commonprefix(c), digits == len(c))
+    if len(c) >= GROUP_ROWS:
+        pre, suf = [c[0]], [c[-1]]
+        for x in c[1:]:
+            pre.append(os.path.commonprefix([pre[-1], x]))
+        for x in reversed(c[:-1]):
+            suf.append(os.path.commonprefix([suf[-1], x]))
+        suf.reverse()
+        for y, x in enumerate(c):
+            rest = [pre[y - 1]] if y else []
+            rest += [suf[y + 1]] if y + 1 < len(c) else []
+            s = _start(os.path.commonprefix(rest), digits - x.isdigit() == len(c) - 1)
+            if len(s) > len(whole) and not x.startswith(s):
+                return s, cs[y]
+    return whole, None
+
+
+def wrong_group(df, column_types, skip):
+    """AH-214: a row filed under the wrong group. In a grouped list (a label of a text column on one block of rows, as
+    the layout reader fills a merged label down), each group's codes in a text or id column share a start (HTL- for hand
+    tools, 3. for the Build phase, 6 for operating expenses), its own, no other group's start nor a start of one. A code
+    of a group of GROUP_ROWS+ rows that alone breaks its group's start and has another group's sits under the wrong
+    heading (6 planted on the complex bench's tuning episodes). Two such codes in one group are a regrouping, never a
+    slip. A row is said once, on the first column that shows it (a row moved whole carries its description too).
+    -> reasons per row."""
+    out, n, grouped = [[] for _ in range(len(df))], len(df), 0
+    codes = {k: [_code(v) if not skip[i] else None for i, v in enumerate(df[k])]
+             for k in [c for c, t in column_types.items() if t in ("text", "id")][:CODE_COLS]}
+    for g in [c for c, t in column_types.items() if t == "text"][:64]:
+        if grouped == GROUP_COLS:
+            break
+        lab = df[g].astype(str).str.strip().where(~skip & ~_blank(df[g])).to_numpy(object)
+        rows, last = collections.defaultdict(list), None
+        for i in range(n):
+            if pd.isna(lab[i]):
+                continue
+            if lab[i] != last and lab[i] in rows or len(rows) > GROUPS:  # a label back after another: no block
+                rows = None
+                break
+            rows[lab[i]].append(i)
+            last = lab[i]
+        if not rows or len(rows) < 2:
+            continue
+        grouped += 1
+        for k, code in codes.items():
+            if k == g:
+                continue
+            starts, odd = {}, {}
+            for label, idx in rows.items():
+                cs = [(i, code[i]) for i in idx if code[i]]
+                if len(cs) >= 2 and (s := _group_start(cs))[0]:
+                    starts[label] = s[0]
+                    if s[1]:
+                        odd[label] = (*s[1], len(cs) - 1)
+            own = list(starts.values())
+            if any(a != b and b.startswith(a) for a in own for b in own) or len(set(own)) < len(own):
+                continue  # a start two groups share, or one inside another: no group has a start of its own
+            for label, (i, c, m) in odd.items():
+                theirs = [x for x, s in starts.items() if x != label and c.startswith(s)]
+                if theirs and not out[i]:  # one at most: no start sits inside another
+                    out[i].append(Why(f'{k} "{_short(c)}" starts like the rows under {theirs[0]} ("{starts[theirs[0]]}"), '
+                                      f'not like the other {m} under {label} ("{starts[label]}")', k))
+    return out
+
+
 COPY_COLS = 300  # number columns compared, in sheet order: a crafted wide sheet costs at most 300 hashes
 
 
@@ -2363,7 +2574,7 @@ ALONE = 7  # from this level, a value past its usual limit that few others pass 
 KINDS = ("duplicate", "type", "blank", "placeholder", "code", "far_date", "sum", "spelling", "lost_zero", "date_form",
          "formula", "order", "gene_date", "date_order", "record", "balance", "scale", "key", "own_scale", "shifted",
          "fraction", "whole_number", "named_bound", "repeated_column", "limits", "series", "combination", "subtotal",
-         "validation")
+         "validation", "group")
 ONE_CELL = frozenset(("limits", "spelling", "type", "code", "far_date", "date_form", "lost_zero", "placeholder",
                       "gene_date", "fraction", "whole_number", "named_bound", "shifted", "validation"))
 DETECTOR_KINDS = {"limits": "limits", "sequence": "series", "ecod": "combination"}
@@ -2440,6 +2651,11 @@ def score(df, column_types, errors_log, limits, order_by, strength=5, saved=(), 
     owed, owed_fix = balances(df, column_types, skip, records, computed)
     scaled = by_scale(df, column_types, skip, k, computed, [{c for r in said for c in r.cols} for said in lim["reasons"]])
     calc, calc_fix = formulas(df, column_types, skip, grid)  # AH-152: a typed value or another formula among a column's formulas
+    # AH-214: ...and a formula that breaks its row's or column's siblings, a totals row's too (the grand total that adds
+    # its "of which" rows), each cell said once
+    for i, said in enumerate(formula_siblings(df, skip, grid)):
+        named = {c for r in calc[i] for c in r.cols}
+        calc[i] += [r for r in said if r.cols[0] not in named]
     # ...and where it pins the broken cell, a sum about that cell names it alone: its inputs are fine (AH-198). A part of
     # the sum too, not only its total: Net Pay typed over =Gross-Fed-SS-Medicare made "Gross Pay does not add up" name
     # Gross Pay and three deductions that were right (8 valid cells in 2 payrolls, AH-211 episodes 17 and 20)
@@ -2462,7 +2678,7 @@ def score(df, column_types, errors_log, limits, order_by, strength=5, saved=(), 
            ("sum", add), ("spelling", spell), ("lost_zero", zeros), ("date_form", forms), ("formula", calc), ("order", above),
            ("gene_date", genes), ("date_order", before), ("record", same), ("balance", owed), ("scale", scaled),
            ("spelling", proven), ("key", keyed), ("own_scale", own), ("blank", gaps), ("subtotal", tot),
-           ("validation", outside_list(df, skip, errors_log, invalid))]
+           ("validation", outside_list(df, skip, errors_log, invalid)), ("group", wrong_group(df, column_types, skip))]
     # all "worth a check" (Low): a lone top value (AH-29), one its row's arithmetic confirms (AH-74), a placeholder code
     # (AH-45), many repeats (AH-48), a date column of many forms (AH-76), a column pasted twice (AH-182)
     notes = [("spelling", missed), ("shifted", shifted(df, column_types, skip)), ("fraction", fractions(df, column_types, skip)),
@@ -2526,9 +2742,9 @@ def score(df, column_types, errors_log, limits, order_by, strength=5, saved=(), 
         return bool(limits.get(col)) and unexplained(float(df[col].iat[i]), *limits[col][:4],
                                                      middle=tuple(np.nanquantile(df[col].to_numpy(dtype=float), [0.1, 0.9])))
 
-    tot = dict(hyg)["subtotal"]  # as learned left it
+    tot, fml = dict(hyg)["subtotal"], dict(hyg)["formula"]  # as learned left them
     for i in range(n):
-        if skip[i] and not tot[i]:  # a totals row is said only where its own formula is wrong (AH-213)
+        if skip[i] and not tot[i] and not fml[i]:  # a totals row is said only where its own formula is wrong (AH-213, AH-214)
             rows.append({"severity": None, "bucket": None, "reason": "" if empty[i] else "Totals/summary row - not checked",
                          "magnitude": 0.0})
             continue
