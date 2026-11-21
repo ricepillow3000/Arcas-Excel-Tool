@@ -5180,5 +5180,238 @@
   "tests": [
    "node frontend/selfcheck.js"
   ]
+ },
+ {
+  "id": "siblings-count-loosen",
+  "guard": "A formula that breaks its row's or column's siblings (AH-214): SIBLINGS cells share the formula",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "SIBLINGS = 3  #",
+  "new": "SIBLINGS = 2  #",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_formula_siblings.py::test_three_siblings_are_enough_and_two_are_not"
+  ]
+ },
+ {
+  "id": "siblings-count-tighten",
+  "guard": "A formula that breaks its row's or column's siblings (AH-214): SIBLINGS cells share the formula",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "SIBLINGS = 3  #",
+  "new": "SIBLINGS = 4  #",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_formula_siblings.py::test_three_siblings_are_enough_and_two_are_not"
+  ]
+ },
+ {
+  "id": "siblings-other-line-loosen",
+  "guard": "A formula that breaks its row's or column's siblings (AH-214): a cell that keeps its other line's pattern is that line's way",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if row_odd and not lines[here[\"col\"]][s][1] & {t, _distance(read, t, i)}:",
+  "new": "if row_odd:",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_formula_siblings.py::test_an_honest_summary_block_says_nothing",
+   "backend/tests/test_formula_siblings.py::test_a_column_that_differs_on_every_row_the_same_way_is_its_role"
+  ]
+ },
+ {
+  "id": "siblings-other-line-tighten",
+  "guard": "A formula that breaks its row's or column's siblings (AH-214): a cell that keeps its other line's pattern is that line's way",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if row_odd and not lines[here[\"col\"]][s][1] & {t, _distance(read, t, i)}:",
+  "new": "if row_odd and not lines[here[\"col\"]][s][1] - {None}:",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_formula_siblings.py::test_a_cell_whose_criteria_point_one_column_off_is_flagged_on_that_cell_alone"
+  ]
+ },
+ {
+  "id": "siblings-chain-loosen",
+  "guard": "A formula that breaks its row's or column's siblings (AH-214): a chain's first cell sits out",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "and chain.search(rest[0][0] if isinstance(rest[0][0], str) else rest[0][0][0]):",
+  "new": "and False:",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_formula_siblings.py::test_a_running_total_across_a_row_starts_its_chain_with_a_formula_of_its_own"
+  ]
+ },
+ {
+  "id": "siblings-chain-tighten",
+  "guard": "A formula that breaks its row's or column's siblings (AH-214): a chain's first cell sits out",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "and chain.search(rest[0][0] if isinstance(rest[0][0], str) else rest[0][0][0]):",
+  "new": "and True:",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_formula_siblings.py::test_a_grand_total_that_adds_its_of_which_rows_is_flagged_on_its_totals_row"
+  ]
+ },
+ {
+  "id": "siblings-shape-loosen",
+  "guard": "A formula that breaks its row's or column's siblings (AH-214): SUBTOTAL's function number is part of its shape",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "shape = tuple(name + (num if name in (\"SUBTOTAL\", \"AGGREGATE\") else \"\")",
+  "new": "shape = tuple(name + (\"\" if name in (\"SUBTOTAL\", \"AGGREGATE\") else \"\")",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_formula_siblings.py::test_a_subtotal_row_that_counts_its_ids_and_adds_its_amounts_is_two_formulas"
+  ]
+ },
+ {
+  "id": "siblings-shape-tighten",
+  "guard": "A formula that breaks its row's or column's siblings (AH-214): siblings are formulas of one shape",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "shape = [[read[t][0] if t else None for t in row] for row in f]",
+  "new": "shape = [[t if t else None for t in row] for row in f]",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_formula_siblings.py::test_a_cell_whose_criteria_point_one_column_off_is_flagged_on_that_cell_alone"
+  ]
+ },
+ {
+  "id": "siblings-totals-loosen",
+  "guard": "A formula that breaks its row's or column's siblings (AH-214): down a column a totals row sits out",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "_line([c for c in cells if not skip[c[0]]], CHAIN[\"col\"])[0]",
+  "new": "_line(cells, CHAIN[\"col\"])[0]",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_formula_siblings.py::test_a_grand_total_alone_in_its_corner_is_no_break_of_the_row_totals_above_it"
+  ]
+ },
+ {
+  "id": "siblings-totals-tighten",
+  "guard": "A formula that breaks its row's or column's siblings (AH-214): across a row a totals row is judged",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "lines[\"row\", i, start] = {s: (lambda o, p: (o, {p}))(*_line(c, CHAIN[\"row\"])) for s, c in by.items()}",
+  "new": "lines[\"row\", i, start] = {s: (lambda o, p: (o, {p}))(*_line(c, CHAIN[\"row\"])) if not skip[i] else (None, {None}) for s, c in by.items()}",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_formula_siblings.py::test_a_grand_total_that_adds_its_of_which_rows_is_flagged_on_its_totals_row"
+  ]
+ },
+ {
+  "id": "siblings-distance-tighten",
+  "guard": "A formula that breaks its row's or column's siblings (AH-214): down a column absolute rows read as distances",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "return (text, tuple(r - i for r in rows)) if rows else f",
+  "new": "return f",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_formula_siblings.py::test_a_link_that_reads_the_next_rows_cell_breaks_its_columns_pattern"
+  ]
+ },
+ {
+  "id": "group-rows-loosen",
+  "guard": "A row filed under the wrong group (AH-214): GROUP_ROWS rows before a group's start is its own",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "GROUP_ROWS = 5  #",
+  "new": "GROUP_ROWS = 4  #",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_wrong_group.py::test_five_rows_are_enough_to_know_a_groups_codes_and_four_are_not"
+  ]
+ },
+ {
+  "id": "group-rows-tighten",
+  "guard": "A row filed under the wrong group (AH-214): GROUP_ROWS rows before a group's start is its own",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "GROUP_ROWS = 5  #",
+  "new": "GROUP_ROWS = 6  #",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_wrong_group.py::test_five_rows_are_enough_to_know_a_groups_codes_and_four_are_not"
+  ]
+ },
+ {
+  "id": "group-block-loosen",
+  "guard": "A row filed under the wrong group (AH-214): each label one block of rows",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if lab[i] != last and lab[i] in rows or len(rows) > GROUPS:",
+  "new": "if len(rows) > GROUPS:",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_wrong_group.py::test_a_label_written_in_more_than_one_block_is_no_grouped_list"
+  ]
+ },
+ {
+  "id": "group-block-tighten",
+  "guard": "A row filed under the wrong group (AH-214): each label one block of rows",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if lab[i] != last and lab[i] in rows or len(rows) > GROUPS:",
+  "new": "if lab[i] != last and last is not None or len(rows) > GROUPS:",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_wrong_group.py::test_a_sku_that_starts_as_another_groups_do_is_flagged_on_its_cell"
+  ]
+ },
+ {
+  "id": "group-own-start-loosen",
+  "guard": "A row filed under the wrong group (AH-214): no start two groups share or one inside another",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if any(a != b and b.startswith(a) for a in own for b in own) or len(set(own)) < len(own):",
+  "new": "if len(set(own)) < len(own):",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_wrong_group.py::test_groups_whose_starts_sit_one_inside_another_have_no_start_of_their_own"
+  ]
+ },
+ {
+  "id": "group-own-start-tighten",
+  "guard": "A row filed under the wrong group (AH-214): no start two groups share or one inside another",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if any(a != b and b.startswith(a) for a in own for b in own) or len(set(own)) < len(own):",
+  "new": "if True:",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_wrong_group.py::test_a_sku_that_starts_as_another_groups_do_is_flagged_on_its_cell"
+  ]
+ },
+ {
+  "id": "group-theirs-loosen",
+  "guard": "A row filed under the wrong group (AH-214): the odd code has another group's start",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "theirs = [x for x, s in starts.items() if x != label and c.startswith(s)]",
+  "new": "theirs = [x for x, s in starts.items() if x != label]",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_wrong_group.py::test_a_code_that_starts_as_no_other_group_does_or_groups_that_share_a_start_say_nothing"
+  ]
+ },
+ {
+  "id": "group-theirs-tighten",
+  "guard": "A row filed under the wrong group (AH-214): the odd code has another group's start",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "theirs = [x for x, s in starts.items() if x != label and c.startswith(s)]",
+  "new": "theirs = []",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_wrong_group.py::test_a_sku_that_starts_as_another_groups_do_is_flagged_on_its_cell"
+  ]
+ },
+ {
+  "id": "siblings-run-loosen",
+  "guard": "A formula that breaks its row's or column's siblings (AH-214): siblings are one unbroken run of formulas, a blank or typed cell ends it (fix round 1)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if out and p == out[-1][1][-1] + 1:",
+  "new": "if out:",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_formula_siblings.py::test_a_formula_past_a_blank_row_and_a_typed_cell_is_no_sibling_of_the_run_above_it"
+  ]
+ },
+ {
+  "id": "siblings-run-tighten",
+  "guard": "A formula that breaks its row's or column's siblings (AH-214): siblings are one unbroken run of formulas, a blank or typed cell ends it (fix round 1)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if out and p == out[-1][1][-1] + 1:",
+  "new": "if out and p == out[-1][1][-1] + 1 and len(out[-1][1]) < 3:",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_formula_siblings.py::test_a_formula_past_a_blank_row_and_a_typed_cell_is_no_sibling_of_the_run_above_it",
+   "backend/tests/test_formula_siblings.py::test_a_cell_whose_criteria_point_one_column_off_is_flagged_on_that_cell_alone"
+  ]
  }
 ]

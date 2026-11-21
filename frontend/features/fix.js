@@ -224,6 +224,12 @@ const HINTS = [
     "the same when its rows change; put back the formula the other subtotals use"],
   [/ is not one of the choices its drop-down list allows$/, "pick one of the list's choices; Data > Data Validation shows " +
     "them, and Data > Data Validation > Circle Invalid Data marks every cell outside them"],
+  // AH-214: a formula that breaks its row's or column's siblings, a row under the wrong group: said, nothing written
+  [/ is worked out differently from the \d+ other (?:cells of its row|rows of its column)/, "a formula copied from the " +
+    "wrong cell or edited by hand is the usual cause; compare it with the cells beside it and point it at the same rows " +
+    "and columns they read"],
+  [/ starts like the rows under .+ \(".*"\), not like the other \d+ under /, "a row pasted into the wrong block is the " +
+    "usual cause; move it under the group its code belongs to, or correct its code"],
 ];
 
 // Pure: the column an "only unusual" reason points at (an odd mix across columns, or a break in a series), else null

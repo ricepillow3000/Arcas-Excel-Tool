@@ -127,3 +127,24 @@ def test_the_judge_scores_cells_as_the_adversarial_judge_scores_rows(tmp_path):
                        "layout_false_alarms": {"separator": 1, "subtotal": 1, "header-second-row": 0, "notes": 0}}
     assert books == ["Hand: recall 2/4 (complex 1/2), unread 1, false positives 3, traps flagged 1, on layout rows 2"]
     assert {d.split()[0] for d in detail} == {"UNREAD", "MISS", "RIGID", "FP"}
+
+
+def test_an_also_cell_on_another_tab_counts_as_caught_and_a_bare_one_means_the_keys_own_sheet(tmp_path):
+    """A key names an `also` cell on another tab as "Sheet name!A1" (a sheet name may hold spaces and "!": split at the
+    last one), a bare "A1" on the key's own sheet."""
+    grid = [["Item", "Qty"], ["a", 5], ["b", 6], ["c", 7]]
+    (tmp_path / "ep").mkdir()
+    (tmp_path / "out").mkdir()
+    sheets = [{"name": "S", "values": grid}, {"name": "Totals tab!2", "values": grid}]
+    (tmp_path / "ep" / "Hand.json").write_text(json.dumps({"name": "Hand", "sheets": sheets}))
+    quiet = [{"severity": None}] * 3
+    flag = lambda i: [*quiet[:i], {"severity": "Medium", "cells": ["Qty"]}, *quiet[i + 1:]]
+    for sheet, rows in (("S", flag(2)), ("Totals tab!2", flag(0))):  # S!B4 and 'Totals tab!2'!B2 flagged
+        (tmp_path / "out" / f"Hand__{sheet}.json").write_text(json.dumps(
+            {"startRow": 0, "startCol": 0, "columns": ["Item", "Qty"], "rows": rows}))
+    key = {"Hand": {"domain": "x", "traps": [], "errors": [
+        {"sheet": "S", "cell": "B3", "also": ["Totals tab!2!B2"], "kind": "k"},  # caught on the other tab
+        {"sheet": "Totals tab!2", "cell": "B3", "also": ["B4"], "kind": "k"}]}}  # B4 of its own tab: not flagged there
+    books, episode, detail = judge.judge(tmp_path / "ep", tmp_path / "out", key)
+    assert episode["recall"] == "1/2" and episode["false_positives"] == 1  # S!B4 is no cell of either error
+    assert sorted(d.split()[0] + " " + d.split()[2] for d in detail) == ["FP S!B4", "MISS Totals"]

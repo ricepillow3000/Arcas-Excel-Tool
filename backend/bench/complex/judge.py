@@ -3,7 +3,8 @@ usage: python -I judge.py <epdir> <outdir> <keysfile>
 A cell is "flagged as an error" when a High or Medium row names it (the cells the pane colours, `spots`: the row's
 `cells`, or the whole row when none of them is a column). Data row i of a table sits on sheet row startRow + 2 + i
 (1-based: startRow is the header's 0-based row) and column j on startCol + j. Low counts for neither side.
-Key per book (FORMAT.md): errors {sheet, cell, also, kind, complex, domain_specific}, traps {sheet, cell, why}.
+Key per book (FORMAT.md): errors {sheet, cell, also, kind, complex, domain_specific}, traps {sheet, cell, why}; an also
+cell is on the error's own sheet ("D17") or names another tab ("Sheet name!D17").
 Score per episode (max 100), as adversarial/judge.py:
   recall  = 40 * caught errors / all errors
   domain  = 40 * (domain-specific errors caught + traps left alone) / (domain-specific errors + traps)
@@ -105,7 +106,9 @@ def judge(eps, scans, key):
         b = {"E": 0, "C": 0, "CE": 0, "CC": 0, "FP": 0, "RB": 0, "U": 0, "L": 0}
         err_cells = set()
         for e in k["errors"]:
-            cells = [(e["sheet"], c) for c in [e["cell"], *e.get("also", [])]]
+            # an also cell on another tab is "Sheet name!A1" (a name may hold spaces or "!": split at the last one)
+            cells = [(e["sheet"], e["cell"])] + [tuple(c.rsplit("!", 1)) if "!" in c else (e["sheet"], c)
+                                                 for c in e.get("also", [])]
             err_cells |= set(cells)
             hit = any(c in flags for c in cells)
             E += 1; C += hit; b["E"] += 1; b["C"] += hit

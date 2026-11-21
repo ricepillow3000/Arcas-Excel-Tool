@@ -1159,5 +1159,13 @@ for (const f of readdirSync(new URL(".", import.meta.url)).filter((f) => f.endsW
   assert.ok(KIND_WORDS.subtotal && KIND_WORDS.validation && ONE_CELL.has("validation") && !ONE_CELL.has("subtotal"),
     "AH-213: a value outside its list is a check of one cell, a subtotal never");
 }
+// AH-214: a formula that breaks its siblings and a row under the wrong group say what to look for, and write nothing
+for (const reason of ["Q2 is worked out differently from the 3 other cells of its row that share one formula (Q1, Q3, Q4)",
+  "Budget FY is worked out differently from the 7 other rows of its column, which follow one pattern",
+  'SKU "PTL-1193" starts like the rows under Power tools ("PTL-"), not like the other 7 under Hand tools ("HTL-")']) {
+  rec = recommendFix(["Region", "Q2"], [["North", 5]], 0, null, reason, 0, 0);
+  assert.ok(rec.explanation.includes("is the usual cause") && !rec.explanation.includes("Nothing here") && !rec.changes.length, rec.explanation);
+}
+assert.ok(KIND_WORDS.group && !ONE_CELL.has("group"), "AH-214: a row's group is judged against its neighbours, never one cell");
 
 console.log("panel self-check passed");
