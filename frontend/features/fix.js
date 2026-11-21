@@ -215,6 +215,15 @@ const HINTS = [
     "usually one series pasted where another belongs; check both against the source, and if the source repeats them, leave both"],
   [/ a date among gene names: /, "find the gene's name in the source (2-Sep was SEPT2, 1-Mar was MARCH1; both are now renamed " +
     "SEPTIN2 and MARCHF1) and type it back, then format the column as Text so Excel keeps it as typed"],
+  // AH-213: a subtotal that leaves out a row of its group or counts rows twice, one typed over, a value outside its list
+  [/^The (?:subtotal|average) in .+ adds \d+ of the \d+ rows of its group and leaves out /, "a range that stops a row short " +
+    "or starts a row late is the usual cause; widen the formula's range to every row of its group"],
+  [/^The total in .+ adds \d+ subtotals? and the \d+ rows (?:they|it) already adds?, so those rows count twice/, "add the " +
+    "subtotals alone, or use SUBTOTAL(9, ...) over the whole column, which leaves out the SUBTOTALs inside it"],
+  [/ is typed where its other subtotals are formulas, and the rows of its group add up to /, "a subtotal typed over stays " +
+    "the same when its rows change; put back the formula the other subtotals use"],
+  [/ is not one of the choices its drop-down list allows$/, "pick one of the list's choices; Data > Data Validation shows " +
+    "them, and Data > Data Validation > Circle Invalid Data marks every cell outside them"],
 ];
 
 // Pure: the column an "only unusual" reason points at (an odd mix across columns, or a break in a series), else null

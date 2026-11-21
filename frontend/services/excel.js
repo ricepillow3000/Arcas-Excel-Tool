@@ -1,7 +1,7 @@
 import { KEY, READ_CELLS } from "../constants/index.js";
 import { state } from "../hooks/use-state.js";
 import { maxCells, tableFromGrid } from "../utils/sheet.js";
-import { asSheet, formatRows, tablesFromGrid } from "../utils/layout.js";
+import { areaOf, asSheet, formatRows, tablesFromGrid } from "../utils/layout.js";
 
 // Talking to Excel (Office.js): read and write the sheet, workbook settings, clicks in the sheet.
 export const getLimits = () =>
@@ -42,6 +42,10 @@ export async function readSheet(onSlice, most = Infinity, sheetKey = null, fits 
     // Excel reads the sheet without them)
     const areas = Office.context.requirements?.isSetSupported?.("ExcelApi", "1.13")
       ? sheet.getRangeByIndexes(r0, c0, total, w).getMergedAreasOrNullObject().load("isNullObject, address") : null;
+    // AH-213: the cells Excel itself says break their data validation (a value outside its drop-down list), in one call
+    // (ExcelApi 1.9; an older Excel reads the sheet without them)
+    const broken = Office.context.requirements?.isSetSupported?.("ExcelApi", "1.9")
+      ? sheet.getRangeByIndexes(r0, c0, total, w).getDataValidationInvalidCellsOrNullObject().load("isNullObject, address") : null;
     const step = Math.max(1, Math.floor(READ_CELLS / (2 * w))), values = [], formulas = [];
     for (let k = 0; k < total; k += step) {
       const part = sheet.getRangeByIndexes(r0 + k, c0, Math.min(step, total - k), w).load("values, formulasR1C1");
@@ -64,7 +68,8 @@ export async function readSheet(onSlice, most = Infinity, sheetKey = null, fits 
     }
     // last: the sheet's last used row, 1-based (AH-180: one on Excel's last row was likely cut off when it opened)
     return read.tables.length ? asSheet(read.tables, { sheet: sheet.name, cut: total < used.rowCount && [r0 + total, r0 + used.rowCount],
-      last: r0 + used.rowCount, unread: read.unread }) : null;
+      last: r0 + used.rowCount, unread: read.unread,
+      invalid: broken && !broken.isNullObject ? String(broken.address).split(",").map(areaOf).filter(Boolean) : [] }) : null;
   });
 }
 

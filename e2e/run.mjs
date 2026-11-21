@@ -1610,24 +1610,30 @@ if (mode === "flow2") {
     for (let i = 0; i < 30; i++) sheet.push([`R-${i + 1}`, `E-${100 + i}`, 1 + (i % 5), i % 3 ? "Yes" : "No", "", ""]);
     sheet[49][2] = "two"; // C50: text in the second table's number column
     sheet[54][3] = "yes"; // D55: a capitals slip, a fix the card can write
+    sheet[59][3] = "Maybe"; // D60: outside the column's drop-down list of Yes and No (AH-213)
     sheet.push(["", "", "", "", "", ""], ["Pass mark", 40, "", "", "", ""]);
     await lay.evaluate(([rows, sums]) => {
       __load("Layout", rows);
       for (const r of sums) for (const c of "CDEF") __formula("Layout", `${c}${r}`, `=SUM(${c}${r - 12}:${c}${r - 1})`);
       __merge("Layout", ["A1:F1", "A3:A4", "B3:B4", "C3:E3", "F3:F4", "B5:B16", "B18:B29"]);
+      __validate("Layout", "D35:D64", ["Yes", "No"]);
     }, [sheet, sums]);
     await lay.click("#scan");
     await lay.waitForFunction(() => !document.getElementById("scan").disabled && !__state.working);
     const got = await lay.evaluate(() => ({ list: [...document.querySelectorAll("#flagged-list button")].map((b) => b.innerText.split("\n")[0]),
-      fills: ["F8", "C50", "F17", "B6", "A8"].map((a) => !!__cell("Layout", a).fill), notes: document.getElementById("book-notes").innerText }));
+      fills: ["F8", "C50", "F17", "B6", "A8", "D60", "C60"].map((a) => !!__cell("Layout", a).fill), notes: document.getElementById("book-notes").innerText,
+      row60: [...document.querySelectorAll("#flagged-list button")].map((b) => b.innerText).find((t) => /^Row 60\b/.test(t)) || "" }));
     const [one, two] = sent;
     ok(sent.length === 2 && JSON.stringify(one.columns) === '["Item","Region","Costs Jan","Costs Feb","Costs Mar","Total"]' && one.start_row === 3
-      && one.rows[1][1] === "North" && one.rows[12].every((v) => v === "") && !one.formulas && JSON.stringify(two.columns) === '["Request","Employee","Days","Approved"]'
+      && one.rows[1][1] === "North" && one.rows[12].every((v) => v === "") && one.formulas?.[12][2] === "=SUM(R[-12]C:R[-1]C)" && one.formulas[1].every((f) => f === null)
+      && JSON.stringify(two.columns) === '["Request","Employee","Days","Approved"]'
       && two.start_row === 33 && two.rows.length === 30 && one.power_bi === false && two.power_bi === false,
-      "AH-212: two stacked tables are two /scans: names from both header rows, the merged Region filled down, the subtotal blank, never in a cell - "
-      + JSON.stringify({ n: sent.length, one: one && [one.columns, one.start_row, one.rows[1], one.rows[12], !!one.formulas], two: two && [two.columns, two.start_row, two.rows.length] }));
+      "AH-212: two stacked tables are two /scans: names from both header rows, the merged Region filled down, the subtotal blank (its formulas kept, AH-213), never in a cell - "
+      + JSON.stringify({ n: sent.length, one: one && [one.columns, one.start_row, one.rows[1], one.rows[12], one.formulas?.[12]], two: two && [two.columns, two.start_row, two.rows.length] }));
+    ok(!one.off_list && JSON.stringify(two.off_list) === "[[25,3]]" && got.row60.includes('Approved "Maybe" is not one of the choices its drop-down list allows'),
+      "AH-213: the cell Excel says is outside its drop-down list goes with its own table's /scan, and is listed in the engine's words - " + JSON.stringify({ one: one.off_list, two: two.off_list, row60: got.row60 }));
     ok(got.list.some((t) => /^Row 8\b/.test(t)) && got.list.some((t) => /^Row 50\b/.test(t)) && got.list.some((t) => /^Row 55\b/.test(t))
-      && JSON.stringify(got.fills) === "[true,true,false,false,false]",
+      && JSON.stringify(got.fills) === "[true,true,false,false,false,true,false]",
       "AH-212: the planted cell in each table is listed and coloured at its own sheet row, the subtotal and the merged label never - " + JSON.stringify(got));
     ok(got.notes.includes("Cells A66:B66 on this sheet were not checked: they hold no table Arcas can read."),
       "AH-212: the cells no table holds are said under the results, in a notice - " + JSON.stringify(got.notes));

@@ -2119,6 +2119,89 @@ SAME_FORMULA = 0.8  # Excel's own "inconsistent formula" check, read down a colu
 VARIANT = 5  # rows a second formula of a column is written on before it is the column's own
 
 
+def outside_list(df, skip, errors_log, invalid=None):
+    """AH-213: the cells Excel itself says break their data validation (a drop-down list's choices: "Reciept" in a list
+    of Receipt, Issue, Return), as the pane reads them (Range.getDataValidationInvalidCellsOrNullObject), [row, column]
+    of this table. Excel knows the list; the engine only says it, the value as typed, never a fix. -> reasons per row."""
+    out, raw = [[] for _ in range(len(df))], {(i, c): r for i, c, r in errors_log}
+    for i, j in sorted({(i, j) for i, j in invalid or ()}):
+        col = df.columns[j]
+        v = raw.get((i, col), df[col].iat[i])
+        if not skip[i] and not pd.isna(v) and str(v).strip():
+            said = f'"{_short(v)}"' if isinstance(v, str) else _shown(v)
+            out[i].append(Why(f"{col} {said} is not one of the choices its drop-down list allows", col))
+    return out
+
+
+# AH-213: a subtotal is a formula of the rows above it in its own column, one range: =SUM(R[-9]C:R[-1]C),
+# =SUBTOTAL(9,R[-9]C:R[-1]C), =AVERAGE(...) (SUBTOTAL's 1 and 101 average, 9 and 109 add)
+AGGREGATE = re.compile(r"=(?:(SUM|AVERAGE)\(|SUBTOTAL\((1|9|101|109),)R\[-(\d+)\]C:R\[-(\d+)\]C\)")
+ABOVE = re.compile(r"R\[-\d+\]")  # a reference to a row above, in R1C1
+FULL = 2  # other subtotals of the column that add every row of their group: then adding them all is the column's way
+
+
+def subtotals(df, skip, grid=None):
+    """AH-213: a subtotal that leaves out a row of its own group, a total that adds subtotals and the rows they already
+    add, and a subtotal typed over. The layout reader sends subtotal rows blank (AH-212), so their mistakes went unseen:
+    9 planted ones on the complex bench's tuning episodes. Read from the pane's R1C1 text, never from the values alone. A
+    row's group runs up from it to the nearest row that is blank, a totals row (skip) or worked out from rows above (a
+    subtotal, a gross profit =R[-6]C-R[-1]C, a running balance: a column of those has no group to judge). A subtotal
+    that leaves out rows of its group is judged only where FULL other subtotals of the column add all of theirs (an
+    opening balance a Total movements leaves out is the layout); a SUBTOTAL skips the SUBTOTALs inside its range, as
+    Excel does (a grand total of SUBTOTAL over the whole column counts nothing twice). -> reasons per row."""
+    n, found = len(df), [{} for _ in range(len(df))]  # row -> {what is wrong: [(column, sentence)]}
+    for j, col in enumerate(df.columns if grid else ()):
+        f = [str(row[j]).replace(" ", "") if row[j] else None for row in grid]
+        x = pd.to_numeric(df[col], errors="coerce").to_numpy(dtype=float)
+        has = np.isfinite(x)
+        agg = {}  # row -> (first row added, last row added, adds: SUM or SUBTOTAL 9/109, a SUBTOTAL)
+        for i, v in enumerate(f):
+            if v and (m := AGGREGATE.fullmatch(v)) and 0 < int(m[4]) <= int(m[3]) <= i:
+                agg[i] = (i - int(m[3]), i - int(m[4]), m[1] == "SUM" or m[2] in ("9", "109"), m[1] is None)
+        edge = [bool(skip[i] or i in agg or f[i] and ABOVE.search(f[i])) for i in range(n)]
+
+        def group(i):
+            t = i
+            while t > 0 and not edge[t - 1]:
+                t -= 1
+            return t
+        kind = lambda r: f[r] or "typed"  # a row's way of writing the column
+        inside, left = {}, {}  # each subtotal within its group: the group's first row; the rows like its own it leaves out
+        for i, (top, bot, _, _) in agg.items():
+            if top >= (t := group(i)) and has[top:bot + 1].sum() >= 2:
+                like = collections.Counter(kind(r) for r in range(top, bot + 1) if has[r]).most_common(1)[0][0]
+                inside[i], left[i] = t, [r for r in [*range(t, top), *range(bot + 1, i)] if has[r] and kind(r) == like]
+        full = sum(not lost for lost in left.values())
+        adds = sum(not lost and agg[i][2] for i, lost in left.items())  # ...of them, those that add
+        for i, lost in left.items():
+            if lost and full >= FULL:
+                where = ("the row right above it" if lost == [i - 1] else "its first row" if lost == [inside[i]]
+                         else f"{len(lost)} of them")
+                word = "subtotal" if agg[i][2] else "average"
+                found[i].setdefault(("left", *(i - r for r in lost)), []).append((col, (
+                    f"The {word} in {col} adds {int(has[agg[i][0]:agg[i][1] + 1].sum())} of the {int(has[inside[i]:i].sum())} "
+                    f"rows of its group and leaves out {where}")))
+        for i, (top, bot, summed, sub) in agg.items():
+            inner = [s for s in inside if top <= agg[s][0] and agg[s][1] <= bot and agg[s][2] and not (sub and agg[s][3])]
+            twice = {r for s in inner for r in range(agg[s][0], agg[s][1] + 1) if has[r]}
+            if summed and i not in inside and twice:
+                many = len(inner) > 1
+                found[i].setdefault(("twice", *(i - s for s in inner)), []).append((col, (
+                    f"The total in {col} adds {len(inner)} subtotal{'s' if many else ''} and the {len(twice)} rows "
+                    f"{'they' if many else 'it'} already add{'' if many else 's'}, so those rows count twice")))
+        for i in range(n):  # a subtotal typed over: a totals row with a number and no formula, where the others add up
+            if skip[i] and f[i] is None and has[i] and adds >= FULL and has[(t := group(i)):i].sum() >= 2:
+                part = x[t:i][has[t:i]]
+                total = round(float(part.sum()), _decimals(part))
+                if abs(x[i] - total) > _cent(part) + 0.5 * 10.0 ** -_decimals(x[i:i + 1]):
+                    found[i][("typed", col)] = [(col, f"{col} {say(x[i])} is typed where its other subtotals are formulas, "
+                                                         f"and the rows of its group add up to {say(total)}")]
+    # one slip a row: a subtotal filled right across its row leaves out the same rows in every column, said once, on the
+    # first (the complex bench's planted skips were whole rows, each keyed to its first cell)
+    also = lambda k: f", as {'do' if k > 1 else 'does'} {k} other column{'s' if k > 1 else ''} of this row" if k else ""
+    return [[Why(said[0][1] + also(len(said) - 1), said[0][0]) for said in row.values()] for row in found]
+
+
 def _role(df, column_types, skip, filled, off):
     """The rows of `off` (rows whose formula is not the column's usual one) that are every row of one label of a text
     column (5+ rows, never those of a label off writes partly): the label's own formula, a role, never a break."""
@@ -2279,9 +2362,10 @@ ALONE = 7  # from this level, a value past its usual limit that few others pass 
 # value is wrong in the next row (accept must never silence a sum)
 KINDS = ("duplicate", "type", "blank", "placeholder", "code", "far_date", "sum", "spelling", "lost_zero", "date_form",
          "formula", "order", "gene_date", "date_order", "record", "balance", "scale", "key", "own_scale", "shifted",
-         "fraction", "whole_number", "named_bound", "repeated_column", "limits", "series", "combination")
+         "fraction", "whole_number", "named_bound", "repeated_column", "limits", "series", "combination", "subtotal",
+         "validation")
 ONE_CELL = frozenset(("limits", "spelling", "type", "code", "far_date", "date_form", "lost_zero", "placeholder",
-                      "gene_date", "fraction", "whole_number", "named_bound", "shifted"))
+                      "gene_date", "fraction", "whole_number", "named_bound", "shifted", "validation"))
 DETECTOR_KINDS = {"limits": "limits", "sequence": "series", "ecod": "combination"}
 
 
@@ -2290,14 +2374,15 @@ def _about(reason):
     return (getattr(reason, "cols", ()) or (None,))[0]
 
 
-def score(df, column_types, errors_log, limits, order_by, strength=5, saved=(), grid=None, learned=None):
+def score(df, column_types, errors_log, limits, order_by, strength=5, saved=(), grid=None, learned=None, invalid=None):
     """-> (rows, status). Severity = votes: 1 Low, 2 Medium, 3+ High. Weird limit or hygiene hit = at least Medium.
     Totals/summary rows are left out of every check (their numbers would distort the rest) and say so.
     learned (AH-205): (accepted, ignored, dismissed): the cells {(row, column)} holding a value the user dismissed in that
     column, the [kind, column] pairs the user stopped, and the rows left as they are (dismissed). A reason they mute is
-    dropped before severity is decided."""
+    dropped before severity is decided. invalid (AH-213): [row, column] of each cell Excel says breaks its drop-down list."""
     n, skip = len(df), summary_rows(df)
     empty = df[[c for c in df.columns if c != "source_file"]].apply(_blank).all(axis=1).to_numpy()  # before totals are blanked
+    tot = subtotals(df, skip, grid)  # AH-213: the totals rows themselves, judged by their formulas, before they are blanked
     df = df.copy()
     if nums := [c for c, t in column_types.items() if t in ("number", "id")]:  # (pandas 3 fails on an empty column list)
         df.loc[skip, nums] = np.nan
@@ -2376,7 +2461,8 @@ def score(df, column_types, errors_log, limits, order_by, strength=5, saved=(), 
     hyg = [("duplicate", dup), ("type", typ), ("blank", blank), ("placeholder", hole), ("code", code), ("far_date", far),
            ("sum", add), ("spelling", spell), ("lost_zero", zeros), ("date_form", forms), ("formula", calc), ("order", above),
            ("gene_date", genes), ("date_order", before), ("record", same), ("balance", owed), ("scale", scaled),
-           ("spelling", proven), ("key", keyed), ("own_scale", own), ("blank", gaps)]
+           ("spelling", proven), ("key", keyed), ("own_scale", own), ("blank", gaps), ("subtotal", tot),
+           ("validation", outside_list(df, skip, errors_log, invalid))]
     # all "worth a check" (Low): a lone top value (AH-29), one its row's arithmetic confirms (AH-74), a placeholder code
     # (AH-45), many repeats (AH-48), a date column of many forms (AH-76), a column pasted twice (AH-182)
     notes = [("spelling", missed), ("shifted", shifted(df, column_types, skip)), ("fraction", fractions(df, column_types, skip)),
@@ -2440,12 +2526,13 @@ def score(df, column_types, errors_log, limits, order_by, strength=5, saved=(), 
         return bool(limits.get(col)) and unexplained(float(df[col].iat[i]), *limits[col][:4],
                                                      middle=tuple(np.nanquantile(df[col].to_numpy(dtype=float), [0.1, 0.9])))
 
+    tot = dict(hyg)["subtotal"]  # as learned left it
     for i in range(n):
-        if skip[i]:
+        if skip[i] and not tot[i]:  # a totals row is said only where its own formula is wrong (AH-213)
             rows.append({"severity": None, "bucket": None, "reason": "" if empty[i] else "Totals/summary row - not checked",
                          "magnitude": 0.0})
             continue
-        voted = [d for d in ran if d["votes"][i]]
+        voted = [d for d in ran if d["votes"][i] and not skip[i]]
         hygiene = [r for _, lists in hyg for r in lists[i]]
         if not voted and not hygiene and not missed[i]:
             noted = as_typed(lim["noted_reasons"][i], i)

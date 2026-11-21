@@ -14,7 +14,7 @@ export const TEXT = 200; // ...each column and value at most this long (server.L
 // the engine's checks of one cell's own value (pipeline.ONE_CELL): a value dismissed there is fine in that column. Never
 // a sum, an order, a duplicate, a blank or a formula: the same value is wrong in the next row
 export const ONE_CELL = new Set(["limits", "spelling", "type", "code", "far_date", "date_form", "lost_zero", "placeholder",
-  "gene_date", "fraction", "whole_number", "named_bound", "shifted"]);
+  "gene_date", "fraction", "whole_number", "named_bound", "shifted", "validation"]);
 // each kind the engine names (pipeline.KINDS), in the words "Stop checking ... in Units" says it
 export const KIND_WORDS = { duplicate: "duplicates", type: "text in numbers", blank: "blanks", placeholder: "placeholders",
   code: "codes for no value", far_date: "dates far off", sum: "totals", spelling: "spelling", lost_zero: "leading zeros",
@@ -22,7 +22,7 @@ export const KIND_WORDS = { duplicate: "duplicates", type: "text in numbers", bl
   date_order: "which date comes first", record: "records", balance: "balances", scale: "sizes", key: "values against their code",
   own_scale: "sizes", shifted: "values in the wrong column", fraction: "percentages", whole_number: "decimals",
   named_bound: "what the column name allows", repeated_column: "copied columns", limits: "the usual range", series: "jumps",
-  combination: "unusual mixes" };
+  combination: "unusual mixes", subtotal: "subtotals", validation: "drop-down lists" };
 const CODE = /^[0-9a-z]{1,11}$/;
 const text = (x) => typeof x === "string" && x.length <= TEXT;
 

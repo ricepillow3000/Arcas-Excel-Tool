@@ -176,8 +176,21 @@ export function sentOf(t) {
   if (!t.fills?.length && !t.layout?.length) return { rows: t.rows, calc: t.calc };
   const rows = t.rows.map((r) => [...r]), calc = t.calc && t.calc.map((r) => [...r]);
   for (const [i, j, v] of t.fills || []) rows[i][j] = v;
-  for (const i of t.layout || []) { rows[i] = rows[i].map(() => ""); if (calc) calc[i] = calc[i].map(() => null); }
+  for (const i of t.layout || []) rows[i] = rows[i].map(() => "");
   return { rows, calc };
+}
+
+// AH-213: the cells Excel itself says break their data validation (a value outside its drop-down list), as areas of the
+// sheet (areaOf) -> [[i, j]]: row i and column j of a table as the engine reads it (local), at most INVALID
+export const INVALID = 1000; // the engine takes at most this many a table (server.INVALID)
+export function invalidIn(t, areas) {
+  const out = [], top = t.startRow + 1, last = top + t.rows.length - 1, right = t.startCol + t.columns.length - 1;
+  for (const a of areas || []) for (let r = Math.max(a.r1, top); r <= Math.min(a.r2, last); r++)
+    for (let c = Math.max(a.c1, t.startCol); c <= Math.min(a.c2, right); c++) {
+      if (out.length === INVALID) return out;
+      out.push([r - top, c - t.startCol]);
+    }
+  return out;
 }
 
 // Pure: what the reader could not read, said once: "Cells A18:B23 and A25 on this sheet were not checked: they hold no
