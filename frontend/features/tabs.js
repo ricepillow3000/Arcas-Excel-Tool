@@ -1,5 +1,6 @@
 import { n } from "../utils/text.js";
 import { readTabs } from "../services/excel.js";
+import { unreadSaid } from "../utils/layout.js";
 
 // AH-180 (John, 2026-11-17): a neuroscience student copied three data series onto three tabs, one per tab, and pasted
 // series 2 again on the third without noticing. Each tab's measures are compared as number sequences, headers ignored on
@@ -63,10 +64,11 @@ async function pairsNow() {
   return copiedTabs(tabs.map((t) => ({ sheet: t.sheet, measured: cache.get(t.id) || [] })));
 }
 
-// Find problems: every tab read again, and the lines said under the results: the cut-off row, then the copied pairs (at
-// most 3, the scanned sheet's first). A failure to read the tabs says nothing: the scan has its results
+// Find problems: every tab read again, and the lines said under the results: the cells no table holds, the cut-off row,
+// then the copied pairs (at most 3, the scanned sheet's first). A failure to read the tabs says nothing: the scan has its results
 export async function bookNotes(s) {
-  const lines = lastRowSaid(s.last) ? [lastRowSaid(s.last)] : [];
+  // AH-212: what the layout reader could not read on the scanned sheet comes first, said once
+  const lines = [unreadSaid(s.unread), lastRowSaid(s.last)].filter(Boolean);
   try {
     cache.clear();
     const pairs = await pairsNow();

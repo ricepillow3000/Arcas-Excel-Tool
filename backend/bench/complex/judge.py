@@ -9,6 +9,8 @@ Score per episode (max 100), as adversarial/judge.py:
   domain  = 40 * (domain-specific errors caught + traps left alone) / (domain-specific errors + traps)
   precision = 20 if no valid cell is flagged, else 0
   penalties: -25 per flagged valid cell (false positive), -25 per flagged trap (not also counted as a false positive)
+A sheet's scan holds one table (as before AH-212) or several ({"tables": [...]}: the layout reader's, each scanned on
+its own): its flagged cells are every table's.
 Breakdowns: recall on complex vs ordinary errors; errors the table never read (every accepted cell outside the table,
 or on a sheet with no table); flagged cells (false positives and traps) on a layout row inside the table: a blank
 separator, a subtotal, a header's second row or a notes line.
@@ -98,8 +100,8 @@ def judge(eps, scans, key):
             if r.get("unread"):
                 unread_sheets += 1
                 continue
-            res[s["name"]] = r
-            flags |= {(s["name"], c) for c in flagged(r)}
+            res[s["name"]] = r.get("tables", [r])
+            flags |= {(s["name"], c) for t in res[s["name"]] for c in flagged(t)}
         b = {"E": 0, "C": 0, "CE": 0, "CC": 0, "FP": 0, "RB": 0, "U": 0, "L": 0}
         err_cells = set()
         for e in k["errors"]:
@@ -116,7 +118,7 @@ def judge(eps, scans, key):
             if e["sheet"] not in res:
                 unread["unread_sheet"] += 1; b["U"] += 1
                 detail.append(f"UNREAD {name} {e['sheet']}!{e['cell']} [{e['kind']}]: the sheet has no table")
-            elif not any(inside(res[sh], c) for sh, c in cells if sh in res):
+            elif not any(inside(t, c) for sh, c in cells if sh in res for t in res[sh]):
                 unread["outside_table"] += 1; b["U"] += 1
                 detail.append(f"UNREAD {name} {e['sheet']}!{e['cell']} [{e['kind']}]: outside the table")
             elif not hit:
@@ -133,7 +135,8 @@ def judge(eps, scans, key):
             FP += 1; b["FP"] += 1
             detail.append(f"FP    {name} {sh}!{c}")
         for sh, c in sorted(flags - err_cells):
-            kind = layout(next(s for s in book["sheets"] if s["name"] == sh), res[sh], cell_at(c)[1])
+            t = next(t for t in res[sh] if inside(t, c))
+            kind = layout(next(s for s in book["sheets"] if s["name"] == sh), t, cell_at(c)[1])
             if kind:
                 lay[kind] += 1; b["L"] += 1
         books.append(f"{name}: recall {b['C']}/{b['E']} (complex {b['CC']}/{b['CE']}), unread {b['U']}, "

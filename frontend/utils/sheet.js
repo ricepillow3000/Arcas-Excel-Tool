@@ -9,31 +9,42 @@ export const cutNote = ([last, total]) =>
 // Pure: used-range values -> {columns, rows, startRow, startCol}, or null if there's no header + data row.
 // Header = first row that is mostly filled, so title rows above it ("Cost Report - Period 9") are skipped.
 export function tableFromGrid(values, formats, rowIndex, colIndex, formulas) {
+  const h = headerAt(values);
+  if (h < 0 || h + 1 >= values.length) return null; // need header + 1 row
+  return tableAt(values[h], values.slice(h + 1), formats && formats.slice(h + 1), rowIndex + h, colIndex, formulas && formulas.slice(h + 1));
+}
+
+// Pure: the header's index in used-range values, or -1: the first of the first 10 rows that is mostly filled
+export function headerAt(values) {
   const filled = (r) => r.filter((v) => v !== "" && v !== null).length;
   const widest = Math.max(0, ...values.slice(0, 20).map(filled));
-  const h = values.findIndex((r, k) => k < 10 && filled(r) >= Math.max(Math.min(2, widest), 0.6 * widest));
-  if (h < 0 || h + 1 >= values.length) return null; // need header + 1 row
+  return values.findIndex((r, k) => k < 10 && filled(r) >= Math.max(Math.min(2, widest), 0.6 * widest));
+}
+
+// Pure: a header (its names), the data rows under it, their number formats (rows not read are left out) and formulas ->
+// the table. startRow: the 0-based sheet row just above the first data row (data row i sits on sheet row startRow + 2 + i)
+export function tableAt(header, data, formats, startRow, colIndex, formulas) {
   // Excel hands dates over as serial numbers; send real dates so the engine finds its time axis. A column holds dates
   // when most of its first 20 filled cells wear a date format (AH-150: row 2 alone decided, so a sort that put a blank or
   // a text there sent the whole column as serial numbers)
-  const isDate = formats ? values[h].map((_, j) => {
-    const seen = values.slice(h + 1, formats.length).flatMap((r, k) => (r[j] === "" || r[j] === null ? [] : [formats[h + 1 + k][j]])).slice(0, 20);
-    return seen.length ? 2 * seen.filter(isDateFormat).length > seen.length : isDateFormat(formats[h + 1]?.[j]);
+  const isDate = formats ? header.map((_, j) => {
+    const seen = data.slice(0, formats.length).flatMap((r, k) => (r[j] === "" || r[j] === null || !formats[k] ? [] : [formats[k][j]])).slice(0, 20);
+    return seen.length ? 2 * seen.filter(isDateFormat).length > seen.length : isDateFormat(formats[0]?.[j] ?? "");
   }) : [];
-  const rows = values.slice(h + 1).map((r) => readAs(r, isDate));
-  const calc = formulas && formulas.slice(h + 1); // each data row's formulas ("=B2-C2"), so a fix never types over one
+  const rows = data.map((r) => readAs(r, isDate));
+  const calc = formulas; // each data row's formulas ("=B2-C2"), so a fix never types over one
   const columns = []; // name duplicate headers like the engine does ("Dept", "Dept.1", skipping taken names): limits and fixes are keyed by these
-  values[h].forEach((c) => {
+  header.forEach((c) => {
     let name = String(c);
     for (let k = 1; columns.includes(name); k++) name = `${c}.${k}`;
     columns.push(name);
   });
   // ...but a header two columns share is said as the sheet says it, with its column letter: "Units.1" is no name the
   // user can find (AH-128, as Check words does since AH-35). Every column is a key, so "Units sold" stays whole
-  const twice = (c) => values[h].filter((d) => String(d) === String(c)).length > 1;
-  const names = values[h].some(twice) ? Object.fromEntries(values[h].map((c, j) => [columns[j], !twice(c) ? columns[j]
+  const twice = (c) => header.filter((d) => String(d) === String(c)).length > 1;
+  const names = header.some(twice) ? Object.fromEntries(header.map((c, j) => [columns[j], !twice(c) ? columns[j]
     : `${String(c).trim() ? `${String(c).trim()} (column ${colLetter(colIndex + j)})` : `column ${colLetter(colIndex + j)}`}`])) : {};
-  return { columns, rows, startRow: rowIndex + h, startCol: colIndex, calc, dates: isDate, names };
+  return { columns, rows, startRow, startCol: colIndex, calc, dates: isDate, names };
 }
 
 // Pure: each column name in a sentence said as the sheet's names say it (names: engine name -> shown). A name counts

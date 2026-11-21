@@ -4,6 +4,7 @@ import { A1, cellAt, colLetter, sameRow, typedAsFormula } from "../utils/sheet.j
 import { plain } from "./undo-store.js";
 import { readCells, readRows, writeCells } from "../services/excel.js";
 import { afterFix } from "./fix.js";
+import { place } from "../utils/layout.js";
 
 // Step 3: fix exact mistakes by itself. Exact = a capitals/spaces slip ("east " for "East") where the usual spelling
 // is 5x as common - never a number, a median, a typo guess or a misspelling, never a formula cell. Off by default
@@ -15,27 +16,29 @@ const settings = () => Office.context.document.settings;
 export const autoUndo = () => settings().get(UNDO_KEY) || null;
 
 // Pure: the scan's verdicts -> [{k, j, value}], one per exact fix (k = data row, j = column). Never one Excel would read
-// as a formula: the engine once gave a full-width "＝WEBSERVICE(...)" as a capitals fix, written with no Accept (AH-160)
+// as a formula: the engine once gave a full-width "＝WEBSERVICE(...)" as a capitals fix, written with no Accept (AH-160).
+// columns: the table's, or (AH-212) row k's own table's, columnsOf(k)
 export const exactFixes = (rows, columns) => rows.flatMap((r, k) =>
-  Object.entries(r?.exact || {}).map(([c, value]) => ({ k, j: columns.indexOf(c), value })))
+  Object.entries(r?.exact || {}).map(([c, value]) => ({ k, j: (typeof columns === "function" ? columns(k) : columns).indexOf(c), value })))
   .filter((x) => x.j >= 0 && !typedAsFormula(x.value));
 
 // Right after a scan: write the exact fixes -> how many were written
 export async function autoFix() {
-  const { columns, rows, startRow, startCol, sheet } = state.lastScan;
-  const fixes = exactFixes(state.lastRows, columns).filter((x) => !state.decided[x.k]); // a dismissed row is left as it is
+  const s = state.lastScan, { rows, sheet } = s, at = (k) => place(s, k); // each row in its own table (AH-212)
+  const fixes = exactFixes(state.lastRows, (k) => at(k).columns).filter((x) => !state.decided[x.k]); // a dismissed row is left as it is
   if (!fixes.length) return 0;
-  const cells = fixes.map((x) => `${colLetter(startCol + x.j)}${startRow + 2 + x.k}`);
+  const cells = fixes.map((x) => `${colLetter(at(x.k).startCol + x.j)}${at(x.k).startRow + 2 + x.k}`);
   const olds = await readCells(sheet, cells);
   // only rows still where the scan saw them (the sheet stays editable during a long scan: a sort moves records)
-  const now = await readRows(sheet, fixes.map((x) => ({ row: startRow + 1 + x.k, col: startCol, width: columns.length })));
+  const now = await readRows(sheet, fixes.map((x) => ({ row: at(x.k).startRow + 1 + x.k, col: at(x.k).startCol, width: at(x.k).columns.length })));
   const writes = fixes.map((x, m) => ({ cell: cells[m], old: olds[m], value: x.value }))
     .filter((w, m) => sameRow(now[m].values, rows[fixes[m].k], now[m].calc) && !String(w.old).startsWith("="));
   if (!writes.length) return 0;
   const typedIn = writes.map((w) => ({ cell: w.cell, new: w.value }));
   writes.forEach((w) => { // the whole row as auto-fix leaves it: Undo checks it is still the same record (sorts move rows)
-    const r = cellAt(w.cell).row;
-    Object.assign(w, { row: r - 1, col: startCol, expect: afterFix(rows[r - startRow - 2], typedIn, startCol, r) });
+    const k = fixes[cells.indexOf(w.cell)].k, { startRow, startCol, columns } = at(k), r = cellAt(w.cell).row;
+    const mine = typedIn.filter((c) => cellAt(c.cell).col >= startCol && cellAt(c.cell).col < startCol + columns.length); // a table beside it on this row is not its
+    Object.assign(w, { row: r - 1, col: startCol, expect: afterFix(rows[r - startRow - 2], mine, startCol, r) });
   });
   await writeCells(sheet, writes.map((w) => ({ cell: w.cell, value: w.value })));
   const prev = autoUndo(); // ponytail: Undo covers this sheet's auto-fixes; auto-fixing another sheet keeps only that one's

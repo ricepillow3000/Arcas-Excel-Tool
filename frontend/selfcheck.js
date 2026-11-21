@@ -17,6 +17,7 @@ import { asHighlights, KEPT } from "./features/highlight.js";
 import * as K from "./constants/index.js";
 import { remember, forget, recall, clearAll, MAX_KEPT, OFFERED } from "./features/memory.js";
 import { measures, copiedTabs, copiedSaid, lastRowSaid } from "./features/tabs.js";
+import { tablesFromGrid, sentOf, unreadSaid, formatRows, asSheet, place, local, biggest, rowAt, areaOf } from "./utils/layout.js";
 import { findingsAt, inRange, ignored, liveable, liveOn, soundOn, noteSaid, checkedSaid, LIVE_ROWS } from "./features/live.js";
 import { asLearned, learnIn, taught, learnedOf, stoppable, KIND_WORDS, ONE_CELL, PER_SHEET as LEARN_CAP, SENT, TEXT } from "./features/learned.js";
 
@@ -999,6 +1000,145 @@ for (const f of readdirSync(new URL(".", import.meta.url)).filter((f) => f.endsW
   for (const page of ["taskpane.html", "privacy.html", "support.html"]) {
     const html = readFileSync(new URL(page, import.meta.url), "utf8").replace(/<link[^>]*>/g, "");
     assert.ok(!/crest4-(16|32|64|80)\.png/.test(html), `${page}: a paper icon on the navy band (a white box)`);
+  }
+}
+
+// AH-212: a power user's sheet is seldom one table. The layout reader finds each table: a small one above the main one,
+// a header of two rows (Jan, Feb, Mar under a merged Costs), a label merged down its group, subtotal and notes rows sent
+// blank (the engine's summary_rows skips a blank row), a table beside it past a blank column, a table stacked below past
+// blank rows, and it names the cells that hold no table
+{
+  const W = 9, row = (...v) => [...v, ...Array(W - v.length).fill("")], none = () => Array(W).fill(null);
+  const V = [row("Cost report Q3"), row("Region", "Rate"), row("North", 0.2), row("South", 0.3), row(),
+    row("Group", "Item", "Costs", "", "", "Total", "", "Owner", "Hours"), row("", "", "Jan", "Feb", "Mar", "", "", "Ann", 5)];
+  const F = V.map(none);
+  for (const [g, items] of [["East", ["a", "b", "c"]], ["West", ["d", "e", "f"]]]) {
+    items.forEach((it, k) => { V.push(row(k ? "" : g, it, 1 + k, 2 + k, 3 + k, 6 + 3 * k, "", ...(V.length < 9 ? ["Bob", 6] : []))); F.push(none()); });
+    V.push(row("", `Subtotal ${g}`, 6, 9, 12, 27));
+    F.push(Object.assign(none(), { 2: "=SUM(R[-3]C:R[-1]C)", 3: "=SUM(R[-3]C:R[-1]C)", 4: "=SUM(R[-3]C:R[-1]C)", 5: "=SUM(R[-3]C:R[-1]C)" }));
+  }
+  V.push(row("", "Costs are in thousands of US dollars, before tax"));
+  F.push(none());
+  V.push(row(), row(), row("Pass mark", 40), row(), row("Leave requests"), row("Request", "From", "Days"),
+    ...Array.from({ length: 4 }, (_, k) => row(`R${k}`, 46000 + k, 2 + k)));
+  while (F.length < V.length) F.push(none());
+  const merged = ["A1:I1", "A6:A7", "B6:B7", "C6:E6", "F6:F7", "A8:A10", "A12:A14"];
+  const { tables, unread } = tablesFromGrid(V, null, 0, 0, F, { merged });
+  assert.deepEqual(tables.map((t) => [t.startRow, t.startCol, t.columns]), [
+    [1, 0, ["Region", "Rate"]],
+    [6, 0, ["Group", "Item", "Costs Jan", "Costs Feb", "Costs Mar", "Total"]],
+    [5, 7, ["Owner", "Hours"]],
+    [21, 0, ["Request", "From", "Days"]]], "AH-212: four tables, each at its own place, a header of two rows named from both");
+  const main = tables[1];
+  assert.equal(main.rows.length, 9, "the main table's data: rows 8 to 16");
+  assert.deepEqual(main.layout, [3, 7, 8], "AH-212: the two subtotals and the notes row are no records");
+  assert.deepEqual(main.fills, [[1, 0, "East"], [2, 0, "East"], [5, 0, "West"], [6, 0, "West"]], "AH-212: a label merged down its group, for the scan only");
+  assert.equal(main.rows[1][0], "", "the sheet's own values are kept: what Accept and Undo compare");
+  const sent = sentOf(main);
+  assert.deepEqual(sent.rows[1].slice(0, 2), ["East", "b"]);
+  assert.ok(sent.rows[3].every((v) => v === "") && sent.calc[3].every((f) => f === null), "a subtotal goes to the engine blank, with no formula");
+  assert.deepEqual(sentOf(tables[0]).rows, tables[0].rows, "a table with no layout row is sent as it is");
+  assert.deepEqual(unread, ["A19:B19"], "AH-212: a label and its number with no header are no table, and said");
+  // a column that writes its summary formula on most rows (a rolling average) is a column of its own, never a subtotal;
+  // a summary formula the column writes on a quarter of its rows still is
+  {
+    const G = [row("Title"), row(), row("Day", "Sales", "Avg 3"), ...Array.from({ length: 8 }, (_, k) => row(`d${k}`, 10 + k, 11))];
+    const R = G.map(none);
+    const at = (rows) => { R.forEach((r, k) => (r[2] = k > 2 && rows.includes(k) ? "=AVERAGE(R[-2]C:R[-1]C)" : null)); return tablesFromGrid(G, null, 0, 0, R, { merged: ["A1:C1"] }).tables[0].layout; };
+    assert.deepEqual(at([3, 4, 5, 6, 7, 8, 9, 10]), [], "AH-212: a rolling average on every row is no subtotal");
+    assert.deepEqual(at([5, 9]), [2, 6], "AH-212: a summary formula on 2 rows is each a subtotal");
+  }
+  // a header of two rows: day numbers under a merged Q1 and an unmerged Q2 (a month of one week has no merge); a first data
+  // row with a blank under a header is no second header row
+  {
+    const G = [["Item", "Q1", "", "Q2"], ["", 1, 2, 3], ["a", 4, 5, 6], ["b", 7, 8, 9], ["", "", "", ""], ["Code", "Qty", "Note", ""], ["x", 5, "", ""], ["y", 6, "ok", ""]];
+    const [q, c] = tablesFromGrid(G, null, 0, 0, null, { merged: ["B1:C1"] }).tables;
+    assert.deepEqual([q.startRow, q.columns], [1, ["Item", "Q1 1", "Q1 2", "Q2 3"]], "AH-212: half the second row under a merged group names its columns");
+    assert.deepEqual([c.startRow, c.columns.slice(0, 3)], [5, ["Code", "Qty", "Note"]], "AH-212: a data row is no second header row");
+  }
+  // labels: a header holds words, years or dates, never a plain number; a typed total on a row sparser than most is a
+  // subtotal, a full row that says Total (a vendor, Total Wine) a record; one short word alone on a row is a record too
+  {
+    const G = [["Region", 2024, 2025], ["North", 5, 6], ["South", 7, 8], ["Grand total", 12, ""], ["", "", ""],
+      ["Vendor", "Qty", "Ref"], ["Total Wine", 3, "a"], ["Acme", 4, "b"], ["R9", "", ""], ["", "", ""], ["Pass mark", 40, ""]];
+    const { tables: [y, v], unread: u } = tablesFromGrid(G, null, 0, 0, null);
+    assert.deepEqual([y.columns, y.layout, v.columns, v.layout, u], [["Region", "2024", "2025"], [2], ["Vendor", "Qty", "Ref"], [], ["A11:B11"]]);
+    // under a table of 4 columns, a label and its number are no row of it; a block 3/4 as full is
+    const T = [["Item", "Qty", "Cost", "Ref"], ["a", 1, 2, "x"], ["b", 3, 4, "y"], ["", "", "", ""]];
+    assert.deepEqual(tablesFromGrid([...T, ["Pass mark", 40, "", ""]], null, 0, 0, null).unread, ["A5:B5"]);
+    assert.deepEqual(tablesFromGrid([...T, ["c", 5, 6, ""]], null, 0, 0, null).tables.map((t) => t.rows.length), [4]);
+  }
+  // a header of two rows under no merge: words in the second row where the first is blank beside its group, numbers below
+  {
+    const G = [row("Item", "Costs", "", "Owner"), row("", "Jan", "Feb", ""), row("a", 1, 2, "Ann"), row("b", 3, 4, "Bob"), row("Title", "", "", "")];
+    const t = tablesFromGrid(G.slice(0, 4).map((r) => r.slice(0, 4)), null, 3, 1, null).tables[0];
+    assert.deepEqual([t.startRow, t.startCol, t.columns], [4, 1, ["Item", "Costs Jan", "Costs Feb", "Owner"]]);
+    const flat = tablesFromGrid([["Item", "Owner", "Qty"], ["a", "Ann", 1], ["b", "", "x"]], null, 0, 0, null).tables[0];
+    assert.equal(flat.startRow, 0, "AH-212: a first data row of words is no second header row when it fills under every header");
+  }
+  // blank rows inside one table: the rows below, as full as its own, are more of it; a header there starts a new table
+  {
+    const G = [["Item", "Qty", "Total"], ["a", 5, 10], ["b", 6, 12], ["", "", ""], ["c", 7, 14], ["d", 8, 16]];
+    assert.deepEqual(tablesFromGrid(G, null, 0, 0, null).tables.map((t) => t.rows.length), [5]);
+    const H = [...G, ["", "", ""], ["Code", "Name", "Price"], ["x", "y", 3]];
+    assert.deepEqual(tablesFromGrid(H, null, 0, 0, null).tables.map((t) => [t.startRow, t.rows.length]), [[0, 5], [7, 1]]);
+    // a table three blank rows below is its own, never more of the one above
+    const far = [...G.slice(0, 3), ["", "", ""], ["", "", ""], ["", "", ""], ["c", 7, 14]];
+    assert.deepEqual(tablesFromGrid(far, null, 0, 0, null).tables.map((t) => t.rows.length), [2], "AH-212: 3 blank rows end a table");
+    const near = [...G.slice(0, 3), ["", "", ""], ["", "", ""], ["c", 7, 14]];
+    assert.deepEqual(tablesFromGrid(near, null, 0, 0, null).tables.map((t) => t.rows.length), [5], "AH-212: 2 blank rows do not");
+  }
+  // the pane holds a sheet of several tables as one, rows one after another: each table's startRow + 2 + g is still the
+  // sheet row of row g, so every place that turns a row into a cell stays as it was
+  const s = asSheet(tables, { sheet: "Costs", unread });
+  assert.equal(s.rows.length, 2 + 9 + 3 + 4);
+  assert.equal(place(s, 3), s.tables[1]);
+  assert.equal(place(s, 3).startRow + 2 + 3, 9, "row 3 of the sheet object is sheet row 9 (Item b)");
+  assert.deepEqual(local(place(s, 3)).rows, main.rows, "the engine gets a table's own rows");
+  assert.equal(local(place(s, 3)).startRow, 6);
+  assert.equal(biggest(s).columns, main.columns);
+  assert.equal(rowAt(s, "C9"), 3);
+  assert.equal(rowAt(s, "H8"), 12, "a cell of the table beside it is that table's row");
+  assert.equal(rowAt(s, "Costs!B9:D9"), 3);
+  assert.equal(rowAt(s, "A19"), null, "a cell no table holds opens no row");
+  assert.equal(rowAt(s, "B9:B10"), null);
+  const one = asSheet([tables[0]], { sheet: "S" });
+  assert.equal(place(one, 1), one, "a sheet of one table is that table");
+  assert.equal(local(one), one);
+  assert.equal(rowAt(one, "B4"), 1);
+  assert.deepEqual(formatRows(tables.slice(0, 3), 0, 30), [], "every table's first rows inside the top 30 read");
+  assert.deepEqual(formatRows(tables, 0, 30), [[30, 12]], "a table whose first rows run past the top 30: the rest of them");
+  assert.deepEqual(formatRows([{ startRow: 88 }], 3, 30), [[84, 22]], "a table lower down: its header's two rows and its first 20");
+  assert.deepEqual(areaOf("Sheet1!$C$6:$E$6"), { r1: 5, c1: 2, r2: 5, c2: 4 });
+  assert.equal(areaOf("'a,b"), null);
+  assert.equal(unreadSaid([]), "");
+  assert.equal(unreadSaid(["A25"]), "Cell A25 on this sheet was not checked: it holds no table Arcas can read.");
+  assert.equal(unreadSaid(["A4:A5", "C4:C5"]), "Cells A4:A5 and C4:C5 on this sheet were not checked: they hold no table Arcas can read.");
+  assert.equal(unreadSaid(["A1:B2", "C3", "D4", "E5", "F6"]), "Cells A1:B2, C3, D4 and 2 more on this sheet were not checked: they hold no table Arcas can read.");
+  // live: a finding in the table beside the main one is said at its own cell
+  const verdicts = Array.from({ length: 18 }, () => ({}));
+  verdicts[12] = { severity: "Medium", cells: ["Hours"], reason: "Hours 7", exact: { Hours: "y" } };
+  verdicts[1] = { exact: { Rate: "x" } };
+  verdicts[3] = { exact: { Hours: "z" } }; // the main table has no Hours: nothing to fix there
+  assert.deepEqual(findingsAt(verdicts, s, {}, ["I8"]).map((f) => [f.cell, f.column]), [["I8", "Hours"]]);
+  assert.deepEqual(exactFixes(verdicts, (k) => place(s, k).columns).map((x) => [x.k, x.j]), [[1, 1], [12, 1]]);
+}
+// AH-212: a plain sheet, one table and no merged area, is read exactly as tableFromGrid always read it: every adversarial
+// bench table, the e2e's sheets of titles over a header, and one whose title rows sit far above
+{
+  const dir = new URL("../backend/bench/adversarial/", import.meta.url);
+  const grids = [];
+  for (const ep of readdirSync(dir).filter((d) => d.startsWith("ep"))) for (const f of readdirSync(new URL(`${ep}/`, dir))) {
+    const t = JSON.parse(readFileSync(new URL(`${ep}/${f}`, dir), "utf8"));
+    grids.push([[t.columns, ...t.rows], [t.columns.map(() => null), ...(t.formulas || t.rows.map((r) => r.map(() => null)))]]);
+  }
+  grids.push([[["Cost Report"], ["Period 9"], [""], ["Code", "Item", "Budget"], ["03-1", "Pour", 500], ["03-2", "Form", 700]].map((r) => [...r, "", ""].slice(0, 3)), null]);
+  grids.push([[["Item", "Units", "Total"], ["Pen", 4, 8], ["Total", "", 8]], null]);
+  assert.ok(grids.length >= 42);
+  for (const [g, calc] of grids) {
+    const { tables, unread } = tablesFromGrid(g, null, 2, 1, calc);
+    const { fills, layout, ...t } = tables[0];
+    assert.deepEqual([tables.length, t, fills, layout, unread], [1, tableFromGrid(g, null, 2, 1, calc), [], [], []], `AH-212: a plain sheet read as before (${g[0].slice(0, 3)})`);
   }
 }
 

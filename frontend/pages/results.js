@@ -3,6 +3,7 @@ import { state } from "../hooks/use-state.js";
 import { $, show, only } from "../utils/dom.js";
 import { esc, n } from "../utils/text.js";
 import { cutNote } from "../utils/sheet.js";
+import { place } from "../utils/layout.js";
 import { act } from "../hooks/use-action.js";
 import { rowItem } from "../components/row-item.js";
 import { fairnessNote, fairnessTests, flaggedRows, legendOf, listOrder, summaryOf } from "../features/scan.js";
@@ -39,7 +40,7 @@ export function renderResults(rows, s, fair) {
 // The rows to check, worst first, each tagged once it is fixed or dismissed (like Grammarly's list of cards)
 export function listRows(arrive = false) {
   only("results");
-  const { order, lastRows, decided } = state, { startRow } = state.lastScan;
+  const { order, lastRows, decided } = state;
   // Fixed / Dismissed come back after a reload too: kept in the workbook (features/decisions.js)
   const status = (i) => (decided[i] === "fixed" ? (SEV[lastRows[i].severity] ? "Fix accepted" : "Fixed")
     : decided[i] === "dismissed" ? "Dismissed" : null);
@@ -50,7 +51,7 @@ export function listRows(arrive = false) {
   $("list-title").textContent = done ? `Rows to check (${n(done)} of ${n(order.length)} done)` : "Rows to check";
   $("list-title").classList.toggle("tick", done > 0 && done === order.length); // every row done: a check mark, once
   const before = [...$("flagged-list").children]; // the rows as last drawn: a redraw keeps the list's order
-  $("flagged-list").replaceChildren(...order.slice(0, CAP).map((i) => rowItem({ ...lastRows[i], i }, startRow, act((b) => openFix(i, true, b)), status(i))));
+  $("flagged-list").replaceChildren(...order.slice(0, CAP).map((i) => rowItem({ ...lastRows[i], i }, place(state.lastScan, i).startRow, act((b) => openFix(i, true, b)), status(i))));
   if (arrive) stagger($("flagged-list").children); // a new list arrives row by row; a redraw (Back, a fix) does not
   // AH-184: a row decided since the list was last drawn turns to its done look in front of you. A loop, never an arrow: a
   // closure over `before` shares this call's context with the rows' click handlers, and each list held the last one (7a)

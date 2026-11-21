@@ -1,6 +1,6 @@
-"""AH-212: the complex-workbook bench reads each sheet as Find problems does (grid -> tableFromGrid -> /scan) and judges
-flags as sheet cells. A synthetic book: a title, a small rates table above the main one, a two-row header with a merged
-group, one wrong total, subtotal rows, and a second tab whose table starts too far down for the pane to find."""
+"""AH-212: the complex-workbook bench reads each sheet as Find problems does (grid -> the layout reader -> one /scan per
+table) and judges flags as sheet cells. A synthetic book: a title, a small rates table above the main one, a two-row
+header with a merged group, one wrong total, subtotal rows, and a second tab whose table sits under 11 rows of notes."""
 import importlib.util
 import json
 import shutil
@@ -71,21 +71,26 @@ def scanned(tmp_path_factory):
 
 
 def test_a_flagged_total_under_a_two_row_header_maps_to_its_own_sheet_cell(scanned):
-    res = json.loads((scanned / "out" / "Costs__Budget.json").read_text())
-    assert (res["startRow"], res["startCol"]) == (5, 0)  # the title and the rates table above skipped: header on row 6
-    assert res["columns"][:3] == ["Item", "Region", "Costs"]
-    assert "F13" in judge.flagged(res)
-    assert all(c.endswith("13") for c in judge.flagged(res))
+    rates, main = json.loads((scanned / "out" / "Costs__Budget.json").read_text())["tables"]
+    assert (rates["startRow"], rates["startCol"], rates["columns"]) == (1, 0, ["Region", "Rate"])  # the small table above
+    assert (main["startRow"], main["startCol"]) == (6, 0)  # header on rows 6 and 7: its data from row 8
+    assert main["columns"] == ["Item", "Region", "Costs Jan", "Costs Feb", "Costs Mar", "Total"]
+    assert "F13" in judge.flagged(main)
+    assert all(c.endswith("13") for c in judge.flagged(main))  # the subtotal rows (20, 33) are sent blank: never flagged
 
 
-def test_a_table_the_pane_cannot_find_and_one_above_the_header_are_counted_as_never_read(scanned):
-    assert json.loads((scanned / "out" / "Costs__Prices.json").read_text()) == {"unread": True, "book": "Costs", "sheet": "Prices"}
+def test_a_table_under_a_long_block_of_notes_and_one_above_the_header_are_both_read(scanned):
+    prices = json.loads((scanned / "out" / "Costs__Prices.json").read_text())
+    assert [(t["startRow"], t["columns"]) for t in prices["tables"]] == [(11, ["Code", "Price", "Qty"])]
+    assert prices["unread_cells"] == []
     lines = run(BENCH / "judge.py", scanned / "ep", scanned / "out", scanned / "keys.json").splitlines()
     episode = json.loads(lines[1])
-    assert episode["unread"] == {"outside_table": 1, "unread_sheet": 1}
-    assert episode["unread_sheets"] == 1
-    assert (episode["recall"], episode["recall_complex"], episode["recall_ordinary"]) == ("1/3", "1/2", "0/1")
-    assert lines[0].startswith("Costs: recall 1/3 (complex 1/2), unread 2,")
+    assert episode["unread"] == {"outside_table": 0, "unread_sheet": 0}
+    assert episode["unread_sheets"] == 0
+    # B4, a rate typed 10x, is read now, but two rates are too few for any limit
+    assert (episode["recall"], episode["recall_complex"], episode["recall_ordinary"]) == ("2/3", "1/2", "1/1")
+    assert episode["rigid_bias"] == 0  # the subtotal F20 left alone
+    assert lines[0].startswith("Costs: recall 2/3 (complex 1/2), unread 0,")
 
 
 def test_the_layout_rows_inside_a_table_are_told_apart_from_its_data():
