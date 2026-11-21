@@ -3799,8 +3799,8 @@
   "id": "learned-scan-tighten",
   "guard": "Find problems and Check as you work send what the sheet learned: one scanRequest (AH-205)",
   "file": "frontend/features/scan.js",
-  "old": "      learned: learnedFor(t) };",
-  "new": "      learned: null };",
+  "old": "      learned: learnedFor(t), off_list",
+  "new": "      learned: null, off_list",
   "kind": "tighten",
   "tests": [
    "e2e"
@@ -4970,5 +4970,215 @@
    "e2e"
   ],
   "modes": "flow2"
+ },
+ {
+  "id": "subtotal-full-loosen",
+  "guard": "A subtotal that leaves out rows of its group is judged only where FULL (2) other subtotals of its column add all of theirs (AH-213)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "FULL = 2  #",
+  "new": "FULL = 3  #",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_subtotals.py::test_a_subtotal_leaving_out_a_row_is_judged_only_where_two_other_subtotals_add_their_whole_group"
+  ]
+ },
+ {
+  "id": "subtotal-full-tighten",
+  "guard": "A subtotal that leaves out rows of its group is judged only where FULL (2) other subtotals of its column add all of theirs (AH-213)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "FULL = 2  #",
+  "new": "FULL = 1  #",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_subtotals.py::test_a_subtotal_leaving_out_a_row_is_judged_only_where_two_other_subtotals_add_their_whole_group"
+  ]
+ },
+ {
+  "id": "subtotal-inside-loosen",
+  "guard": "A SUBTOTAL leaves out the SUBTOTALs inside its range, as Excel does; a SUM counts them twice (AH-213)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "and agg[s][2] and not (sub and agg[s][3])]",
+  "new": "and agg[s][2] and not agg[s][3]]",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_subtotals.py::test_a_grand_total_that_adds_the_subtotals_and_their_rows_counts_them_twice"
+  ]
+ },
+ {
+  "id": "subtotal-inside-tighten",
+  "guard": "A SUBTOTAL leaves out the SUBTOTALs inside its range, as Excel does; a SUM counts them twice (AH-213)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "and agg[s][2] and not (sub and agg[s][3])]",
+  "new": "and agg[s][2]]",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_subtotals.py::test_honest_subtotals_and_a_grand_total_of_subtotal_say_nothing"
+  ]
+ },
+ {
+  "id": "subtotal-like-loosen",
+  "guard": "A row a subtotal leaves out is written as the range's own rows (its formula, or typed); a row worked out from rows above ends a group (AH-213)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if has[r] and kind(r) == like]",
+  "new": "if has[r] and kind(r) == like == \"typed\"]",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_subtotals.py::test_a_subtotal_that_leaves_out_the_first_row_of_its_group_is_flagged"
+  ]
+ },
+ {
+  "id": "subtotal-like-tighten",
+  "guard": "A row a subtotal leaves out is written as the range's own rows (its formula, or typed); a row worked out from rows above ends a group (AH-213)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if has[r] and kind(r) == like]",
+  "new": "if has[r]]",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_subtotals.py::test_a_row_written_another_way_above_a_group_is_no_row_of_it"
+  ]
+ },
+ {
+  "id": "subtotal-edge-loosen",
+  "guard": "A row a subtotal leaves out is written as the range's own rows (its formula, or typed); a row worked out from rows above ends a group (AH-213)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "i in agg or f[i] and ABOVE.search(f[i]))",
+  "new": "i in agg or f[i])",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_subtotals.py::test_a_subtotal_that_leaves_out_the_first_row_of_its_group_is_flagged"
+  ]
+ },
+ {
+  "id": "subtotal-edge-tighten",
+  "guard": "A row a subtotal leaves out is written as the range's own rows (its formula, or typed); a row worked out from rows above ends a group (AH-213)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "i in agg or f[i] and ABOVE.search(f[i]))",
+  "new": "i in agg)",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_subtotals.py::test_a_row_worked_out_from_the_rows_above_ends_the_group_above_it"
+  ]
+ },
+ {
+  "id": "subtotal-typed-loosen",
+  "guard": "A typed subtotal is wrong only past its group's sum by more than a cent and half its own last digit (AH-213)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if abs(x[i] - total) > _cent(part) +",
+  "new": "if abs(x[i] - total) > 20 + _cent(part) +",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_subtotals.py::test_a_typed_subtotal_that_is_not_its_groups_sum_is_flagged_and_one_that_is_says_nothing"
+  ]
+ },
+ {
+  "id": "subtotal-typed-tighten",
+  "guard": "A typed subtotal is wrong only past its group's sum by more than a cent and half its own last digit (AH-213)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "+ 0.5 * 10.0 ** -_decimals(x[i:i + 1])",
+  "new": "+ 0 * 10.0 ** -_decimals(x[i:i + 1])",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_subtotals.py::test_a_typed_subtotal_rounded_to_its_own_last_digit_still_adds_up"
+  ]
+ },
+ {
+  "id": "invalid-cap-loosen",
+  "guard": "/scan's invalid: at most INVALID (1,000) [row, column] cells, whole numbers inside the table, checked before any work (AH-213)",
+  "file": "backend/anomaly_hunter/server.py",
+  "old": "len(invalid) <= INVALID and all(",
+  "new": "len(invalid) <= INVALID + 1 and all(",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_drop_down_lists.py::test_invalid_cells_are_checked_before_any_work_at_their_limit"
+  ]
+ },
+ {
+  "id": "invalid-cap-tighten",
+  "guard": "/scan's invalid: at most INVALID (1,000) [row, column] cells, whole numbers inside the table, checked before any work (AH-213)",
+  "file": "backend/anomaly_hunter/server.py",
+  "old": "INVALID = 1000  #",
+  "new": "INVALID = 999  #",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_drop_down_lists.py::test_invalid_cells_are_checked_before_any_work_at_their_limit"
+  ]
+ },
+ {
+  "id": "invalid-cell-loosen",
+  "guard": "/scan's invalid: at most INVALID (1,000) [row, column] cells, whole numbers inside the table, checked before any work (AH-213)",
+  "file": "backend/anomaly_hunter/server.py",
+  "old": "and 0 <= p[0] < len(rows) and",
+  "new": "and 0 <= p[0] <= len(rows) and",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_drop_down_lists.py::test_invalid_cells_are_checked_before_any_work_at_their_limit"
+  ]
+ },
+ {
+  "id": "invalid-cell-tighten",
+  "guard": "/scan's invalid: at most INVALID (1,000) [row, column] cells, whole numbers inside the table, checked before any work (AH-213)",
+  "file": "backend/anomaly_hunter/server.py",
+  "old": "0 <= p[1] < len(cols) for p in invalid",
+  "new": "0 <= p[1] < len(cols) - 1 for p in invalid",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_drop_down_lists.py::test_invalid_cells_are_checked_before_any_work_at_their_limit"
+  ]
+ },
+ {
+  "id": "invalid-in-loosen",
+  "guard": "The cells Excel says break their drop-down list go to the engine as each table's own [row, column], cut to the table, at most INVALID (1,000) a table (AH-213)",
+  "file": "frontend/utils/layout.js",
+  "old": "if (out.length === INVALID) return out;",
+  "new": "if (out.length === INVALID + 1) return out;",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "invalid-in-tighten",
+  "guard": "The cells Excel says break their drop-down list go to the engine as each table's own [row, column], cut to the table, at most INVALID (1,000) a table (AH-213)",
+  "file": "frontend/utils/layout.js",
+  "old": "if (out.length === INVALID) return out;",
+  "new": "if (out.length === INVALID - 1) return out;",
+  "kind": "tighten",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "invalid-table-loosen",
+  "guard": "The cells Excel says break their drop-down list go to the engine as each table's own [row, column], cut to the table, at most INVALID (1,000) a table (AH-213)",
+  "file": "frontend/utils/layout.js",
+  "old": "r = Math.max(a.r1, top);",
+  "new": "r = a.r1;",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "invalid-sent-loosen",
+  "guard": "The cells Excel says break their drop-down list go to the engine as each table's own [row, column], cut to the table, at most INVALID (1,000) a table (AH-213)",
+  "file": "frontend/features/scan.js",
+  "old": "learned: learnedFor(t), off_list: invalid.length ? invalid : null };",
+  "new": "learned: learnedFor(t), off_list: null };",
+  "kind": "loosen",
+  "tests": [
+   "e2e"
+  ],
+  "modes": "flow2"
+ },
+ {
+  "id": "subtotal-sent-loosen",
+  "guard": "A subtotal row goes to the engine blank, its formulas kept for the subtotal check (AH-213)",
+  "file": "frontend/utils/layout.js",
+  "old": "for (const i of t.layout || []) rows[i] = rows[i].map(() => \"\");",
+  "new": "for (const i of t.layout || []) { rows[i] = rows[i].map(() => \"\"); if (calc) calc[i] = calc[i].map(() => null); }",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
  }
 ]

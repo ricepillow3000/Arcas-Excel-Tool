@@ -6,7 +6,7 @@ import { busy, counting, notice } from "../components/progress.js";
 import { post } from "../services/api.js";
 import { getLimits, readSheet, watchSelection } from "../services/excel.js";
 import { shownAs } from "../utils/sheet.js";
-import { local, sentOf } from "../utils/layout.js";
+import { invalidIn, local, sentOf } from "../utils/layout.js";
 import { paint } from "./highlight.js";
 import { renderResults } from "../pages/results.js";
 import { onSelect } from "../pages/fix.js";
@@ -113,7 +113,7 @@ async function scan(auto, held, t0) {
 // keeps a copy for Power BI. AH-205: and what this sheet learned (values dismissed, checks stopped), so both use it.
 // AH-212: one request per table on the sheet, its rows as the engine reads them (merged labels filled down, subtotal and
 // notes rows blank: utils/layout.js), so the engine never compares two tables' columns. Power BI keeps one copy a scan:
-// the biggest table's
+// the biggest table's. AH-213: and the cells of each table Excel says break their drop-down list
 export async function scanRequest(s, powerBi) {
   const level = strength(), limits = await getLimits(); // getLimits re-reads the workbook's settings first
   // the rows fixed or dismissed before, in any session: found again by their codes, wherever a sort moved them
@@ -122,14 +122,14 @@ export async function scanRequest(s, powerBi) {
   const parts = s.tables || [s], tabs = parts.map(local);
   const big = tabs.reduce((b, t, k) => (t.rows.length > tabs[b].rows.length ? k : b), 0);
   const requests = tabs.map((t, k) => {
-    const o = parts[k].o || 0, sent = sentOf(t);
+    const o = parts[k].o || 0, sent = sentOf(t), invalid = invalidIn(t, s.invalid);
     // start_row and sheet: where the table sits, so the Power BI copy's "Excel Row" is the row number shown here;
     // decisions: its Status (Open, Fixed, Dismissed)
     return { columns: t.columns, rows: sent.rows, limits, order_by: null, strength: level,
       power_bi: powerBi && k === big, start_row: t.startRow, sheet: String(s.sheet).slice(0, 31),
       decisions: t.rows.some((_, i) => decided[o + i]) ? t.rows.map((_, i) => decided[o + i] || null) : null,
       formulas: sent.calc?.some((r) => r.some(Boolean)) ? sent.calc : null, // AH-152: each cell's formula, only if any
-      learned: learnedFor(t) };
+      learned: learnedFor(t), off_list: invalid.length ? invalid : null };
   });
   return { level, hashes, keys, decided, requests };
 }
