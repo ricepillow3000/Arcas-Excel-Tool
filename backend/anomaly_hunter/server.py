@@ -70,6 +70,7 @@ EXCEL_ROWS = 1_048_576  # a sheet's rows: the header can't sit lower
 EXCEL_FORMULA = 8_192  # Excel's longest formula: a cell's formula sent with /scan is at most this long (AH-152)
 LEARNED = 500  # AH-205: what a sheet learned, sent with each scan: at most this many accepted values and stopped checks
 LEARNED_TEXT = 200  # ...each column and value at most this long (the pane learns nothing longer)
+INVALID = 1000  # AH-213: cells Excel says break their drop-down list, sent with a scan: at most this many a table
 EXCEL_COLUMNS = 16_384  # a sheet's columns. AH-140: rows [] made the cell cap 0, and 500,000 names held a thread for hours
 # an invite code to John's relay, the shape relay/new-invite.mjs writes: one check for a pasted code (/key) and for an
 # invite kit's own invite-code.txt (app.keep_invite, AH-185), so the two can never drift apart
@@ -240,9 +241,15 @@ def create_app(scan_csv=None):
         if learned is not None and not _learned(learned):
             return {"error": f"'learned' must be {{\"accept\": [[column, value]], \"ignore\": [[kind, column]]}}, at most "
                              f"{LEARNED} of each, text of at most {LEARNED_TEXT} characters, each kind one of the engine's"}, 400
+        # AH-213: [row, column] of each cell Excel says breaks its drop-down list, inside the table, before any work
+        invalid = body.get("off_list")
+        if invalid is not None and not (isinstance(invalid, list) and len(invalid) <= INVALID and all(
+                isinstance(p, list) and len(p) == 2 and type(p[0]) is int and type(p[1]) is int
+                and 0 <= p[0] < len(rows) and 0 <= p[1] < len(cols) for p in invalid)):
+            return {"error": f"'off_list' must be at most {INVALID:,} [row, column] cells of the table"}, 400
         # Agent 1, one scan, no stop. A bug in the engine is json_error's 500: our words, the traceback to server.log
         df, out, suggested, used, status, fair = scan_agent.scan(cols, rows, limits, order_by, _strength(body), formulas=formulas,
-                                                                 learned=learned, decisions=decisions)
+                                                                 learned=learned, decisions=decisions, invalid=invalid)
         saved = None  # Power BI copy: None = off, True = written, False = it failed (the pane says so)
         if scan_csv and body.get("power_bi") is not True:  # opt-in (2026-10-16): no plain-text copy of the sheet unasked
             with _CSV_LOCK:

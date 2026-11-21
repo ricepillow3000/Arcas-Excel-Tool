@@ -17,7 +17,7 @@ import { asHighlights, KEPT } from "./features/highlight.js";
 import * as K from "./constants/index.js";
 import { remember, forget, recall, clearAll, MAX_KEPT, OFFERED } from "./features/memory.js";
 import { measures, copiedTabs, copiedSaid, lastRowSaid } from "./features/tabs.js";
-import { tablesFromGrid, sentOf, unreadSaid, formatRows, asSheet, place, local, biggest, rowAt, areaOf } from "./utils/layout.js";
+import { tablesFromGrid, sentOf, unreadSaid, formatRows, asSheet, place, local, biggest, rowAt, areaOf, invalidIn, INVALID } from "./utils/layout.js";
 import { findingsAt, inRange, ignored, liveable, liveOn, soundOn, noteSaid, checkedSaid, LIVE_ROWS } from "./features/live.js";
 import { asLearned, learnIn, taught, learnedOf, stoppable, KIND_WORDS, ONE_CELL, PER_SHEET as LEARN_CAP, SENT, TEXT } from "./features/learned.js";
 
@@ -1036,7 +1036,8 @@ for (const f of readdirSync(new URL(".", import.meta.url)).filter((f) => f.endsW
   assert.equal(main.rows[1][0], "", "the sheet's own values are kept: what Accept and Undo compare");
   const sent = sentOf(main);
   assert.deepEqual(sent.rows[1].slice(0, 2), ["East", "b"]);
-  assert.ok(sent.rows[3].every((v) => v === "") && sent.calc[3].every((f) => f === null), "a subtotal goes to the engine blank, with no formula");
+  assert.ok(sent.rows[3].every((v) => v === "") && sent.calc[3][2] === "=SUM(R[-3]C:R[-1]C)",
+    "a subtotal goes to the engine blank, its formulas kept: the engine judges it by them (AH-213)");
   assert.deepEqual(sentOf(tables[0]).rows, tables[0].rows, "a table with no layout row is sent as it is");
   assert.deepEqual(unread, ["A19:B19"], "AH-212: a label and its number with no header are no table, and said");
   // a column that writes its summary formula on most rows (a rolling average) is a column of its own, never a subtotal;
@@ -1140,6 +1141,23 @@ for (const f of readdirSync(new URL(".", import.meta.url)).filter((f) => f.endsW
     const { fills, layout, ...t } = tables[0];
     assert.deepEqual([tables.length, t, fills, layout, unread], [1, tableFromGrid(g, null, 2, 1, calc), [], [], []], `AH-212: a plain sheet read as before (${g[0].slice(0, 3)})`);
   }
+}
+
+// AH-213: the cells Excel says break their drop-down list reach the engine as each table's own [row, column], the
+// table's header and the cells beside it left out, at most INVALID a table; both new kinds have their words
+{
+  const t = { startRow: 4, startCol: 2, rows: Array.from({ length: 10 }, () => ["", "", ""]), columns: ["A", "B", "C"] };
+  // data rows are sheet rows 6 to 15 (0-based 5 to 14), columns C to E (2 to 4)
+  assert.deepEqual(invalidIn(t, [areaOf("Sheet1!D6"), areaOf("E15"), areaOf("C5"), areaOf("F7"), areaOf("D16")]), [[0, 1], [9, 2]],
+    "AH-213: only cells inside the table's rows and columns, as its own row and column");
+  assert.deepEqual(invalidIn(t, [areaOf("B4:D7")]), [[0, 0], [0, 1], [1, 0], [1, 1]], "AH-213: an area cut to the table");
+  assert.deepEqual(invalidIn(t, []), []);
+  assert.equal(INVALID, 1000);
+  const big = { startRow: 0, startCol: 0, rows: Array.from({ length: 2000 }, () => [""]), columns: ["A"] };
+  assert.equal(invalidIn(big, [areaOf("A2:A1001")]).length, INVALID, "AH-213: at the cap, every cell");
+  assert.equal(invalidIn(big, [areaOf("A2:A1002")]).length, INVALID, "AH-213: past it, the first INVALID");
+  assert.ok(KIND_WORDS.subtotal && KIND_WORDS.validation && ONE_CELL.has("validation") && !ONE_CELL.has("subtotal"),
+    "AH-213: a value outside its list is a check of one cell, a subtotal never");
 }
 
 console.log("panel self-check passed");

@@ -43,6 +43,15 @@
         // AH-212: the merged areas inside this range, as Excel 1.13 gives them ("Sheet!A1:F1,Sheet!C3:E3"), set by __merge
         getMergedAreasOrNullObject() { const m = (ws.merged || []).filter((a) => { const [x, y = x] = a.split(":").map(parse); return x[0] >= r0 && x[1] >= c0 && y[0] < r0 + nr && y[1] < c0 + nc; });
           return { isNullObject: !m.length, address: m.map((a) => `${name}!${a}`).join(","), load() { return this; } }; },
+        // AH-213: the cells inside this range that break their drop-down list (set by __validate), as Excel 1.9 gives them
+        // ("Sheet!D60,Sheet!D61"): a value not in the list, capitals aside; a blank is allowed
+        getDataValidationInvalidCellsOrNullObject() { const bad = [];
+          for (const { range: at, list } of ws.validation || []) { const [x, y = x] = at.split(":").map(parse);
+            for (let r = Math.max(x[0], r0); r <= Math.min(y[0], r0 + nr - 1); r++) for (let c = Math.max(x[1], c0); c <= Math.min(y[1], c0 + nc - 1); c++) {
+              const v = cell(r, c).v;
+              if (v !== "" && v !== null && !list.some((o) => String(o).toLowerCase() === String(v).toLowerCase())) bad.push(`${name}!${L(c)}${r + 1}`);
+            } }
+          return { isNullObject: !bad.length, address: bad.join(","), load() { return this; } }; },
         getCellProperties() { return { value: grid((k) => ({ format: { fill: { color: k.fill || "#FFFFFF" } } })) }; },
         get numberFormat() { return grid((k) => k.nf); }, set numberFormat(v) { v.forEach((row, i) => row.forEach((f, j) => (cell(r0 + i, c0 + j).nf = f))); },
         format: { fill: { load() { return this; }, get color() { const all = grid((k) => k.fill ?? null).flat(); return all.every((x) => x === all[0]) ? all[0] ?? "#FFFFFF" : null; },
@@ -115,6 +124,7 @@
   window.__drop = (n) => { delete sheets[n]; };
   window.__fill = (name, a, color) => { const [r, c] = parse(a); sheets[name].cell(r, c).fill = color; };
   window.__merge = (name, areas) => { sheets[name].merged = areas; }; // AH-212: kept in this page only
+  window.__validate = (name, range, list) => { (sheets[name].validation ||= []).push({ range, list }); }; // AH-213: this page only
   window.__formula = (name, a, f) => { const [r, c] = parse(a); sheets[name].cell(r, c).f = f; }; // value stays as loaded
   window.__cell = (name, a) => { const [r, c] = parse(a); const k = sheets[name].cells[r + "," + c] || {}; return { v: k.v, f: k.f, fill: k.fill }; };
   window.__userSelect = (name, address) => sheets[name].selected.forEach((h) => h({ address }));
