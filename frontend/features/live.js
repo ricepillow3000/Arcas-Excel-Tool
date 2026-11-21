@@ -66,8 +66,9 @@ export function noteSaid(sheet, f, more, names = {}) {
 // yet, a total whose parts are still coming, a record's lines, a duplicate, a label's columns) waits while the selected
 // cell is still on that row of that sheet, and is said the moment the selection leaves it, or after HOLD: delayed, never
 // dropped ("every change is answered", John 2026-11-17). A slip in one cell's own value (a typo, a spelling, a value past
-// its limits) is said at once
-export const ROW_KINDS = new Set(["blank", "sum", "record", "balance", "subtotal", "duplicate", "group"]), HOLD = 20000;
+// its limits) is said at once. AH-217's rule: a row against a subject rule the sheet kept (Net = Debit - Credit) is the row's
+// arithmetic, half typed until its last cell is
+export const ROW_KINDS = new Set(["blank", "sum", "record", "balance", "subtotal", "duplicate", "group", "rule"]), HOLD = 20000;
 
 // Pure: is sheet row `row` inside a selection's address, on any column? ("C12", "$B$11:$D$13", "12:12", "Sheet!C12")
 export const onRow = (address, row) => typeof address === "string"

@@ -819,7 +819,9 @@ function woff2(file) {
   // the checks stopped, never the values (76 bytes gzipped; a promise test_privacy_promises.py holds word for word)
   // AH-206 raised privacy.html's by 150: the twins' sentences that Ask AI swaps emails, phone numbers, SSNs and card
   // numbers for stand-ins on this PC and that Check words sends its words as they are (127 bytes gzipped, held the same way)
-  const CAPS = { "index.html": 89900, "privacy.html": 85750, "support.html": 82400, "terms.html": 79400, "thanks.html": 78200, "checks.html": 79500, "cases.html": 79200, "code-signing.html": 78900 };
+  // AH-217 raised privacy.html's by 100: the twins' sentences that the workbook keeps the subject rules that held (their
+  // kind and headers, never a cell) and every later scan checks them with no AI (106 bytes gzipped, held the same way)
+  const CAPS = { "index.html": 89900, "privacy.html": 85850, "support.html": 82400, "terms.html": 79400, "thanks.html": 78200, "checks.html": 79500, "cases.html": 79200, "code-signing.html": 78900 };
   for (const p of PAGES) {
     const files = [p, ...new Set([...html[p].matchAll(/\s(?:src|href)="([a-z-]+\.(?:css|js))"/g)].map((m) => m[1]))];
     const sizes = files.map((f) => [f, zlib.gzipSync(fs.readFileSync(path.join(SITE, f)), { level: 9 }).length]);

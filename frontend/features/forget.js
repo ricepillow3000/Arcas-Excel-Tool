@@ -1,4 +1,4 @@
-import { ACCEPT_UNDO_KEY, ACCEPTED_KEY, DECISIONS_KEY, HIGHLIGHT_KEY, IGNORED_KEY, KEY, LAST_SCAN_KEY, STRENGTH_KEY, UNDO_KEY } from "../constants/index.js";
+import { ACCEPT_UNDO_KEY, ACCEPTED_KEY, DECISIONS_KEY, HIGHLIGHT_KEY, IGNORED_KEY, KEY, LAST_SCAN_KEY, RULES_KEY, STRENGTH_KEY, UNDO_KEY } from "../constants/index.js";
 import { ours } from "../utils/errors.js";
 
 // What the pane keeps inside the workbook (its document settings), named as the Privacy page names them. It stays in
@@ -12,6 +12,7 @@ export const WORKBOOK_KEYS = [
   [DECISIONS_KEY, "the codes of the rows you fixed or dismissed"],
   [ACCEPTED_KEY, "the codes of the values you dismissed"],
   [IGNORED_KEY, "the checks you stopped"],
+  [RULES_KEY, "the subject rules that held"],
   ["Office.AutoShowTaskpaneWithDocument", "the setting that opens this pane with the file"],
   [HIGHLIGHT_KEY, "the colours your highlighted cells had before"],
   [LAST_SCAN_KEY, "the numbers of the last check"],

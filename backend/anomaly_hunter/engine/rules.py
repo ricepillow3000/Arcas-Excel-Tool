@@ -5,7 +5,7 @@ on 10+ rows (MIN_ROWS), true on 95% of them (HOLDS), an order on all but max(1, 
 import numpy as np
 import pandas as pd
 
-from anomaly_hunter.engine.detectors import say
+from anomaly_hunter.engine.detectors import Why, say
 from anomaly_hunter.engine.pipeline import _cent, _decimals, _in_order, summary_rows
 
 MIN_ROWS = 10
@@ -17,6 +17,7 @@ HEADER = 100  # characters of a header sent: a header can carry a person's name 
 NAMES = ("target", "first", "then", "value", "when", "after", "id", "parent")
 LISTS = ("plus", "minus", "factors")
 TAIL = ": a rule the AI read from your headers, true on {} of {} rows."
+KINDS = ("sum", "product", "order", "zero_after", "rollup")  # the kinds client.RULES_SCHEMA lets the AI name
 
 
 def headers(columns):
@@ -49,6 +50,17 @@ def check(df, types, heads, asked):
             rows += [{"row": int(i), "cells": cells, "reason": text + TAIL.format(held, total), "rule": len(checked) - 1}
                      for i, text, cells in broke(np.flatnonzero(judged & ~good))]
     return checked, rows
+
+
+def kept(df, types, columns, asked):
+    """AH-217 (John, 2026-11-21: "AI proposes, the no-AI engine verifies, then enforces locally for free"): the rules a
+    sheet kept from Check subject rules ({kind and the headers it names}, never a cell), judged again by check() on this
+    scan's own rows with no AI -> [[Why]] per row. A rule that no longer holds here flags nothing; one naming a header
+    the sheet no longer has is skipped. The same sentence and cells as /rules says."""
+    out = [[] for _ in range(len(df))]
+    for x in check(df, types, headers(columns), asked)[1]:
+        out[x["row"]].append(Why(x["reason"], *(df.columns[j] for j in x["cells"])))
+    return out
 
 
 def _judge(df, types, heads, r, skip):

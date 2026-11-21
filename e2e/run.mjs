@@ -1902,6 +1902,75 @@ if (mode === "live") { // AH-180, AH-181
     await page.click("#live-close"); }
 }
 
+// AH-217 (John, 2026-11-21: "AI proposes, the no-AI engine verifies, then enforces locally for free"), pass 1 and pass 2:
+// Check subject rules once (the stub names Paid at most Amount and Amount = Qty x Price x FX rate, which no check of the
+// scan's own finds), Stop checking on an honest exception to one, fix the other by hand; then the AI fails, the pane is
+// reloaded, and a new row against each rule is typed: Check as you work and Find problems flag the one against the kept
+// rule with no /rules call and no AI, and stay quiet on the stopped one. Here in mode live, which has Check as you work
+if (mode === "live") {
+  const ledger = [["Invoice", "Qty", "Price", "FX rate", "Amount", "Paid"]];
+  for (let i = 0; i < 40; i++) { const q = 1 + ((i * 3) % 9), pr = 10.5 + ((i * 7) % 13), fx = +(0.9 + (i % 5) * 0.01).toFixed(2), a = +(q * pr * fx).toFixed(2);
+    ledger.push([`INV-${1001 + i}`, q, pr, fx, a, +(a * (0.5 + (i % 4) * 0.1)).toFixed(2)]); }
+  ledger[10][4] = +(ledger[10][4] + 25).toFixed(2); // row 11: an honest fixed fee on top, an exception to the product
+  ledger[20][5] = +(ledger[20][4] + 10).toFixed(2); // row 21: paid more than billed, a slip
+  await page.evaluate((g) => { __load("Ledger", g); __activate("Ledger"); }, ledger);
+  const note = () => page.evaluate(() => { const n = document.getElementById("live-note"); return n.checkVisibility() ? n.textContent.replace(/\s+/g, " ").trim() : ""; });
+  const tagOn = (r) => page.locator(`#flagged-list button:has-text("Row ${r} ") .sev`).textContent({ timeout: 2000 }).catch(() => null);
+  const why = (r) => page.locator(`#flagged-list button:has-text("Row ${r} ") .row-why`).textContent({ timeout: 2000 }).catch(() => "");
+  const RULE = "a rule the AI read from your headers";
+  const KEPT = [{ kind: "order", first: "Paid", then: "Amount" }, { kind: "product", target: "Amount", factors: ["Qty", "Price", "FX rate"] }];
+  await find();
+  ok((await tagOn(11)) === null && (await tagOn(21)) === null, "AH-217: before Check subject rules, the scan's own checks flag neither row 11 nor row 21");
+  const k0 = calls.length;
+  await page.click("#rules-check"); await idle();
+  const lines = await page.$$eval("#rules-list li", (lis) => lis.map((li) => li.textContent));
+  ok(since(k0) === "/rules" && lines[0] === "Arcas keeps the 2 rules that held in this workbook and checks them in every scan of this sheet, with no AI.",
+    "AH-217: Check subject rules says the rules that held are kept - " + JSON.stringify(lines.slice(0, 2)));
+  const saved = await page.evaluate(() => JSON.stringify(__settings.anomalyHunterRules ?? null));
+  ok(saved === JSON.stringify({ Ledger: KEPT }), "AH-217: the workbook keeps each rule that held as its kind and headers alone, never a cell or the AI's words - " + saved);
+  const s0 = scans.length;
+  await find();
+  ok(JSON.stringify(scans[s0]?.rules) === JSON.stringify(KEPT) && (await why(11)).includes(RULE) && (await why(21)).includes(RULE),
+    "AH-217: Find problems sends the kept rules and lists the rows against them - " + JSON.stringify([await why(11), await why(21)]));
+  // pass 1: row 11 is an honest exception, so its check is stopped in its column; row 21 is fixed by hand
+  await openRow(11);
+  ok((await text("#fix-mute")) === "Stop checking subject rules in Amount", "AH-217: a kept rule's card offers to stop it in its column - " + (await text("#fix-mute")));
+  await page.click("#fix-mute"); await idle();
+  ok((await text("#notice")).startsWith("Arcas will not check subject rules in Amount on this sheet again."), "AH-217: the foot bar says the rule is stopped - " + (await text("#notice")));
+  if (await page.isVisible("#fix-back")) await back();
+  const fixed = +(ledger[20][4] * 0.6).toFixed(2);
+  await page.evaluate((v) => __edit("Ledger", "F21", v), fixed);
+  await page.waitForFunction(() => document.getElementById("notice").textContent.startsWith('Checked F21 on "Ledger"') || document.getElementById("live-note").checkVisibility(), null, { timeout: 8000 }).catch(() => {});
+  ok((await text("#notice")) === 'Checked F21 on "Ledger": nothing unusual.' && !(await note()), "AH-217: row 21 fixed by hand is checked against the kept rule and found right - " + (await text("#notice")));
+  // pass 2: no AI from here (its route fails, and the stand-in's log must not grow), the pane reloaded
+  let asked = 0;
+  await page.route("**/rules", (r) => { asked++; return r.abort("connectionrefused"); });
+  const log = () => fs.readFileSync(DIR + "claude.log", "utf8").trim().split("\n").length;
+  const ai0 = log(), k1 = calls.length, s1 = scans.length;
+  await page.reload(); await page.waitForSelector("#main-ui", { state: "visible" }); await profiled();
+  const typed = [["INV-1041", 4, 12.5, 0.93, 46.5, 61.5], ["INV-1042", 6, 14.5, 0.92, 105.04, 56.03]]; // Paid over Amount; a fee on top
+  await page.evaluate((r) => __paste("Ledger", "A42", [r]), typed[0]);
+  await page.waitForFunction(() => document.getElementById("live-note").checkVisibility(), null, { timeout: 8000 }).catch(() => {});
+  const said = await note();
+  ok(said.startsWith('Sheet "Ledger", cell E42: Probably wrong. Paid 61.5 is above Amount 46.5: ' + RULE),
+    "AH-217: after a reload with no AI, a new row against the kept rule is said as you work - " + said);
+  if (said) await page.click("#live-close");
+  await page.evaluate((r) => __paste("Ledger", "A43", [r]), typed[1]);
+  await page.waitForFunction(() => document.getElementById("notice").textContent.startsWith("Checked A43") || document.getElementById("live-note").checkVisibility(), null, { timeout: 8000 }).catch(() => {});
+  ok((await text("#notice")).startsWith("Checked A43") && (await text("#notice")).endsWith('on "Ledger": nothing unusual.') && !(await note()),
+    "AH-217: a new row like the exception whose rule was stopped is only said checked - " + JSON.stringify([await text("#notice"), await note()]));
+  await find();
+  ok((await why(42)).includes(RULE) && (await tagOn(43)) === null && (await tagOn(11)) === "Dismissed" && (await tagOn(21)) === null,
+    `AH-217: Find problems flags row 42 by the kept rule, row 43 stays quiet, row 11 Dismissed, row 21 fixed - ${await why(42)}, ${await tagOn(43)}, ${await tagOn(11)}, ${await tagOn(21)}`);
+  const sent = scans.slice(s1);
+  ok(!calls.slice(k1).some(([p]) => p === "/rules") && asked === 0 && log() === ai0 && sent.length >= 3 && sent.every((b) => JSON.stringify(b.rules) === JSON.stringify(KEPT)),
+    "AH-217: pass 2 asked neither /rules nor the AI, and every scan (as you work and Find problems) sent the kept rules - " + JSON.stringify({ asked, ai: log() - ai0, scans: sent.length, calls: since(k1) }));
+  const grid = await page.evaluate(() => ["F21", "E42", "F42", "E43", "F43", "E11"].map((a) => __cell("Ledger", a)));
+  ok(JSON.stringify(grid.map((c) => [c.v, c.f ?? null])) === JSON.stringify([[fixed, null], [46.5, null], [61.5, null], [105.04, null], [56.03, null], [ledger[10][4], null]]),
+    "AH-217: Arcas wrote no value and no formula in the sheet: every cell is as typed - " + JSON.stringify(grid));
+  { const m = await matchesEngine(); ok(m.ok, "AH-217: the list shows exactly what the engine answered - " + m.why); }
+}
+
 // proof for people, at rest: the pointer off every button first (the full-page picture moved the page under it, and a
 // hover caught half-way read as a button turned off, AH-149 review r2)
 if (process.env.SHOTS) { await page.mouse.move(0, 0); await page.waitForTimeout(400); await page.screenshot({ path: `${process.env.SHOTS}/pane-${mode}.png`, fullPage: true }); }

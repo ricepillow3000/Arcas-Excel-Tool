@@ -3368,7 +3368,8 @@
   "new": "HOLDS = 0.9",
   "kind": "loosen",
   "tests": [
-   "backend/tests/test_subject_rules.py::test_a_rule_true_on_95_percent_of_20_rows_is_the_limit_and_90_percent_flags_nothing"
+   "backend/tests/test_subject_rules.py::test_a_rule_true_on_95_percent_of_20_rows_is_the_limit_and_90_percent_flags_nothing",
+   "backend/tests/test_kept_rules.py::test_a_kept_rule_that_no_longer_holds_on_todays_sheet_flags_nothing"
   ]
  },
  {
@@ -3379,7 +3380,8 @@
   "new": "HOLDS = 0.96",
   "kind": "tighten",
   "tests": [
-   "backend/tests/test_subject_rules.py::test_a_rule_true_on_95_percent_of_20_rows_is_the_limit_and_90_percent_flags_nothing"
+   "backend/tests/test_subject_rules.py::test_a_rule_true_on_95_percent_of_20_rows_is_the_limit_and_90_percent_flags_nothing",
+   "backend/tests/test_kept_rules.py::test_a_kept_rule_that_no_longer_holds_on_todays_sheet_flags_nothing"
   ]
  },
  {
@@ -5162,8 +5164,8 @@
   "id": "invalid-sent-loosen",
   "guard": "The cells Excel says break their drop-down list go to the engine as each table's own [row, column], cut to the table, at most INVALID (1,000) a table (AH-213)",
   "file": "frontend/features/scan.js",
-  "old": "learned: learnedFor(t), off_list: invalid.length ? invalid : null };",
-  "new": "learned: learnedFor(t), off_list: null };",
+  "old": "learned: learnedFor(t), off_list: invalid.length ? invalid : null, rules:",
+  "new": "learned: learnedFor(t), off_list: null, rules:",
   "kind": "loosen",
   "tests": [
    "e2e"
@@ -5415,6 +5417,241 @@
   ]
  },
  {
+  "id": "kept-rules-cap-loosen",
+  "guard": "/scan rules: at most 20 kept subject rules, each a kind of the five and the headers it names, text of at most 100 characters, a list of at most 200, nothing else (AH-217)",
+  "file": "backend/anomaly_hunter/server.py",
+  "old": "len(v) <= client.MAX_RULES and all(map(one, v))",
+  "new": "len(v) <= client.MAX_RULES + 1 and all(map(one, v))",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_kept_rules.py::test_kept_rules_of_the_wrong_shape_or_too_many_are_a_clear_400_before_any_work"
+  ]
+ },
+ {
+  "id": "kept-rules-cap-tighten",
+  "guard": "/scan rules: at most 20 kept subject rules, each a kind of the five and the headers it names, text of at most 100 characters, a list of at most 200, nothing else (AH-217)",
+  "file": "backend/anomaly_hunter/server.py",
+  "old": "len(v) <= client.MAX_RULES and all(map(one, v))",
+  "new": "len(v) < client.MAX_RULES and all(map(one, v))",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_kept_rules.py::test_kept_rules_at_their_very_limits_are_allowed"
+  ]
+ },
+ {
+  "id": "kept-rules-header-loosen",
+  "guard": "/scan rules: at most 20 kept subject rules, each a kind of the five and the headers it names, text of at most 100 characters, a list of at most 200, nothing else (AH-217)",
+  "file": "backend/anomaly_hunter/server.py",
+  "old": "head = lambda h: type(h) is str and len(h) <= rules.HEADER",
+  "new": "head = lambda h: type(h) is str and len(h) <= rules.HEADER + 1",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_kept_rules.py::test_kept_rules_of_the_wrong_shape_or_too_many_are_a_clear_400_before_any_work"
+  ]
+ },
+ {
+  "id": "kept-rules-header-tighten",
+  "guard": "/scan rules: at most 20 kept subject rules, each a kind of the five and the headers it names, text of at most 100 characters, a list of at most 200, nothing else (AH-217)",
+  "file": "backend/anomaly_hunter/server.py",
+  "old": "head = lambda h: type(h) is str and len(h) <= rules.HEADER",
+  "new": "head = lambda h: type(h) is str and len(h) < rules.HEADER",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_kept_rules.py::test_kept_rules_at_their_very_limits_are_allowed"
+  ]
+ },
+ {
+  "id": "kept-rules-list-loosen",
+  "guard": "/scan rules: at most 20 kept subject rules, each a kind of the five and the headers it names, text of at most 100 characters, a list of at most 200, nothing else (AH-217)",
+  "file": "backend/anomaly_hunter/server.py",
+  "old": "len(r.get(k, [])) <= client.SENT and",
+  "new": "len(r.get(k, [])) <= client.SENT + 1 and",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_kept_rules.py::test_kept_rules_of_the_wrong_shape_or_too_many_are_a_clear_400_before_any_work"
+  ]
+ },
+ {
+  "id": "kept-rules-list-tighten",
+  "guard": "/scan rules: at most 20 kept subject rules, each a kind of the five and the headers it names, text of at most 100 characters, a list of at most 200, nothing else (AH-217)",
+  "file": "backend/anomaly_hunter/server.py",
+  "old": "len(r.get(k, [])) <= client.SENT and",
+  "new": "len(r.get(k, [])) < client.SENT and",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_kept_rules.py::test_kept_rules_at_their_very_limits_are_allowed"
+  ]
+ },
+ {
+  "id": "kept-rules-kind-loosen",
+  "guard": "/scan rules: at most 20 kept subject rules, each a kind of the five and the headers it names, text of at most 100 characters, a list of at most 200, nothing else (AH-217)",
+  "file": "backend/anomaly_hunter/server.py",
+  "old": "        r[\"kind\"] in rules.KINDS) and",
+  "new": "        r[\"kind\"] in (*rules.KINDS, \"total\")) and",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_kept_rules.py::test_kept_rules_of_the_wrong_shape_or_too_many_are_a_clear_400_before_any_work"
+  ]
+ },
+ {
+  "id": "kept-rules-kind-tighten",
+  "guard": "/scan rules: at most 20 kept subject rules, each a kind of the five and the headers it names, text of at most 100 characters, a list of at most 200, nothing else (AH-217)",
+  "file": "backend/anomaly_hunter/server.py",
+  "old": "        r[\"kind\"] in rules.KINDS) and",
+  "new": "        r[\"kind\"] in rules.KINDS[1:]) and",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_kept_rules.py::test_kept_rules_at_their_very_limits_are_allowed"
+  ]
+ },
+ {
+  "id": "kept-rules-keys-loosen",
+  "guard": "/scan rules: at most 20 kept subject rules, each a kind of the five and the headers it names, text of at most 100 characters, a list of at most 200, nothing else (AH-217)",
+  "file": "backend/anomaly_hunter/server.py",
+  "old": "set(r) <= {\"kind\", *rules.NAMES, *rules.LISTS} and",
+  "new": "set(r) <= {\"kind\", \"why\", \"said\", *rules.NAMES, *rules.LISTS} and",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_kept_rules.py::test_kept_rules_of_the_wrong_shape_or_too_many_are_a_clear_400_before_any_work"
+  ]
+ },
+ {
+  "id": "kept-rules-keys-tighten",
+  "guard": "/scan rules: at most 20 kept subject rules, each a kind of the five and the headers it names, text of at most 100 characters, a list of at most 200, nothing else (AH-217)",
+  "file": "backend/anomaly_hunter/server.py",
+  "old": "set(r) <= {\"kind\", *rules.NAMES, *rules.LISTS} and",
+  "new": "set(r) <= {\"kind\", *rules.NAMES} and",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_kept_rules.py::test_kept_rules_at_their_very_limits_are_allowed"
+  ]
+ },
+ {
+  "id": "kept-rules-judged-loosen",
+  "guard": "A rule the sheet kept is judged again on each scan's rows with /rules' own code, no AI: a row against one that still holds is flagged, Medium; one that no longer holds flags nothing (AH-217)",
+  "file": "backend/anomaly_hunter/agents/scan_agent.py",
+  "old": "ruled=rules.kept(df, types, columns, kept) if kept else None)",
+  "new": "ruled=None)",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_kept_rules.py::test_a_kept_rule_flags_the_row_against_it_as_rules_does_with_no_ai",
+   "backend/tests/test_kept_rules.py::test_a_kept_rule_that_no_longer_holds_on_todays_sheet_flags_nothing"
+  ]
+ },
+ {
+  "id": "kept-rules-mute-tighten",
+  "guard": "A rule the sheet kept is judged again on each scan's rows with /rules' own code, no AI: a row against one that still holds is flagged, Medium; one that no longer holds flags nothing (AH-217)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "         \"validation\", \"group\", \"rule\")",
+  "new": "         \"validation\", \"group\")",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_kept_rules.py::test_stop_checking_mutes_a_kept_rule_in_its_column_and_an_accepted_value_never_does"
+  ]
+ },
+ {
+  "id": "kept-rules-held-loosen",
+  "guard": "The pane keeps only the subject rules that held, as their kind and headers of at most 100 characters, at most 20 a sheet (AH-217)",
+  "file": "frontend/features/rules.js",
+  "old": ".filter((r) => r?.holds === true)",
+  "new": ".filter((r) => r)",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "kept-rules-held-tighten",
+  "guard": "The pane keeps only the subject rules that held, as their kind and headers of at most 100 characters, at most 20 a sheet (AH-217)",
+  "file": "frontend/features/rules.js",
+  "old": ".filter((r) => r?.holds === true)",
+  "new": ".filter((r) => r?.holds === true && r.held === r.total)",
+  "kind": "tighten",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "kept-rules-pane-header-loosen",
+  "guard": "The pane keeps only the subject rules that held, as their kind and headers of at most 100 characters, at most 20 a sheet (AH-217)",
+  "file": "frontend/features/rules.js",
+  "old": "const head = (h) => typeof h === \"string\" && h.length <= HEADER;",
+  "new": "const head = (h) => typeof h === \"string\" && h.length <= HEADER + 1;",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "kept-rules-pane-header-tighten",
+  "guard": "The pane keeps only the subject rules that held, as their kind and headers of at most 100 characters, at most 20 a sheet (AH-217)",
+  "file": "frontend/features/rules.js",
+  "old": "const head = (h) => typeof h === \"string\" && h.length <= HEADER;",
+  "new": "const head = (h) => typeof h === \"string\" && h.length < HEADER;",
+  "kind": "tighten",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "kept-rules-pane-cap-loosen",
+  "guard": "The pane keeps only the subject rules that held, as their kind and headers of at most 100 characters, at most 20 a sheet (AH-217)",
+  "file": "frontend/features/rules.js",
+  "old": ".map(ruleOf).filter(Boolean).slice(0, MAX);",
+  "new": ".map(ruleOf).filter(Boolean).slice(0, MAX + 1);",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "kept-rules-pane-cap-tighten",
+  "guard": "The pane keeps only the subject rules that held, as their kind and headers of at most 100 characters, at most 20 a sheet (AH-217)",
+  "file": "frontend/features/rules.js",
+  "old": ".map(ruleOf).filter(Boolean).slice(0, MAX);",
+  "new": ".map(ruleOf).filter(Boolean).slice(0, MAX - 1);",
+  "kind": "tighten",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "kept-rules-forget-loosen",
+  "guard": "Forget removes the subject rules the workbook kept (AH-217)",
+  "file": "frontend/features/forget.js",
+  "old": "  [RULES_KEY, \"the subject rules that held\"],\n",
+  "new": "",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js",
+   "backend/tests/test_privacy_promises.py::test_every_privacy_page_says_the_workbook_keeps_the_subject_rules_that_held_as_their_kind_and_headers"
+  ]
+ },
+ {
+  "id": "kept-rules-sent-tighten",
+  "guard": "Check subject rules keeps the rules that held, and Find problems and Check as you work send them with every /scan (one scanRequest) (AH-217)",
+  "file": "frontend/features/scan.js",
+  "old": "rules: saved.length ? saved : null };",
+  "new": "rules: null };",
+  "kind": "tighten",
+  "tests": [
+   "e2e"
+  ],
+  "modes": "live"
+ },
+ {
+  "id": "kept-rules-keep-tighten",
+  "guard": "Check subject rules keeps the rules that held, and Find problems and Check as you work send them with every /scan (one scanRequest) (AH-217)",
+  "file": "frontend/features/ai.js",
+  "old": "    keepRules(sheet, heldOf(out));\n",
+  "new": "",
+  "kind": "tighten",
+  "tests": [
+   "e2e"
+  ],
+  "modes": "live"
+ },
+ {
   "id": "formula-brackets-loosen",
   "guard": "an AI formula whose brackets do not balance is refused (unsafe_call, AH-218): a stray close",
   "file": "backend/anomaly_hunter/ai/client.py",
@@ -5605,5 +5842,16 @@
    "e2e"
   ],
   "modes": "flow2"
+ },
+ {
+  "id": "live-hold-rule-loosen",
+  "guard": "Check as you work holds a note about a row against a kept subject rule while the selection is on it (AH-218 with AH-217)",
+  "file": "frontend/features/live.js",
+  "old": "\"duplicate\", \"group\", \"rule\"]), HOLD",
+  "new": "\"duplicate\", \"group\"]), HOLD",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
  }
 ]

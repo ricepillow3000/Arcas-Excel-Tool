@@ -90,6 +90,18 @@ def _learned(v):
         v.get("ignore", []), lambda k: type(k) is str and k in KINDS)
 
 
+def _rules(v):
+    """AH-217: the subject rules a sheet kept from Check subject rules, sent back with each scan: at most MAX_RULES of
+    {kind, and the headers it names}, a kind one of rules.KINDS, each header text of at most rules.HEADER characters, a
+    list of at most SENT (no rule names more headers than /rules sent), nothing else (never a cell, never the AI's why)
+    -> True. Checked before any work: a body of a million rules would be judged on every row."""
+    head = lambda h: type(h) is str and len(h) <= rules.HEADER
+    one = lambda r: isinstance(r, dict) and set(r) <= {"kind", *rules.NAMES, *rules.LISTS} and type(r.get("kind")) is str and (
+        r["kind"] in rules.KINDS) and all(r.get(k) is None or head(r[k]) for k in rules.NAMES) and all(
+        isinstance(r.get(k, []), list) and len(r.get(k, [])) <= client.SENT and all(map(head, r.get(k, []))) for k in rules.LISTS)
+    return isinstance(v, list) and len(v) <= client.MAX_RULES and all(map(one, v))
+
+
 def _cell(v):
     """A cell is text, a number, true/false or blank. NaN/Infinity parse as JSON in Python, not in Excel; a 400-digit
     whole number is just a (flagged) value."""
@@ -247,9 +259,14 @@ def create_app(scan_csv=None):
                 isinstance(p, list) and len(p) == 2 and type(p[0]) is int and type(p[1]) is int
                 and 0 <= p[0] < len(rows) and 0 <= p[1] < len(cols) for p in invalid)):
             return {"error": f"'off_list' must be at most {INVALID:,} [row, column] cells of the table"}, 400
+        # AH-217: the subject rules this sheet kept from Check subject rules, judged again here with no AI
+        kept = body.get("rules")
+        if kept is not None and not _rules(kept):
+            return {"error": f"'rules' must be at most {client.MAX_RULES} rules, each a kind ({', '.join(rules.KINDS)}) and the "
+                             f"headers it names, each at most {rules.HEADER} characters"}, 400
         # Agent 1, one scan, no stop. A bug in the engine is json_error's 500: our words, the traceback to server.log
         df, out, suggested, used, status, fair = scan_agent.scan(cols, rows, limits, order_by, _strength(body), formulas=formulas,
-                                                                 learned=learned, decisions=decisions, invalid=invalid)
+                                                                 learned=learned, decisions=decisions, invalid=invalid, kept=kept)
         saved = None  # Power BI copy: None = off, True = written, False = it failed (the pane says so)
         if scan_csv and body.get("power_bi") is not True:  # opt-in (2026-10-16): no plain-text copy of the sheet unasked
             with _CSV_LOCK:

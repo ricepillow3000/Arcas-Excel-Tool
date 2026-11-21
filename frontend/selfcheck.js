@@ -21,6 +21,7 @@ import { measures, copiedTabs, copiedSaid, lastRowSaid } from "./features/tabs.j
 import { tablesFromGrid, sentOf, unreadSaid, errorsSaid, formatRows, asSheet, place, local, biggest, rowAt, areaOf, invalidIn, INVALID } from "./utils/layout.js";
 import { findingsAt, inRange, ignored, liveable, liveOn, soundOn, noteSaid, checkedSaid, LIVE_ROWS, onRow, heldBack, ROW_KINDS, HOLD } from "./features/live.js";
 import { asLearned, learnIn, taught, learnedOf, stoppable, KIND_WORDS, ONE_CELL, PER_SHEET as LEARN_CAP, SENT, TEXT } from "./features/learned.js";
+import { ruleOf, heldOf, asRules, keepIn, MAX as RULES_MAX, SHEETS as RULE_SHEETS, HEADER } from "./features/rules.js";
 
 // Fixed / Dismissed are kept in the workbook under a code per row, so they outlive the pane (2026-10-20: a dismissed
 // row came back flagged after a reload, an accepted fix vanished). Same values = same code, on any PC, every time.
@@ -934,7 +935,9 @@ for (const f of readdirSync(new URL(".", import.meta.url)).filter((f) => f.endsW
   assert.ok(!heldBack([mixed], { id: "Sales", address: "C12" }, "Sales"), "AH-218: a row with any check of one cell's value is said at once");
   assert.ok(!heldBack([blankAt, { cell: "C30", kinds: [["blank", "Units"]] }], { id: "Sales", address: "C12" }, "Sales"), "AH-218: one on another row is said at once");
   assert.ok(!heldBack([{ cell: "C12" }], { id: "Sales", address: "C12" }, "Sales") && !heldBack([], { id: "Sales", address: "C12" }, "Sales"), "AH-218: no kinds, or nothing found: never held");
-  assert.deepEqual([...ROW_KINDS].sort(), ["balance", "blank", "duplicate", "group", "record", "subtotal", "sum"], "AH-218: the checks about a row's whole, never one cell's value");
+  assert.deepEqual([...ROW_KINDS].sort(), ["balance", "blank", "duplicate", "group", "record", "rule", "subtotal", "sum"], "AH-218: the checks about a row's whole, never one cell's value");
+  assert.ok(heldBack([{ cell: "E12", kinds: [["rule", "Net"]] }], { id: "Sales", address: "B12" }, "Sales"), "AH-218: a row against a subject rule the sheet kept (AH-217) waits while it is typed");
+  assert.ok(!heldBack([{ cell: "E12", kinds: [["rule", "Net"], ["spelling", "Region"]] }], { id: "Sales", address: "B12" }, "Sales"), "AH-218: beside a spelling slip, said at once");
   assert.ok([...ROW_KINDS].every((k) => !ONE_CELL.has(k)), "AH-218: no check of one cell's own value waits");
   assert.equal(HOLD, 20000, "AH-218: said after 20 s at most, so it is never lost");
 }
@@ -972,6 +975,43 @@ for (const f of readdirSync(new URL(".", import.meta.url)).filter((f) => f.endsW
   const junk = asLearned({ __proto__: [["A", "abc"]], S: [["A", "abc"], ["A", 7], [1, "x"], "x", ["A", "b", "c"]], T: "x" }, (x) => typeof x === "string", (c) => typeof c === "string");
   assert.deepEqual(Object.keys(junk), ["S"]);
   assert.deepEqual(junk.S, [["A", "abc"]]);
+}
+
+// AH-217: a subject rule that held is kept as its kind and the headers it names, never a cell, the AI's words or a count;
+// one that did not hold or had too few rows is never kept; at most MAX a sheet and SHEETS sheets; a crafted workbook's
+// junk dropped; the card of a row against a kept rule writes nothing and says why
+{
+  const answer = (kind, holds, named) => ({ kind, why: "<b>x</b>", said: "s", held: 29, total: 30, holds, target: null, first: null, then: null,
+    value: null, when: null, after: null, id: null, parent: null, plus: [], minus: [], factors: [], ...named });
+  const net = answer("sum", true, { target: "Net", plus: ["Debit"], minus: ["Credit"] });
+  const out = { rules: [net, answer("order", false, { first: "A", then: "B" }), { ...answer("product", false, { target: "C", factors: ["A", "B"] }), total: 6 },
+    answer("order", true, { first: "Ship", then: "Arrive" }), answer("nonsense", true, { target: "Net" })] };
+  assert.deepEqual(heldOf(out), [{ kind: "sum", target: "Net", plus: ["Debit"], minus: ["Credit"] }, { kind: "order", first: "Ship", then: "Arrive" }],
+    "only the rules that held, as their kind and headers: never the AI's words, a count, a rule that did not hold or an unknown kind");
+  assert.deepEqual(heldOf({}), []);
+  assert.equal(heldOf({ rules: Array.from({ length: RULES_MAX + 1 }, () => net) }).length, RULES_MAX, "at most MAX a sheet");
+  assert.equal(heldOf({ rules: Array.from({ length: RULES_MAX }, () => net) }).length, RULES_MAX, "exactly MAX kept");
+  assert.ok(ruleOf({ kind: "order", first: "x".repeat(HEADER), then: "B" }), "a header at its very limit is kept");
+  assert.equal(ruleOf({ kind: "order", first: "x".repeat(HEADER + 1), then: "B" }), null, "a longer one never: the AI was never sent it");
+  assert.equal(ruleOf({ kind: "sum", target: "N", plus: ["A", 7] }), null, "a header that is not text");
+  const book = asRules({ __proto__: [net], S: [net, { kind: "x" }, "x", null], T: "x", U: [] });
+  assert.deepEqual(Object.keys(book), ["S"]);
+  assert.deepEqual(book.S, [{ kind: "sum", target: "Net", plus: ["Debit"], minus: ["Credit"] }], "a crafted workbook's junk is dropped");
+  let kept = keepIn(book, "S", [{ kind: "order", first: "A", then: "B" }]);
+  assert.deepEqual(kept.S, [{ kind: "order", first: "A", then: "B" }], "a new press replaces the sheet's rules");
+  kept = keepIn(kept, "S", []);
+  assert.ok(!("S" in kept), "a press where none held keeps none");
+  for (let k = 0; k <= RULE_SHEETS; k++) kept = keepIn(kept, `S${k}`, [net]);
+  assert.equal(Object.keys(kept).length, RULE_SHEETS, "at most SHEETS sheets, the oldest dropped");
+  assert.ok(!("S0" in kept) && `S${RULE_SHEETS}` in kept);
+  const lines = rulesLines({ sent: 3, headers: 3, rules: [net, answer("order", true, { first: "Ship", then: "Arrive" })], rows: [] }, ["Debit", "Credit", "Net"], 0, 0);
+  assert.equal(lines[0], "Arcas keeps the 2 rules that held in this workbook and checks them in every scan of this sheet, with no AI.");
+  assert.equal(rulesLines({ sent: 3, headers: 3, rules: [net], rows: [] }, ["A"], 0, 0)[0], "Arcas keeps the rule that held in this workbook and checks it in every scan of this sheet, with no AI.");
+  assert.equal(KIND_WORDS.rule, "subject rules");
+  const reason = "Net 201.17 is not Debit − Credit (151.17): a rule the AI read from your headers, true on 29 of 30 rows.";
+  const fix = recommendFix(["Debit", "Credit", "Net"], [[null, 50, 201.17]], 0, {}, reason, 0, 0, {}, null, {}, {});
+  assert.deepEqual(fix.changes, [], "which cell is wrong is unknown: nothing written");
+  assert.ok(fix.explanation.startsWith("Net 201.17 is not Debit − Credit (151.17): a rule the AI read from your headers, true on 29 of 30 rows: one mistyped cell"), fix.explanation);
 }
 
 // AH-203: the 16 and 32 px icons (ribbon, favicon, the exe's) are the mark's coin, read pixel by pixel: round (its corners
