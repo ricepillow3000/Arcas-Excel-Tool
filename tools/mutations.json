@@ -5413,5 +5413,197 @@
    "backend/tests/test_formula_siblings.py::test_a_formula_past_a_blank_row_and_a_typed_cell_is_no_sibling_of_the_run_above_it",
    "backend/tests/test_formula_siblings.py::test_a_cell_whose_criteria_point_one_column_off_is_flagged_on_that_cell_alone"
   ]
+ },
+ {
+  "id": "formula-brackets-loosen",
+  "guard": "an AI formula whose brackets do not balance is refused (unsafe_call, AH-218): a stray close",
+  "file": "backend/anomaly_hunter/ai/client.py",
+  "old": "                return True  # AH-218: a bracket closed that never opened",
+  "new": "                continue  # AH-218: a bracket closed that never opened",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_grounding.py::test_a_formula_from_the_ai_whose_brackets_do_not_balance_is_refused"
+  ]
+ },
+ {
+  "id": "formula-brackets-open-loosen",
+  "guard": "an AI formula whose brackets do not balance is refused (unsafe_call, AH-218): one left open",
+  "file": "backend/anomaly_hunter/ai/client.py",
+  "old": "    return len(frames) > 1 or any(",
+  "new": "    return any(",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_grounding.py::test_a_formula_from_the_ai_whose_brackets_do_not_balance_is_refused"
+  ]
+ },
+ {
+  "id": "formula-brackets-tighten",
+  "guard": "an AI formula whose brackets do not balance is refused (unsafe_call, AH-218): brackets in text are never counted",
+  "file": "backend/anomaly_hunter/ai/client.py",
+  "old": "    return len(frames) > 1 or any(",
+  "new": "    return len(frames) > 1 or text.count(\"(\") != text.count(\")\") or any(",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_grounding.py::test_a_formula_from_the_ai_with_brackets_only_in_text_or_balanced_is_let_in"
+  ]
+ },
+ {
+  "id": "book-errors-loosen",
+  "guard": "an Excel error in a cell no table holds is named in #book-notes (AH-218): every error Excel shows",
+  "file": "frontend/utils/layout.js",
+  "old": "if (Object.hasOwn(EXCEL_ERRORS, values[r][c]) && !tables.some(",
+  "new": "if (values[r][c] === \"#REF!\" && !tables.some(",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "book-errors-tighten",
+  "guard": "an Excel error in a cell no table holds is named in #book-notes (AH-218): never one a table holds",
+  "file": "frontend/utils/layout.js",
+  "old": "values[r][c]) && !tables.some((t) => t.r1 <= r && r <= t.r2 && t.c1 <= c && c <= t.c2)) errors.push",
+  "new": "values[r][c])) errors.push",
+  "kind": "tighten",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "book-errors-once-loosen",
+  "guard": "a block whose only formula shows an Excel error is said as that error, never also as not checked (AH-218)",
+  "file": "frontend/utils/layout.js",
+  "old": "(fx(r, c) && !Object.hasOwn(EXCEL_ERRORS, values[r][c]))",
+  "new": "fx(r, c)",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "book-errors-once-tighten",
+  "guard": "a block whose only formula shows an Excel error is said as that error, never also as not checked (AH-218)",
+  "file": "frontend/utils/layout.js",
+  "old": "(fx(r, c) && !Object.hasOwn(EXCEL_ERRORS, values[r][c]))",
+  "new": "(fx(r, c) && false)",
+  "kind": "tighten",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "book-errors-cap-loosen",
+  "guard": "at most 3 Excel errors named, the rest counted (AH-218)",
+  "file": "frontend/utils/layout.js",
+  "old": "const named = errors.slice(0, 3)",
+  "new": "const named = errors.slice(0, 4)",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "live-hold-loosen",
+  "guard": "Check as you work holds a note about the row being typed while the selection is on it (AH-218)",
+  "file": "frontend/features/live.js",
+  "old": "export const heldBack = (found, sel, id) => found.length > 0 && sel?.id === id",
+  "new": "export const heldBack = (found, sel, id) => false && sel?.id === id",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "live-hold-kinds-tighten",
+  "guard": "Check as you work never holds a slip in one cell's own value (AH-218)",
+  "file": "frontend/features/live.js",
+  "old": "f.kinds.every(([k]) => ROW_KINDS.has(k))",
+  "new": "f.kinds.some(([k]) => ROW_KINDS.has(k))",
+  "kind": "tighten",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "live-hold-row-tighten",
+  "guard": "Check as you work holds a note only while the selection is on its row (AH-218)",
+  "file": "frontend/features/live.js",
+  "old": "&& onRow(sel.address, cellAt(f.cell)?.row));",
+  "new": "&& !!cellAt(f.cell));",
+  "kind": "tighten",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "live-hold-release-tighten",
+  "guard": "a held note is said the moment the selection leaves its row, never dropped (AH-218)",
+  "file": "frontend/features/live.js",
+  "old": "  for (const [id, w] of waiting) if (!(id === selected.id && w.rows.every((r) => onRow(selected.address, r)))) release(id);\n",
+  "new": "",
+  "kind": "tighten",
+  "tests": [
+   "e2e"
+  ],
+  "modes": "live"
+ },
+ {
+  "id": "live-hold-time-loosen",
+  "guard": "a held note is said after HOLD (20 s) at most, never dropped (AH-218)",
+  "file": "frontend/features/live.js",
+  "old": "HOLD = 20000;",
+  "new": "HOLD = 2000000;",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "history-edited-loosen",
+  "guard": "Changes Arcas made writes the old values only where each fixed cell still holds the fix (AH-218)",
+  "file": "frontend/features/history.js",
+  "old": "const edited = cells.filter((c, k) => now[k] !== r.cells[k][4]);",
+  "new": "const edited = [];",
+  "kind": "loosen",
+  "tests": [
+   "e2e"
+  ],
+  "modes": "flow2"
+ },
+ {
+  "id": "history-edited-tighten",
+  "guard": "Changes Arcas made puts back a fix whose cells still hold it (AH-218)",
+  "file": "frontend/features/history.js",
+  "old": "const edited = cells.filter((c, k) => now[k] !== r.cells[k][4]);",
+  "new": "const edited = cells;",
+  "kind": "tighten",
+  "tests": [
+   "e2e"
+  ],
+  "modes": "flow2"
+ },
+ {
+  "id": "write-hold-loosen",
+  "guard": "a write of several cells holds Excel's recalculation once (AH-218)",
+  "file": "frontend/services/excel.js",
+  "old": "if (writes.length > 1 && Office.context",
+  "new": "if (false && Office.context",
+  "kind": "loosen",
+  "tests": [
+   "e2e"
+  ],
+  "modes": "flow2"
+ },
+ {
+  "id": "write-hold-tighten",
+  "guard": "a write of several cells holds Excel's recalculation once, from 2 cells (AH-218)",
+  "file": "frontend/services/excel.js",
+  "old": "if (writes.length > 1 && Office.context",
+  "new": "if (writes.length > 2 && Office.context",
+  "kind": "tighten",
+  "tests": [
+   "e2e"
+  ],
+  "modes": "flow2"
  }
 ]

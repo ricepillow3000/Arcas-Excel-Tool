@@ -1611,12 +1611,13 @@ if (mode === "flow2") {
     sheet[49][2] = "two"; // C50: text in the second table's number column
     sheet[54][3] = "yes"; // D55: a capitals slip, a fix the card can write
     sheet[59][3] = "Maybe"; // D60: outside the column's drop-down list of Yes and No (AH-213)
-    sheet.push(["", "", "", "", "", ""], ["Pass mark", 40, "", "", "", ""]);
+    sheet.push(["", "", "", "", "", ""], ["Pass mark", 40, "", "", "", ""], ["", "", "", "", "", ""], ["#REF!", "", "", "", "", ""]); // A68: a formula's error, no table's (AH-218)
     await lay.evaluate(([rows, sums]) => {
       __load("Layout", rows);
       for (const r of sums) for (const c of "CDEF") __formula("Layout", `${c}${r}`, `=SUM(${c}${r - 12}:${c}${r - 1})`);
       __merge("Layout", ["A1:F1", "A3:A4", "B3:B4", "C3:E3", "F3:F4", "B5:B16", "B18:B29"]);
       __validate("Layout", "D35:D64", ["Yes", "No"]);
+      __formula("Layout", "A68", "=SUM(#REF!)");
     }, [sheet, sums]);
     await lay.click("#scan");
     await lay.waitForFunction(() => !document.getElementById("scan").disabled && !__state.working);
@@ -1637,6 +1638,8 @@ if (mode === "flow2") {
       "AH-212: the planted cell in each table is listed and coloured at its own sheet row, the subtotal and the merged label never - " + JSON.stringify(got));
     ok(got.notes.includes("Cells A66:B66 on this sheet were not checked: they hold no table Arcas can read."),
       "AH-212: the cells no table holds are said under the results, in a notice - " + JSON.stringify(got.notes));
+    ok(got.notes.includes("Cell A68 on this sheet shows #REF!, outside any table Arcas checks: it points at a cell or sheet that was deleted.") && !got.notes.includes("A68 on this sheet was")
+      && !got.notes.includes("A66:B66 and"), "AH-218: an Excel error no table holds is named with what it means, once - " + JSON.stringify(got.notes));
     // a cell of the second table picked in the sheet opens its own row's card; Accept there writes its own cell, D55
     await lay.evaluate(() => __userSelect("Layout", "C50"));
     await lay.waitForFunction(() => /^Row 50:/.test(document.getElementById("fix-title").textContent) && !__state.working);
@@ -1650,7 +1653,83 @@ if (mode === "flow2") {
       c50: __cell("Layout", "C50").v, f8: __cell("Layout", "F8").v }));
     ok(after.d55 === "Yes" && after.c50 === "two" && after.f8 === 1395 && after.status === "Accepted and checked again: row 55 looks right now." && slipped.length === 0,
       "AH-212: Accept in the second table writes its own cell, and the row is checked again in its own table - " + JSON.stringify({ ...after, slipped }));
+    // AH-218: a write of several cells holds Excel's recalculation once, before its writes, never once a cell; a write of
+    // one cell (that Accept) and an Excel without ExcelApi 1.6 never ask, and still write
+    const held = await lay.evaluate(async () => {
+      const { writeCells } = await import("./services/excel.js"), n = () => window.__suspended || 0, out = { accept: n() };
+      __log.length = 0;
+      await writeCells("Layout", [{ cell: "H1", value: "a" }, { cell: "H2", value: "b" }]);
+      out.two = [n(), __log.map((e) => e[0]).join()];
+      await writeCells("Layout", [{ cell: "H1", value: "" }, { cell: "H2", value: "" }, { cell: "H3", value: "" }]);
+      out.three = n();
+      window.__noApi = "1.6";
+      await writeCells("Layout", [{ cell: "H1", value: "c" }, { cell: "H2", value: "d" }]);
+      out.old = [n(), __cell("Layout", "H1").v, __cell("Layout", "H2").v];
+      return out;
+    });
+    ok(held.accept === 0 && JSON.stringify(held.two) === '[1,"suspend,write,write"]' && held.three === 2 && JSON.stringify(held.old) === '[2,"c","d"]',
+      "AH-218: a multi-cell write holds Excel's recalculation once, first; one cell or an older Excel never asks - " + JSON.stringify(held));
     await lay.close();
+  }
+
+  // AH-218 (John's master spec): "Changes Arcas made" lists every fix accepted in the workbook, newest first, each with
+  // its own Undo, and outlives a reload: two fixes accepted, the pane reloaded, the older one undone from the list puts
+  // its cell back and leaves the newer; a cell changed by hand since is left alone and said; with a scan showing, the
+  // card's own Undo does the work
+  {
+    const his = await browser.newPage({ ignoreHTTPSErrors: true, viewport: { width: 360, height: 900 } });
+    const slipped = [];
+    his.on("pageerror", (e) => slipped.push(e.message));
+    await his.route("https://appsforoffice.microsoft.com/**", (r) => r.fulfill({ contentType: "text/javascript", body: fs.readFileSync(DIR + "fake-office.js", "utf8") }));
+    await his.goto("https://127.0.0.1:5055/taskpane.html");
+    await his.waitForSelector("#main-ui", { state: "visible" });
+    const ready = () => his.waitForFunction(() => !__state.working && !document.getElementById("scan").disabled);
+    const accept = async (r) => {
+      await his.click(`#flagged-list button:has-text("Row ${r} ")`);
+      await his.waitForFunction(() => !__state.working && document.getElementById("fix-apply").checkVisibility() && !document.getElementById("fix-apply").disabled);
+      await his.click("#fix-apply");
+      await his.waitForFunction(() => !__state.working && document.getElementById("fix-undo").checkVisibility());
+      await his.click("#fix-back"); await his.waitForSelector("#results", { state: "visible" });
+    };
+    await his.evaluate((rows) => __load("Sales", rows, [0]), rows);
+    await his.click("#scan"); await ready();
+    await accept(11); await accept(22);
+    const fixed = await his.evaluate(() => [__cell("Sales", "C11").v, __cell("Sales", "C22").v]);
+    await his.reload(); await his.waitForSelector("#main-ui", { state: "visible" });
+    await his.click("#history-box summary");
+    await his.waitForFunction(() => document.querySelectorAll("#history-list li").length === 2, null, { timeout: 3000 }).catch(() => {});
+    const items = () => his.$$eval("#history-list li", (ls) => ls.map((l) => l.innerText.replace(/\s+/g, " ").trim()));
+    const listed = await items();
+    ok(listed.length === 2 && listed[0].startsWith(`Sales C22: 7777 → ${fixed[1]}`) && listed[1].startsWith(`Sales C11: -5 → ${fixed[0]}`) && fixed[0] !== -5,
+      "AH-218: after a reload, Changes Arcas made lists both fixes, newest first, as the card shows a change - " + JSON.stringify({ listed, fixed }));
+    const m = await his.evaluate(() => ({ h: [...document.querySelectorAll("#history-list button")].map((b) => b.getBoundingClientRect().height), list: document.getElementById("history-list").offsetHeight,
+      next: Math.round(document.querySelector("#history-box + details").getBoundingClientRect().top + scrollY) }));
+    await his.locator("#history-list li").nth(1).locator("button").click(); await ready();
+    const after = await his.evaluate(() => ({ c11: __cell("Sales", "C11").v, c22: __cell("Sales", "C22").v, notice: document.getElementById("history-state").textContent,
+      kept: (__settings.anomalyHunterAcceptUndo || []).map((u) => u.cells.map((c) => c[0]).join()).join("|"), list: document.getElementById("history-list").offsetHeight,
+      done: [...document.querySelectorAll("#history-list button")].map((b) => `${b.textContent}:${b.disabled}`).join(), foot: document.getElementById("notice").textContent,
+      next: Math.round(document.querySelector("#history-box + details").getBoundingClientRect().top + scrollY),
+      fixed: Object.values(__settings.anomalyHunterDecisions?.Sales || {}).join() }));
+    ok(after.c11 === -5 && after.c22 === fixed[1] && after.kept === "C22" && after.fixed === "fixed" && after.notice === "Undone. C11 on Sales is back to what it was."
+      && after.done === "Undo:false,Undone:true" && after.list === m.list && after.next === m.next && !after.foot && m.h.every((h) => h >= 44),
+      "AH-218: Undo of the older fix from the list puts its cell back, takes its Fixed and its record out, leaves the newer, and nothing moves - " + JSON.stringify({ after, m }));
+    await his.evaluate(() => __edit("Sales", "C22", 12)); // changed by hand since the fix: the user's now
+    await his.locator("#history-list li").nth(0).locator("button").click(); await ready();
+    const refused = await his.evaluate(() => [__cell("Sales", "C22").v, document.getElementById("history-state").textContent, (__settings.anomalyHunterAcceptUndo || []).length]);
+    ok(JSON.stringify(refused) === '[12,"C22 changed after the fix, so Undo left it alone.",1]', "AH-218: a fixed cell changed by hand since is left alone, and said - " + JSON.stringify(refused));
+    await his.evaluate((v) => __edit("Sales", "C22", v), fixed[1]);
+    await his.click("#scan"); await ready(); // a scan finds the fixed row again: the card's own Undo puts it back
+    await his.click("#history-box summary"); await his.click("#history-box summary"); // closed, then opened again
+    await his.waitForFunction(() => document.querySelectorAll("#history-list li").length === 1);
+    await his.locator("#history-list li button").click(); await ready();
+    const viaCard = await his.evaluate(() => ({ c22: __cell("Sales", "C22").v, notice: document.getElementById("history-state").textContent, kept: (__settings.anomalyHunterAcceptUndo || []).length,
+      tag: [...document.querySelectorAll("#flagged-list button")].find((b) => /^Row 22\b/.test(b.innerText))?.querySelector(".sev")?.textContent }));
+    ok(viaCard.c22 === 7777 && viaCard.notice === "Undone. C22 on Sales is back to what it was." && viaCard.kept === 0 && viaCard.tag !== "Fixed" && slipped.length === 0,
+      "AH-218: with a scan showing, the list's Undo goes through the card's Undo: the cell, the record and the row's tag - " + JSON.stringify({ viaCard, slipped }));
+    await his.click("#history-box summary"); await his.click("#history-box summary"); // closed, then opened again
+    await his.waitForFunction(() => !document.querySelectorAll("#history-list li").length, null, { timeout: 3000 }).catch(() => {});
+    ok((await items()).length === 0 && await his.isVisible("#history-empty"), "AH-218: opened again, the list says it holds nothing");
+    await his.close();
   }
 }
 
@@ -1797,6 +1876,30 @@ if (mode === "live") { // AH-180, AH-181
     await page.waitForFunction(() => document.getElementById("notice").textContent.startsWith('Checked B60 on "Sales"') || document.getElementById("live-note").checkVisibility(), null, { timeout: 8000 }).catch(() => {});
     ok((await text("#notice")) === 'Checked B60 on "Sales": nothing unusual.' && !(await note()) && JSON.stringify(scans.slice(s0)[0]?.learned?.accept) === '[["Region","Cnetral"]]',
       "AH-205: a value dismissed once, typed on another row, is not called wrong as you work - " + JSON.stringify({ notice: await text("#notice"), note: await note(), learned: scans.slice(s0)[0]?.learned })); }
+  // AH-218 (John's master spec: no nagging on the row being typed): a blank left on the row the selected cell is still on
+  // waits, and is said the moment the selection leaves the row; a spelling slip on that row is said at once
+  { const scanned = async (k) => { for (let t = 0; t < 100 && replies.length === k; t++) await page.waitForTimeout(100); await page.waitForTimeout(300); };
+    const units = await page.evaluate(() => { __activate("Sales"); __userSelect("Sales", "D12"); return __cell("Sales", "C12").v; });
+    let k = replies.length;
+    await page.evaluate(() => __edit("Sales", "C12", ""));
+    await scanned(k);
+    const typing = { note: await note(), notice: await text("#notice"), chimes: await chimes() };
+    ok(replies.length > k && !typing.note && !typing.notice.startsWith("Checked C12"), "AH-218: a blank left on the row still being typed is not said yet - " + JSON.stringify(typing));
+    const t0 = Date.now();
+    await page.evaluate(() => __userSelect("Sales", "C13"));
+    await waitNote('cell C12');
+    ok((await note()).startsWith('Sheet "Sales", cell C12: ') && Date.now() - t0 < 1000 && await chimes() === typing.chimes + 1,
+      `AH-218: it is said the moment the selection leaves the row (${Date.now() - t0} ms), with its chime - ` + (await note()));
+    await page.click("#live-close");
+    k = replies.length;
+    await page.evaluate((v) => __edit("Sales", "C12", v), units);
+    await scanned(k);
+    await page.evaluate(() => __userSelect("Sales", "C14"));
+    const t1 = Date.now();
+    await page.evaluate(() => __edit("Sales", "B14", "Cental"));
+    const ms = await waitNote('cell B14');
+    ok((await note()).startsWith('Sheet "Sales", cell B14: ') && ms < 3500, `AH-218: a spelling slip on the row the selection is on is said at once (${Date.now() - t1} ms) - ` + (await note()));
+    await page.click("#live-close"); }
 }
 
 // proof for people, at rest: the pointer off every button first (the full-page picture moved the page under it, and a

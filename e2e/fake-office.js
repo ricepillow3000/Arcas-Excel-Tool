@@ -6,6 +6,7 @@
   // AH-181: the workbook's onChanged handlers, told once per write as Excel does, a moment later. A write the test makes
   // as the user (__edit, __paste) comes with triggerSource "Unknown", any other is the pane's own: "ThisLocalAddin"
   const bookChanged = []; let byUser = false;
+  const bookSelected = []; // AH-218: the workbook's onSelectionChanged handlers, told {address, worksheetId} on any tab
   // "=B2*C3" in cell (r, c) -> "=RC[-2]*R[1]C[-1]", as Excel's formulasR1C1 gives it (AH-152); "$B$2" -> "R2C2"
   const r1c1 = (f, r, c) => f.replace(/(?<![A-Za-z_\d])(\$?)([A-Z]{1,3})(\$?)(\d+)(?![\d(A-Za-z_])/g, (m, ca, col, ra, row) => {
     const [rr, cc] = parse(col + row), rel = (d) => (d ? `[${d}]` : "");
@@ -35,7 +36,8 @@
         setTimeout(() => bookChanged.forEach((h) => h(e)), 0); };
       return {
         isNullObject: false, rowIndex: r0, columnIndex: c0, rowCount: nr, columnCount: nc,
-        load() { return this; }, select() { window.__selection = `${name}!${L(c0)}${r0 + 1}`; ws.selected.forEach((h) => h({ address: L(c0) + (r0 + 1) + ":" + L(c0 + nc - 1) + (r0 + nr) })); },
+        load() { return this; }, select() { window.__selection = `${name}!${L(c0)}${r0 + 1}`; const address = L(c0) + (r0 + 1) + ":" + L(c0 + nc - 1) + (r0 + nr);
+          ws.selected.forEach((h) => h({ address })); bookSelected.forEach((h) => h({ address, worksheetId: name })); },
         get values() { return grid((k) => k.v); }, set values(v) { set(v, false); },
         get formulas() { return grid((k) => k.f ?? k.v); }, set formulas(v) { set(v, true); },
         get formulasR1C1() { return grid((k, r, c) => (k.f ? r1c1(k.f, r, c) : k.v)); },
@@ -69,7 +71,8 @@
     });
     return ws;
   }
-  const ctx = { workbook: null, sync: async () => {} };
+  // AH-218: a write of several cells asks Excel once to hold its recalculation until the sync: counted, and logged in order
+  const ctx = { workbook: null, sync: async () => {}, application: { suspendApiCalculationUntilNextSync() { window.__suspended = (window.__suspended || 0) + 1; log.push(["suspend"]); } } };
   const handle = (list, h) => ({ context: ctx, remove() { list.splice(list.indexOf(h), 1); } });
   ctx.workbook = { worksheets: {
     getActiveWorksheet: () => sheets[active], getItem: (n) => { if (!sheets[n]) throw Object.assign(new Error("ItemNotFound"), { code: "ItemNotFound" }); return sheets[n]; }, // as Office.js names it
@@ -77,6 +80,7 @@
     add: (n) => (sheets[n] = makeSheet(n)),
     load() { return this; }, get items() { return Object.values(sheets); }, // in the order the tabs were made
     onChanged: { add: (h) => { bookChanged.push(h); return handle(bookChanged, h); } },
+    onSelectionChanged: { add: (h) => { bookSelected.push(h); return handle(bookSelected, h); } },
   } };
   sheets.Sheet1 = makeSheet("Sheet1");
   const settings = {};
@@ -101,8 +105,8 @@
   const saveAsync = (cb) => { saved = JSON.parse(JSON.stringify(settings)); if (cb) cb({ status: "succeeded" }); };
   window.Office = {
     HostType: { Excel: "Excel" }, onReady: (cb) => setTimeout(() => cb({ host: "Excel" }), 0),
-    // window.__oldExcel = true (before the pane loads): an Excel without ExcelApi 1.9
-    context: { requirements: { isSetSupported: (set, v) => !(window.__oldExcel && set === "ExcelApi" && v === "1.9") }, document: { settings: { get: (k) => settings[k] ?? null, set: (k, v) => (settings[k] = v), remove: (k) => delete settings[k], saveAsync, refreshAsync: (cb) => cb() } } },
+    // window.__oldExcel = true (before the pane loads): an Excel without ExcelApi 1.9; window.__noApi = "1.6": without that one
+    context: { requirements: { isSetSupported: (set, v) => !(set === "ExcelApi" && ((window.__oldExcel && v === "1.9") || v === window.__noApi)) }, document: { settings: { get: (k) => settings[k] ?? null, set: (k, v) => (settings[k] = v), remove: (k) => delete settings[k], saveAsync, refreshAsync: (cb) => cb() } } },
   };
   // window.__cellEdit = n (set before the pane loads, or any time): the next n Excel.run calls reject as real Excel does
   // while the user is typing in a cell. window.__typeError = n: the next n throw a script error, as a bug of ours would.
@@ -127,7 +131,7 @@
   window.__validate = (name, range, list) => { (sheets[name].validation ||= []).push({ range, list }); }; // AH-213: this page only
   window.__formula = (name, a, f) => { const [r, c] = parse(a); sheets[name].cell(r, c).f = f; }; // value stays as loaded
   window.__cell = (name, a) => { const [r, c] = parse(a); const k = sheets[name].cells[r + "," + c] || {}; return { v: k.v, f: k.f, fill: k.fill }; };
-  window.__userSelect = (name, address) => sheets[name].selected.forEach((h) => h({ address }));
+  window.__userSelect = (name, address) => { sheets[name].selected.forEach((h) => h({ address })); bookSelected.forEach((h) => h({ address, worksheetId: name })); };
   window.__activate = (n) => (active = n);
   window.__log = log; window.__settings = settings; window.__handlers = (n) => sheets[n].selected.length;
 })();

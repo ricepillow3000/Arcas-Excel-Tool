@@ -49,7 +49,7 @@ export function undoRecord(u) {
 }
 
 const settings = () => Office.context.document.settings;
-const kept = () => asUndos(settings().get(ACCEPT_UNDO_KEY));
+export const kept = () => asUndos(settings().get(ACCEPT_UNDO_KEY)); // AH-218: "Changes Arcas made" lists them
 const save = (list) => {
   if (list.length) settings().set(ACCEPT_UNDO_KEY, list);
   else settings().remove(ACCEPT_UNDO_KEY);
