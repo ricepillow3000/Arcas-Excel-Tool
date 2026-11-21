@@ -23,7 +23,7 @@ export const KIND_WORDS = { duplicate: "duplicates", type: "text in numbers", bl
   own_scale: "sizes", shifted: "values in the wrong column", fraction: "percentages", whole_number: "decimals",
   named_bound: "what the column name allows", repeated_column: "copied columns", limits: "the usual range", series: "jumps",
   combination: "unusual mixes", subtotal: "subtotals", validation: "drop-down lists",
-  group: "which group a row is under" };
+  group: "which group a row is under", rule: "subject rules" };
 const CODE = /^[0-9a-z]{1,11}$/;
 const text = (x) => typeof x === "string" && x.length <= TEXT;
 

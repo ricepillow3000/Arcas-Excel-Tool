@@ -144,7 +144,7 @@ export function recommendFix(columns, rows, i, limits, reason, startRow, startCo
   for (const { text } of issuesOf(reason)) // worth-a-check reasons with no value to write: say what to look for
     for (const [rx, hint] of HINTS) {
       const m = rx.exec(text); // a hint may quote what the reason names: the word to filter the column for (AH-45 review)
-      if (m) notes.push(`${text}: ${typeof hint === "function" ? hint(m) : hint}. Check it against the source.`);
+      if (m) notes.push(`${text.replace(/\.$/, "")}: ${typeof hint === "function" ? hint(m) : hint}. Check it against the source.`);
     }
   if (!notes.length)
     notes.push("Nothing here is clearly broken, but the values are unusual together. Check them against the source; if they're right, leave them.");
@@ -228,6 +228,9 @@ const HINTS = [
   [/ is worked out differently from the \d+ other (?:cells of its row|rows of its column)/, "a formula copied from the " +
     "wrong cell or edited by hand is the usual cause; compare it with the cells beside it and point it at the same rows " +
     "and columns they read"],
+  // AH-217: a row against a subject rule the sheet kept: which of its cells is wrong is unknown, so no value is written
+  [/: a rule the AI read from your headers, true on \d+ of \d+ rows\.$/, "one mistyped cell is the usual cause; if this " +
+    "row is a real exception to the rule, Dismiss it, or Stop checking keeps the rule quiet in this column"],
   [/ starts like the rows under .+ \(".*"\), not like the other \d+ under /, "a row pasted into the wrong block is the " +
     "usual cause; move it under the group its code belongs to, or correct its code"],
 ];

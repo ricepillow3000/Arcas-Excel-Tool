@@ -321,6 +321,28 @@ def test_every_privacy_page_says_the_workbook_keeps_codes_of_the_values_dismisse
     assert '[ACCEPTED_KEY, "the codes of the values you dismissed"]' in forget and '[IGNORED_KEY, "the checks you stopped"]' in forget
 
 
+def test_every_privacy_page_says_the_workbook_keeps_the_subject_rules_that_held_as_their_kind_and_headers():
+    """AH-217: a subject rule that held is kept in the workbook (its kind and the headers it names, never a cell or the
+    AI's words) and checked by every later scan with no AI. The pages, the pane's own hints and Forget name it, and the
+    pane keeps it under the key Forget removes, as the rule's kind and headers alone."""
+    kept = ("the subject rules that held when you clicked Check subject rules with AI (each rule's kind and the column "
+            "headers it names, never a cell or the AI's words, so every later scan of that sheet checks them on your PC "
+            "with no AI)")
+    for page in PAGES:
+        said = words(page)
+        assert kept in said, page
+        assert "the checks you stopped, the subject rules that held, the colours" in said, page
+        assert "The rules that hold are kept in the workbook, and every later scan of that sheet checks them on this PC without asking the AI." in said, page
+    pane = words("frontend/taskpane.html")
+    assert "the subject rules that held (their kind and headers)" in pane
+    assert "Rules that hold are kept in this workbook, and every scan checks them on this PC with no AI." in pane
+    assert '[RULES_KEY, "the subject rules that held"]' in (ROOT / "frontend/features/forget.js").read_text(encoding="utf-8")
+    assert 'RULES_KEY = "anomalyHunterRules"' in (ROOT / "frontend/constants/index.js").read_text(encoding="utf-8")
+    kept_js = (ROOT / "frontend/features/rules.js").read_text(encoding="utf-8")
+    assert 'const NAMES = ["target", "first", "then", "value", "when", "after", "id", "parent"], LISTS = ["plus", "minus", "factors"];' in kept_js
+    assert "const out = { kind: r.kind };" in kept_js  # a rule is rebuilt from its kind and these headers alone
+
+
 def test_every_privacy_page_and_the_pane_say_ask_ai_swaps_emails_phones_ssns_and_cards_and_check_words_does_not():
     """AH-206: Ask AI masks emails, phone numbers, SSNs and card numbers on this PC (ai/pii.py) and puts them back in
     the answer; Check words sends its words as they are. The pages, and the pane beside the Ask AI box, say both."""
