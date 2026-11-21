@@ -235,4 +235,4 @@ def test_every_privacy_page_says_what_check_subject_rules_sends():
     for page in PAGES:
         said = words(page)
         assert promise in said, page
-        assert "Ask AI, Check words with AI or Check subject rules with AI" in said, page
+        assert "Ask AI, Check words with AI, Check subject rules with AI or Read layout with AI" in said, page

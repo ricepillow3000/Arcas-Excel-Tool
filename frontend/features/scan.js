@@ -7,6 +7,7 @@ import { post } from "../services/api.js";
 import { getLimits, readSheet, watchSelection } from "../services/excel.js";
 import { shownAs } from "../utils/sheet.js";
 import { invalidIn, local, sentOf } from "../utils/layout.js";
+import { hinted, hintsSaid, keyOf } from "../utils/hints.js";
 import { paint } from "./highlight.js";
 import { renderResults } from "../pages/results.js";
 import { onSelect } from "../pages/fix.js";
@@ -38,6 +39,7 @@ export async function runScan(auto, held = false) { // auto === false: the re-ch
   // AH-170: Check words' lines named cells of the sheet checked before; a new check says them again only when asked
   $("odd-list").replaceChildren();
   $("rules-list").replaceChildren(); // AH-202: so are Check subject rules' lines
+  $("layout-list").replaceChildren(); // AH-215: and Read layout's: what it changed is said in the book notes instead
   if (state.view !== "results") only(state.lastScan ? "results" : "empty-state"); // no fix view left without its row
   scanning(true);
   $("main-ui").toggleAttribute("data-held", true); // the progress and then "Done" take one held space till the action ends (use-action.js)
@@ -61,7 +63,8 @@ async function scan(auto, held, t0) {
   const before = auto !== false && state.lastRows ? { level: state.lastStrength, rows: state.lastRows, hashes: state.hashes, sheet: state.lastScan?.sheet } : null;
   const { level, hashes, keys, decided, requests } = await scanRequest(s, powerBiOn());
   const body = await scanAll(s, requests);
-  const notes = await bookNotes(s); // AH-180: read before the results land, so nothing moves when they do
+  // AH-180: read before the results land, so nothing moves when they do. AH-215: and what the AI's layout hints changed
+  const notes = [...await bookNotes(s), ...hintsSaid(s.sheet, (s.tables || [s]).map(local), state.layoutHints[s.sheet])];
   if (held) await new Promise((go) => setTimeout(go, Math.max(0, HOLD - (Date.now() - t0))));
   scanning(false); // the results take the skeleton's place
   state.lastStrength = level; // Agent 3 judges fixes at the level this scan used
@@ -121,8 +124,9 @@ export async function scanRequest(s, powerBi) {
   keys.forEach((k, i) => kept[k] && (decided[i] = kept[k]));
   const parts = s.tables || [s], tabs = parts.map(local);
   const big = tabs.reduce((b, t, k) => (t.rows.length > tabs[b].rows.length ? k : b), 0);
+  const hints = state.layoutHints[s.sheet]; // AH-215: what Read layout with AI found on this sheet, this session only
   const requests = tabs.map((t, k) => {
-    const o = parts[k].o || 0, sent = sentOf(t), invalid = invalidIn(t, s.invalid);
+    const hint = hints?.[keyOf(t)], o = parts[k].o || 0, sent = sentOf(hinted(t, hint)), invalid = invalidIn(t, s.invalid);
     // start_row and sheet: where the table sits, so the Power BI copy's "Excel Row" is the row number shown here;
     // decisions: its Status (Open, Fixed, Dismissed)
     return { columns: t.columns, rows: sent.rows, limits, order_by: null, strength: level,

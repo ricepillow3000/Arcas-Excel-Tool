@@ -7,6 +7,7 @@ import { busy, counting } from "../components/progress.js";
 import { plainReason } from "./scan.js";
 import { colLetter } from "../utils/sheet.js";
 import { biggest, local, place } from "../utils/layout.js";
+import { hintsOf, layoutLines, layoutRequest } from "../utils/hints.js";
 import { isOurs, plainError } from "../utils/errors.js";
 import { recall } from "./memory.js";
 import { CAP } from "../constants/index.js";
@@ -23,6 +24,7 @@ export function setAi(on, provider = state.aiProvider) {
   show("ai-off", !state.aiAvailable);
   show("odd-box", state.aiAvailable);
   show("rules-box", state.aiAvailable);
+  show("layout-box", state.aiAvailable);
   $("fix-ask").disabled = !state.aiAvailable || !!state.fix?.asking;
   keySaid(!state.aiAvailable ? "AI help is off. It's optional; fixes work without it."
     : state.aiProvider === "free" ? FREE_ON : "AI help is on.");
@@ -195,4 +197,20 @@ export function rulesLines(out, columns, startRow, startCol) {
   });
   if (!out.rules.length) lines.push("The AI found no rules to check in your headers.");
   return lines.length > CAP ? [...lines.slice(0, CAP), `+ ${n(lines.length - CAP)} more lines.`] : lines;
+}
+
+// AH-215: Read layout with AI. The engine sends the AI each table's layout alone (headers, kinds, each cell's shape,
+// formulas with their numbers and text hidden), never a cell's value; the rows and columns the AI names are kept here,
+// for this sheet and this session only, and change its next Find problems and Check as you work (scan.scanRequest)
+export async function readLayout() {
+  const s = state.lastScan, item = (text) => Object.assign(document.createElement("li"), { textContent: text }); // AI text is never HTML
+  busy("Asking the AI about your layout…");
+  counting();
+  try {
+    const out = await post("/layout", layoutRequest(s), 300);
+    state.layoutHints[s.sheet] = hintsOf(s, out);
+    $("layout-list").replaceChildren(...layoutLines(s, out, CAP).map(item));
+  } catch (e) {
+    $("layout-list").replaceChildren(Object.assign(item(plainError(e, "AI could not check")), { className: "notice" }));
+  }
 }

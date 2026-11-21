@@ -5180,5 +5180,428 @@
   "tests": [
    "node frontend/selfcheck.js"
   ]
+ },
+ {
+  "id": "layoutai-body-loosen",
+  "guard": "The /layout route checks each table (columns and rows as /scan's, formulas shaped like the rows of at most 8,192 characters, placed inside the sheet), at most 100 tables (layout.BODY) and MAX_CELLS cells in all, before any work (AH-215)",
+  "file": "backend/anomaly_hunter/server.py",
+  "old": "0 < len(tables) <= layout.BODY)",
+  "new": "0 < len(tables) <= layout.BODY + 1)",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_layout_ai.py::test_the_layout_route_checks_every_field_before_any_work_each_at_its_limit"
+  ]
+ },
+ {
+  "id": "layoutai-body-tighten",
+  "guard": "The /layout route checks each table (columns and rows as /scan's, formulas shaped like the rows of at most 8,192 characters, placed inside the sheet), at most 100 tables (layout.BODY) and MAX_CELLS cells in all, before any work (AH-215)",
+  "file": "backend/anomaly_hunter/server.py",
+  "old": "0 < len(tables) <= layout.BODY)",
+  "new": "0 < len(tables) < layout.BODY)",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_layout_ai.py::test_the_layout_route_checks_every_field_before_any_work_each_at_its_limit"
+  ]
+ },
+ {
+  "id": "layoutai-formula-loosen",
+  "guard": "The /layout route checks each table (columns and rows as /scan's, formulas shaped like the rows of at most 8,192 characters, placed inside the sheet), at most 100 tables (layout.BODY) and MAX_CELLS cells in all, before any work (AH-215)",
+  "file": "backend/anomaly_hunter/server.py",
+  "old": "f[:1] == \"=\" and len(f) <= EXCEL_FORMULA)",
+  "new": "f[:1] == \"=\")",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_layout_ai.py::test_the_layout_route_checks_every_field_before_any_work_each_at_its_limit"
+  ]
+ },
+ {
+  "id": "layoutai-formula-tighten",
+  "guard": "The /layout route checks each table (columns and rows as /scan's, formulas shaped like the rows of at most 8,192 characters, placed inside the sheet), at most 100 tables (layout.BODY) and MAX_CELLS cells in all, before any work (AH-215)",
+  "file": "backend/anomaly_hunter/server.py",
+  "old": "f[:1] == \"=\" and len(f) <= EXCEL_FORMULA)",
+  "new": "f[:1] == \"=\" and len(f) < EXCEL_FORMULA)",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_layout_ai.py::test_the_layout_route_checks_every_field_before_any_work_each_at_its_limit"
+  ]
+ },
+ {
+  "id": "layoutai-place-loosen",
+  "guard": "The /layout route checks each table (columns and rows as /scan's, formulas shaped like the rows of at most 8,192 characters, placed inside the sheet), at most 100 tables (layout.BODY) and MAX_CELLS cells in all, before any work (AH-215)",
+  "file": "backend/anomaly_hunter/server.py",
+  "old": "at + 1 + n <= EXCEL_ROWS and type(col) is int and 0 <= col and col + w <= EXCEL_COLUMNS",
+  "new": "at + 1 + n <= EXCEL_ROWS + 1 and type(col) is int and 0 <= col and col + w <= EXCEL_COLUMNS + 1",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_layout_ai.py::test_the_layout_route_checks_every_field_before_any_work_each_at_its_limit"
+  ]
+ },
+ {
+  "id": "layoutai-place-tighten",
+  "guard": "The /layout route checks each table (columns and rows as /scan's, formulas shaped like the rows of at most 8,192 characters, placed inside the sheet), at most 100 tables (layout.BODY) and MAX_CELLS cells in all, before any work (AH-215)",
+  "file": "backend/anomaly_hunter/server.py",
+  "old": "at + 1 + n <= EXCEL_ROWS and type(col) is int and 0 <= col and col + w <= EXCEL_COLUMNS",
+  "new": "at + 1 + n < EXCEL_ROWS and type(col) is int and 0 <= col and col + w < EXCEL_COLUMNS",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_layout_ai.py::test_the_layout_route_checks_every_field_before_any_work_each_at_its_limit"
+  ]
+ },
+ {
+  "id": "layoutai-cells-loosen",
+  "guard": "The /layout route checks each table (columns and rows as /scan's, formulas shaped like the rows of at most 8,192 characters, placed inside the sheet), at most 100 tables (layout.BODY) and MAX_CELLS cells in all, before any work (AH-215)",
+  "file": "backend/anomaly_hunter/server.py",
+  "old": "        if cells > MAX_CELLS:",
+  "new": "        if cells > MAX_CELLS * 2:",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_layout_ai.py::test_the_layout_route_checks_every_field_before_any_work_each_at_its_limit"
+  ]
+ },
+ {
+  "id": "layoutai-cells-tighten",
+  "guard": "The /layout route checks each table (columns and rows as /scan's, formulas shaped like the rows of at most 8,192 characters, placed inside the sheet), at most 100 tables (layout.BODY) and MAX_CELLS cells in all, before any work (AH-215)",
+  "file": "backend/anomaly_hunter/server.py",
+  "old": "        if cells > MAX_CELLS:",
+  "new": "        if cells >= MAX_CELLS:",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_layout_ai.py::test_the_layout_route_checks_every_field_before_any_work_each_at_its_limit"
+  ]
+ },
+ {
+  "id": "layoutai-tables-loosen",
+  "guard": "Read layout with AI sends at most the first 8 tables (TABLES), 200 rows of each (ROWS) that fit one request, each header one line of at most 100 characters (rules.HEADER) (AH-215)",
+  "file": "backend/anomaly_hunter/ai/layout.py",
+  "old": "TABLES = 8 ",
+  "new": "TABLES = 9 ",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_layout_ai.py::test_at_most_8_tables_and_200_rows_of_each_go_and_fewer_when_they_would_not_fit_one_request"
+  ]
+ },
+ {
+  "id": "layoutai-tables-tighten",
+  "guard": "Read layout with AI sends at most the first 8 tables (TABLES), 200 rows of each (ROWS) that fit one request, each header one line of at most 100 characters (rules.HEADER) (AH-215)",
+  "file": "backend/anomaly_hunter/ai/layout.py",
+  "old": "TABLES = 8 ",
+  "new": "TABLES = 7 ",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_layout_ai.py::test_at_most_8_tables_and_200_rows_of_each_go_and_fewer_when_they_would_not_fit_one_request"
+  ]
+ },
+ {
+  "id": "layoutai-rows-loosen",
+  "guard": "Read layout with AI sends at most the first 8 tables (TABLES), 200 rows of each (ROWS) that fit one request, each header one line of at most 100 characters (rules.HEADER) (AH-215)",
+  "file": "backend/anomaly_hunter/ai/layout.py",
+  "old": "ROWS = 200 ",
+  "new": "ROWS = 201 ",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_layout_ai.py::test_at_most_8_tables_and_200_rows_of_each_go_and_fewer_when_they_would_not_fit_one_request"
+  ]
+ },
+ {
+  "id": "layoutai-rows-tighten",
+  "guard": "Read layout with AI sends at most the first 8 tables (TABLES), 200 rows of each (ROWS) that fit one request, each header one line of at most 100 characters (rules.HEADER) (AH-215)",
+  "file": "backend/anomaly_hunter/ai/layout.py",
+  "old": "ROWS = 200 ",
+  "new": "ROWS = 199 ",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_layout_ai.py::test_at_most_8_tables_and_200_rows_of_each_go_and_fewer_when_they_would_not_fit_one_request"
+  ]
+ },
+ {
+  "id": "layoutai-fit-loosen",
+  "guard": "Read layout with AI sends at most the first 8 tables (TABLES), 200 rows of each (ROWS) that fit one request, each header one line of at most 100 characters (rules.HEADER) (AH-215)",
+  "file": "backend/anomaly_hunter/ai/layout.py",
+  "old": "fits = lambda n: client._fits(_prompt([*sent, _table(len(sent), head, lines, n)]), SCHEMA, \"layout\")",
+  "new": "fits = lambda n: True",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_layout_ai.py::test_at_most_8_tables_and_200_rows_of_each_go_and_fewer_when_they_would_not_fit_one_request"
+  ]
+ },
+ {
+  "id": "layoutai-fit-tighten",
+  "guard": "Read layout with AI sends at most the first 8 tables (TABLES), 200 rows of each (ROWS) that fit one request, each header one line of at most 100 characters (rules.HEADER) (AH-215)",
+  "file": "backend/anomaly_hunter/ai/layout.py",
+  "old": "fits = lambda n: client._fits(_prompt([*sent, _table(len(sent), head, lines, n)]), SCHEMA, \"layout\")",
+  "new": "fits = lambda n: client._fits(_prompt([*sent, _table(len(sent), head, lines, n)]) + \"x\" * 80, SCHEMA, \"layout\")",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_layout_ai.py::test_at_most_8_tables_and_200_rows_of_each_go_and_fewer_when_they_would_not_fit_one_request"
+  ]
+ },
+ {
+  "id": "layoutai-header-loosen",
+  "guard": "Read layout with AI sends at most the first 8 tables (TABLES), 200 rows of each (ROWS) that fit one request, each header one line of at most 100 characters (rules.HEADER) (AH-215)",
+  "file": "backend/anomaly_hunter/ai/layout.py",
+  "old": "    heads = [\" \".join(str(c).split())[:HEADER] for c in columns]",
+  "new": "    heads = [str(c) for c in columns]",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_layout_ai.py::test_a_header_goes_on_one_line_cut_at_100_characters_and_an_injected_one_stays_data"
+  ]
+ },
+ {
+  "id": "layoutai-header-tighten",
+  "guard": "Read layout with AI sends at most the first 8 tables (TABLES), 200 rows of each (ROWS) that fit one request, each header one line of at most 100 characters (rules.HEADER) (AH-215)",
+  "file": "backend/anomaly_hunter/ai/layout.py",
+  "old": "    heads = [\" \".join(str(c).split())[:HEADER] for c in columns]",
+  "new": "    heads = [\" \".join(str(c).split())[:HEADER - 1] for c in columns]",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_layout_ai.py::test_a_header_goes_on_one_line_cut_at_100_characters_and_an_injected_one_stays_data"
+  ]
+ },
+ {
+  "id": "layoutai-shape-loosen",
+  "guard": "Read layout with AI sends no cell's value: a cell goes as its shape (number, date, text, blank, which formula), a formula with its numbers, texts, sheet names and table columns hidden and its references and functions kept (AH-215)",
+  "file": "backend/anomaly_hunter/ai/layout.py",
+  "old": "                line += \"t\"",
+  "new": "                line += str(v)",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_layout_ai.py::test_what_is_sent_is_the_layout_and_never_a_cell_value"
+  ]
+ },
+ {
+  "id": "layoutai-shape-tighten",
+  "guard": "Read layout with AI sends no cell's value: a cell goes as its shape (number, date, text, blank, which formula), a formula with its numbers, texts, sheet names and table columns hidden and its references and functions kept (AH-215)",
+  "file": "backend/anomaly_hunter/ai/layout.py",
+  "old": "                line += \"n\"",
+  "new": "                line += \"t\"",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_layout_ai.py::test_what_is_sent_is_the_layout_and_never_a_cell_value"
+  ]
+ },
+ {
+  "id": "layoutai-numbers-loosen",
+  "guard": "Read layout with AI sends no cell's value: a cell goes as its shape (number, date, text, blank, which formula), a formula with its numbers, texts, sheet names and table columns hidden and its references and functions kept (AH-215)",
+  "file": "backend/anomaly_hunter/ai/layout.py",
+  "old": "            t = \"#\"",
+  "new": "            t = t",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_layout_ai.py::test_what_is_sent_is_the_layout_and_never_a_cell_value",
+   "backend/tests/test_layout_ai.py::test_a_formula_keeps_its_references_and_functions_and_hides_its_numbers_texts_and_names"
+  ]
+ },
+ {
+  "id": "layoutai-text-loosen",
+  "guard": "Read layout with AI sends no cell's value: a cell goes as its shape (number, date, text, blank, which formula), a formula with its numbers, texts, sheet names and table columns hidden and its references and functions kept (AH-215)",
+  "file": "backend/anomaly_hunter/ai/layout.py",
+  "old": "            t = '\"…\"'",
+  "new": "            t = t",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_layout_ai.py::test_what_is_sent_is_the_layout_and_never_a_cell_value",
+   "backend/tests/test_layout_ai.py::test_a_formula_keeps_its_references_and_functions_and_hides_its_numbers_texts_and_names"
+  ]
+ },
+ {
+  "id": "layoutai-names-loosen",
+  "guard": "Read layout with AI sends no cell's value: a cell goes as its shape (number, date, text, blank, which formula), a formula with its numbers, texts, sheet names and table columns hidden and its references and functions kept (AH-215)",
+  "file": "backend/anomaly_hunter/ai/layout.py",
+  "old": "            t = t if OFFSET.fullmatch(t) else \"[…]\"",
+  "new": "            t = t",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_layout_ai.py::test_what_is_sent_is_the_layout_and_never_a_cell_value",
+   "backend/tests/test_layout_ai.py::test_a_formula_keeps_its_references_and_functions_and_hides_its_numbers_texts_and_names"
+  ]
+ },
+ {
+  "id": "layoutai-refs-tighten",
+  "guard": "Read layout with AI sends no cell's value: a cell goes as its shape (number, date, text, blank, which formula), a formula with its numbers, texts, sheet names and table columns hidden and its references and functions kept (AH-215)",
+  "file": "backend/anomaly_hunter/ai/layout.py",
+  "old": "            t = t if OFFSET.fullmatch(t) else \"[…]\"",
+  "new": "            t = \"[…]\"",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_layout_ai.py::test_a_formula_keeps_its_references_and_functions_and_hides_its_numbers_texts_and_names"
+  ]
+ },
+ {
+  "id": "layoutai-hint-rows-loosen",
+  "guard": "An AI layout hint names only a table and a run of rows sent, a kind of the schema's; at most 30 (MAX_HINTS), never more than half a table's rows sent (SHARE), its why one line of at most 120 characters (AH-215)",
+  "file": "backend/anomaly_hunter/ai/layout.py",
+  "old": "0 <= h.first <= h.last < n[h.table] and h.kind in ROW_KINDS",
+  "new": "0 <= h.first <= h.last <= n[h.table] and h.kind in ROW_KINDS",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_layout_ai.py::test_a_hint_naming_a_table_or_row_not_sent_or_a_kind_off_the_list_is_dropped"
+  ]
+ },
+ {
+  "id": "layoutai-hint-rows-tighten",
+  "guard": "An AI layout hint names only a table and a run of rows sent, a kind of the schema's; at most 30 (MAX_HINTS), never more than half a table's rows sent (SHARE), its why one line of at most 120 characters (AH-215)",
+  "file": "backend/anomaly_hunter/ai/layout.py",
+  "old": "0 <= h.first <= h.last < n[h.table] and h.kind in ROW_KINDS",
+  "new": "0 <= h.first <= h.last < n[h.table] - 1 and h.kind in ROW_KINDS",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_layout_ai.py::test_a_hint_naming_a_table_or_row_not_sent_or_a_kind_off_the_list_is_dropped"
+  ]
+ },
+ {
+  "id": "layoutai-hint-kind-loosen",
+  "guard": "An AI layout hint names only a table and a run of rows sent, a kind of the schema's; at most 30 (MAX_HINTS), never more than half a table's rows sent (SHARE), its why one line of at most 120 characters (AH-215)",
+  "file": "backend/anomaly_hunter/ai/layout.py",
+  "old": "0 <= h.first <= h.last < n[h.table] and h.kind in ROW_KINDS",
+  "new": "0 <= h.first <= h.last < n[h.table]",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_layout_ai.py::test_a_hint_naming_a_table_or_row_not_sent_or_a_kind_off_the_list_is_dropped"
+  ]
+ },
+ {
+  "id": "layoutai-hint-kind-tighten",
+  "guard": "An AI layout hint names only a table and a run of rows sent, a kind of the schema's; at most 30 (MAX_HINTS), never more than half a table's rows sent (SHARE), its why one line of at most 120 characters (AH-215)",
+  "file": "backend/anomaly_hunter/ai/layout.py",
+  "old": "ROW_KINDS = (\"parameter\", \"note\", \"ratio\", \"subtotal\", \"separator\", \"header\")",
+  "new": "ROW_KINDS = (\"parameter\", \"note\", \"ratio\", \"subtotal\", \"separator\")",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_layout_ai.py::test_a_hint_naming_a_table_or_row_not_sent_or_a_kind_off_the_list_is_dropped"
+  ]
+ },
+ {
+  "id": "layoutai-share-loosen",
+  "guard": "An AI layout hint names only a table and a run of rows sent, a kind of the schema's; at most 30 (MAX_HINTS), never more than half a table's rows sent (SHARE), its why one line of at most 120 characters (AH-215)",
+  "file": "backend/anomaly_hunter/ai/layout.py",
+  "old": "        if len(more) > SHARE * n[h.table]:",
+  "new": "        if len(more) > n[h.table]:",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_layout_ai.py::test_hints_may_leave_out_half_of_a_tables_rows_and_never_more"
+  ]
+ },
+ {
+  "id": "layoutai-share-tighten",
+  "guard": "An AI layout hint names only a table and a run of rows sent, a kind of the schema's; at most 30 (MAX_HINTS), never more than half a table's rows sent (SHARE), its why one line of at most 120 characters (AH-215)",
+  "file": "backend/anomaly_hunter/ai/layout.py",
+  "old": "        if len(more) > SHARE * n[h.table]:",
+  "new": "        if len(more) >= SHARE * n[h.table]:",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_layout_ai.py::test_hints_may_leave_out_half_of_a_tables_rows_and_never_more"
+  ]
+ },
+ {
+  "id": "layoutai-count-loosen",
+  "guard": "An AI layout hint names only a table and a run of rows sent, a kind of the schema's; at most 30 (MAX_HINTS), never more than half a table's rows sent (SHARE), its why one line of at most 120 characters (AH-215)",
+  "file": "backend/anomaly_hunter/ai/layout.py",
+  "old": "MAX_HINTS = 30 ",
+  "new": "MAX_HINTS = 31 ",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_layout_ai.py::test_at_most_30_hints_of_each_are_kept_each_why_one_line_of_at_most_120_characters"
+  ]
+ },
+ {
+  "id": "layoutai-count-tighten",
+  "guard": "An AI layout hint names only a table and a run of rows sent, a kind of the schema's; at most 30 (MAX_HINTS), never more than half a table's rows sent (SHARE), its why one line of at most 120 characters (AH-215)",
+  "file": "backend/anomaly_hunter/ai/layout.py",
+  "old": "MAX_HINTS = 30 ",
+  "new": "MAX_HINTS = 29 ",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_layout_ai.py::test_at_most_30_hints_of_each_are_kept_each_why_one_line_of_at_most_120_characters"
+  ]
+ },
+ {
+  "id": "layoutai-why-loosen",
+  "guard": "An AI layout hint names only a table and a run of rows sent, a kind of the schema's; at most 30 (MAX_HINTS), never more than half a table's rows sent (SHARE), its why one line of at most 120 characters (AH-215)",
+  "file": "backend/anomaly_hunter/ai/layout.py",
+  "old": "    why = lambda h: \" \".join(h.why.split())[:120]",
+  "new": "    why = lambda h: h.why",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_layout_ai.py::test_at_most_30_hints_of_each_are_kept_each_why_one_line_of_at_most_120_characters"
+  ]
+ },
+ {
+  "id": "layoutai-why-tighten",
+  "guard": "An AI layout hint names only a table and a run of rows sent, a kind of the schema's; at most 30 (MAX_HINTS), never more than half a table's rows sent (SHARE), its why one line of at most 120 characters (AH-215)",
+  "file": "backend/anomaly_hunter/ai/layout.py",
+  "old": "    why = lambda h: \" \".join(h.why.split())[:120]",
+  "new": "    why = lambda h: \" \".join(h.why.split())[:119]",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_layout_ai.py::test_at_most_30_hints_of_each_are_kept_each_why_one_line_of_at_most_120_characters"
+  ]
+ },
+ {
+  "id": "layoutai-pane-rows-loosen",
+  "guard": "The AI's layout hints apply only to the sheet they were read on and the table found again in the same place under the same headers, and only to its own rows (AH-215)",
+  "file": "frontend/utils/hints.js",
+  "old": "i <= Math.min(b, t.rows.length - 1); i++) rows.add(i);",
+  "new": "i <= b; i++) rows.add(i);",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "layoutai-pane-rows-tighten",
+  "guard": "The AI's layout hints apply only to the sheet they were read on and the table found again in the same place under the same headers, and only to its own rows (AH-215)",
+  "file": "frontend/utils/hints.js",
+  "old": "i <= Math.min(b, t.rows.length - 1); i++) rows.add(i);",
+  "new": "i < Math.min(b, t.rows.length - 1); i++) rows.add(i);",
+  "kind": "tighten",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "layoutai-pane-table-loosen",
+  "guard": "The AI's layout hints apply only to the sheet they were read on and the table found again in the same place under the same headers, and only to its own rows (AH-215)",
+  "file": "frontend/utils/hints.js",
+  "old": "export const keyOf = (t) => JSON.stringify([t.startRow, t.startCol, t.columns]);",
+  "new": "export const keyOf = (t) => JSON.stringify([t.startCol, t.columns]);",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "layoutai-pane-table-tighten",
+  "guard": "The AI's layout hints apply only to the sheet they were read on and the table found again in the same place under the same headers, and only to its own rows (AH-215)",
+  "file": "frontend/utils/hints.js",
+  "old": "export const keyOf = (t) => JSON.stringify([t.startRow, t.startCol, t.columns]);",
+  "new": "export const keyOf = (t) => JSON.stringify([t.startRow, t.startCol, t.columns, t.rows.length]);",
+  "kind": "tighten",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "layoutai-pane-sheet-loosen",
+  "guard": "The AI's layout hints apply only to the sheet they were read on and the table found again in the same place under the same headers, and only to its own rows (AH-215)",
+  "file": "frontend/features/scan.js",
+  "old": "  const hints = state.layoutHints[s.sheet];",
+  "new": "  const hints = Object.values(state.layoutHints)[0];",
+  "kind": "loosen",
+  "tests": [
+   "e2e"
+  ],
+  "modes": "ai"
+ },
+ {
+  "id": "layoutai-pane-sheet-tighten",
+  "guard": "The AI's layout hints apply only to the sheet they were read on and the table found again in the same place under the same headers, and only to its own rows (AH-215)",
+  "file": "frontend/features/scan.js",
+  "old": "  const hints = state.layoutHints[s.sheet];",
+  "new": "  const hints = state.layoutHints[`${s.sheet} `];",
+  "kind": "tighten",
+  "tests": [
+   "e2e"
+  ],
+  "modes": "ai"
  }
 ]

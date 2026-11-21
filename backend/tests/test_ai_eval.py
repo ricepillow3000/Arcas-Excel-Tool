@@ -377,3 +377,21 @@ def test_the_pii_cases_are_flagged_and_labelled_and_only_the_no_mask_arm_sends_t
             assert ai_eval.right(c, good) and not ai_eval.right(c, []), c["id"]
     assert ai_eval.pii_cases("dev")[0]["rows"] != ai_eval.pii_cases("held")[0]["rows"]  # held-out is a fresh draw
     assert client.MASK is True  # on in the app
+
+
+def test_read_layout_cases_dry_run_send_nothing_count_their_requests_and_score_against_the_oracle(run, monkeypatch, capsys, tmp_path):
+    """AH-215: a complex-bench workbook's sheet is one case, read as the pane reads it; --dry-run counts its requests."""
+    ep = tmp_path / "ep"
+    ep.mkdir()
+    values = [["Item", "Qty", "Price"]] + [[f"Item {i}", i + 1, 2.5] for i in range(12)] + [["Tax rate", 0.2, ""]]
+    sheet = {"name": "Sheet1", "values": values, "formats": [["General"] * 3 for _ in values], "formulas": [[None] * 3 for _ in values]}
+    (ep / "book.json").write_text(json.dumps({"name": "book", "sheets": [sheet]}), encoding="utf-8")
+    monkeypatch.setenv("GEMINI_API_KEY", KEY)
+    code, urls, results = run("--dry-run", "--layout-dev", str(ep), "--only", ":layout:")
+    out = capsys.readouterr().out
+    assert code == 0 and urls == [] and results == "" and "base/dev: 1 requests per run x 3 runs = 3" in out
+    case = ai_eval.layout_cases("dev", REPO)[0]
+    assert case["key"] == "book__Sheet1" and [len(t["rows"]) for t in case["layout"]] == [13]
+    label = {"rows": [{"table": 0, "first": 12, "last": 12, "kind": "parameter", "why": "a rate"}]}
+    rec = {"wire": [], "answer": {**label, "sent": [13]}}
+    assert ai_eval.score({**case, "label": label}, rec)["ok"] and not ai_eval.score({**case, "label": None}, rec)["ok"]

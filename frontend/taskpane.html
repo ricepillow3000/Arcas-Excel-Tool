@@ -127,6 +127,15 @@
           </details>
           <ul id="rules-list" class="fix-changes"></ul>
         </div>
+        <div id="layout-box" hidden>
+          <button id="layout-check" class="secondary">Read layout with AI</button>
+          <p class="hint">Rows that are not records, left out of your next check.</p>
+          <details class="sends">
+            <summary>What is sent?</summary>
+            <p class="hint">AI reads how your tables are laid out, to find rows such as a rate, a note or a total that are not records. It sends only the layout of the first 8 tables to Google (through John's relay if you use an invite code): where each sits, its column headers, each cut to 100 characters, whether each column holds numbers, dates, text or IDs, and for the first 200 rows of each, whether each cell is a number, a date, text, a formula or blank, each formula with its numbers, text and sheet names hidden. Never a cell's value. Find problems then leaves the rows it names out of its next check of this sheet, and says which. Its answers are leads to check.</p>
+          </details>
+          <ul id="layout-list" class="fix-changes"></ul>
+        </div>
         <details class="more">
           <summary>Exact limits per column (advanced)</summary>
           <p class="hint">The slider above is the easy way. Here you can set the exact number below or above which a column gets flagged; these win over the slider for that column.</p>

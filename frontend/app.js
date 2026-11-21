@@ -9,7 +9,7 @@ import { activeSheet, saveLimits } from "./services/excel.js";
 import { powerBiOn, runScan, sayLastScan, setPowerBi } from "./features/scan.js";
 import { clearHighlights } from "./features/highlight.js";
 import { applyFix, undoFix } from "./features/fix.js";
-import { setAi, askFix, checkWords, checkRules } from "./features/ai.js";
+import { setAi, askFix, checkWords, checkRules, readLayout } from "./features/ai.js";
 import { openLimitsEditor, saveLimitsAndRescan } from "./pages/limits.js";
 import { backToList, dismissFix, muteFix, nextFix } from "./pages/fix.js";
 import { initStrength } from "./pages/strength.js";
@@ -60,6 +60,7 @@ else {
     for (const b of document.querySelectorAll("#fix-tries .try")) b.addEventListener("click", () => { $("fix-intent").value = b.textContent; $("fix-intent").focus(); });
     $("odd-check").onclick = act(checkWords);
     $("rules-check").onclick = act(checkRules);
+    $("layout-check").onclick = act(readLayout); // AH-215
     // only Ctrl+Enter (Cmd+Enter on a Mac) is ours; every other key types, Enter makes a new line. The old DOM0
     // `onkeydown = (e) => e.key === "Enter" && e.ctrlKey && askFix()` returned false for every other key, and a DOM0
     // handler returning false cancels the key: nothing could be typed in this box (2026-10-20)

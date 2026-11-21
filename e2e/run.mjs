@@ -1410,6 +1410,33 @@ if (mode === "ai") { // engine started with a Claude key pointed at stub_claude.
     ok((await text("#rules-list")) === "AI could not check: " + words && !(await page.isDisabled("#rules-check")), `AH-202: Check subject rules when ${how}: said in plain words - ` + (await text("#rules-list")));
     ok((await looksLikeNotice("#rules-list li")).ok, `AH-202: Check subject rules when ${how}: a notice at body size, said once`);
   }
+  // AH-215: Read layout with AI sends only /layout, the layout and never a cell's value; the stub names row 22 a note (markup
+  // in its why) and a row past the table, which is dropped; its words are text; the next Find problems leaves row 22 out
+  // of the check, says so in the book notes and clears the lines; another sheet keeps none of it (below)
+  await shortNote("#layout-box", "#layout-box p", "What is sent?", ["It sends only the layout of the first 8 tables", "each cut to 100 characters",
+    "for the first 200 rows of each", "Never a cell's value."]);
+  ok(/Row 22(?!\d)/.test(await text("#flagged-list")), "AH-215: row 22 is listed before the AI reads the layout");
+  posts.length = 0;
+  await page.click("#layout-check"); await idle();
+  ok(posts.join() === "/layout", "AH-215: Read layout with AI sends only /layout - " + posts);
+  { const lines = await page.$$eval("#layout-list li", (lis) => lis.map((li) => li.textContent));
+    ok(JSON.stringify(lines) === JSON.stringify(["Only the first 200 of 300 rows of the table at A1 were sent.", "Row 22: a note. The AI says: <img src=x onerror=window.__pwned=3> a note",
+      "Find problems leaves these out of its next check of this sheet, and says so."]), "AH-215: the AI's hint as text, one past the table dropped - " + JSON.stringify(lines));
+    ok(!(await page.$("#layout-list img")) && !(await page.evaluate(() => window.__pwned)), "AH-215: the AI's words are text, never markup");
+    const asked = fs.readFileSync(DIR + "claude.log", "utf8").trim().split("\n").map(JSON.parse).find((l) => l.prompt.includes("layout of the tables"));
+    ok(asked && asked.prompt.includes('["Units","number"]') && !/7777|170\.43|East|West|2026-|460[2-3]\d/.test(asked.prompt),
+      "AH-215: Read layout sends headers, kinds and shapes only, never a cell's value"); }
+  await find();
+  { const notes = await text("#book-notes"), listed = await text("#flagged-list");
+    ok(notes.includes("The AI read row 22 on Sales as a note: it was not checked.") && !/Row 22(?!\d)/.test(listed) && /Row 81(?!\d)/.test(listed)
+      && (await page.$$eval("#layout-list li", (lis) => lis.length)) === 0, "AH-215: the next Find problems leaves row 22 out and says so - " + notes); }
+  // the same table on another tab is another sheet: the hints were read on Sales alone
+  await page.evaluate((rows) => __load("Sales copy", rows, [0]), rows);
+  await find();
+  ok(!(await text("#book-notes")).includes("The AI read") && /Row 22(?!\d)/.test(await text("#flagged-list")),
+    "AH-215: the same table on another tab keeps row 22 and hears nothing of the hints");
+  await page.evaluate(() => __activate("Sales"));
+  await find();
   await page.click("#rules-check"); await idle();
   // AH-170: Check words' lines name cells of the sheet they were asked about: another sheet's check never shows them
   await page.click("#odd-check"); await idle();
@@ -1419,6 +1446,7 @@ if (mode === "ai") { // engine started with a Claude key pointed at stub_claude.
   ok(oddBefore > 0 && (await page.$$eval("#odd-list li", (lis) => lis.length)) === 0 && (await text("#sheet-name")) === "Other",
     `AH-170: Find problems on another sheet clears the old Check words lines (${oddBefore} before)`);
   ok((await page.$$eval("#rules-list li", (lis) => lis.length)) === 0, "AH-202: Find problems on another sheet clears the old Check subject rules lines");
+  ok(!(await text("#book-notes")).includes("The AI read"), "AH-215: the layout hints of Sales change nothing on another sheet");
 }
 
 if (mode === "nokey") { // engine started with no key: John's free AI through the relay, here stub_claude.py's /fix (e2e/engine.py)

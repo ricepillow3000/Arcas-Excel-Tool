@@ -163,6 +163,34 @@ paths:
         "400": {$ref: "#/components/responses/Error"}
         "502": {$ref: "#/components/responses/Error"}
         "503": {$ref: "#/components/responses/Error"}
+  /layout:  # AH-215: the AI reads only each table's layout (headers, kinds, each cell's shape, formulas with numbers and text hidden)
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tables]
+              properties:
+                tables:
+                  type: array
+                  minItems: 1
+                  maxItems: 100
+                  items:
+                    type: object
+                    required: [columns, rows, start_row, start_col]
+                    properties:
+                      columns: {type: array, minItems: 1, items: {oneOf: [{type: string}, {type: number}]}}
+                      rows: {type: array, items: {type: array, items: {$ref: "#/components/schemas/Cell"}}}
+                      formulas: {type: array, nullable: true, items: {type: array, items: {type: string, nullable: true, pattern: "^=", maxLength: 8192}}}
+                      start_row: {type: integer, minimum: 0}
+                      start_col: {type: integer, minimum: 0}
+      responses:
+        "200": {$ref: "#/components/responses/Json"}
+        "400": {$ref: "#/components/responses/Error"}
+        "502": {$ref: "#/components/responses/Error"}
+        "503": {$ref: "#/components/responses/Error"}
   /key:
     post:
       requestBody:

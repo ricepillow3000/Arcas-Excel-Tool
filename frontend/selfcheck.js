@@ -18,6 +18,7 @@ import * as K from "./constants/index.js";
 import { remember, forget, recall, clearAll, MAX_KEPT, OFFERED } from "./features/memory.js";
 import { measures, copiedTabs, copiedSaid, lastRowSaid } from "./features/tabs.js";
 import { tablesFromGrid, sentOf, unreadSaid, formatRows, asSheet, place, local, biggest, rowAt, areaOf, invalidIn, INVALID } from "./utils/layout.js";
+import { keyOf, layoutRequest, hintsOf, hinted, hintsSaid, layoutLines } from "./utils/hints.js";
 import { findingsAt, inRange, ignored, liveable, liveOn, soundOn, noteSaid, checkedSaid, LIVE_ROWS } from "./features/live.js";
 import { asLearned, learnIn, taught, learnedOf, stoppable, KIND_WORDS, ONE_CELL, PER_SHEET as LEARN_CAP, SENT, TEXT } from "./features/learned.js";
 
@@ -1158,6 +1159,41 @@ for (const f of readdirSync(new URL(".", import.meta.url)).filter((f) => f.endsW
   assert.equal(invalidIn(big, [areaOf("A2:A1002")]).length, INVALID, "AH-213: past it, the first INVALID");
   assert.ok(KIND_WORDS.subtotal && KIND_WORDS.validation && ONE_CELL.has("validation") && !ONE_CELL.has("subtotal"),
     "AH-213: a value outside its list is a check of one cell, a subtotal never");
+}
+
+// AH-215: Read layout with AI. The pane sends each table's own rows; the AI's hints (rows by table and row sent) are kept by
+// each table's place and headers, applied on the next scan of that sheet as layout rows sent blank, and said in plain
+// words; a sheet with no hints is read exactly as before, and no column ever sits out a check because of the AI
+{
+  const G = [["Item", "Qty", "Price"], ...Array.from({ length: 6 }, (_, k) => [`i${k}`, k + 1, 2]), ["Tax rate", 0.2, ""], ["", "", ""], ["", "", ""], ["", "", ""],
+    ["Code", "Units", "Share"], ...Array.from({ length: 5 }, (_, k) => [`c${k}`, k, k / 10])];
+  const { tables } = tablesFromGrid(G, null, 2, 1, null);
+  const s = asSheet(tables, { sheet: "Budget" });
+  const body = layoutRequest(s);
+  assert.deepEqual(body.tables.map((t) => [t.start_row, t.start_col, t.rows.length, t.formulas]), [[2, 1, 7, null], [13, 1, 5, null]],
+    "AH-215: each table's own rows, where it sits, formulas only if any");
+  const out = { rows: [{ table: 0, first: 6, last: 6, kind: "parameter", why: "<b>a rate</b>" }, { table: 1, first: 0, last: 1, kind: "note", why: "n" }],
+    sent: [7, 5] };
+  const book = hintsOf(s, out), [a, b] = s.tables.map(local);
+  assert.deepEqual(Object.keys(book), [keyOf(a), keyOf(b)], "AH-215: hints kept by each table's place and headers");
+  assert.deepEqual(hinted(a, book[keyOf(a)]).layout, [6], "AH-215: a hinted row joins the layout rows, which go blank");
+  assert.deepEqual(sentOf(hinted(a, book[keyOf(a)])).rows[6], ["", "", ""], "AH-215: and is sent blank");
+  assert.equal(hinted(a, undefined), a, "AH-215: a table with no hint is read exactly as before");
+  assert.deepEqual(hinted({ ...a, rows: a.rows.slice(0, 6) }, book[keyOf(a)]).layout, [], "AH-215: a hint past the table's rows changes nothing");
+  assert.deepEqual(hintsSaid("Budget", [a, b], book), ["The AI read row 10 on Budget as an input: it was not checked.",
+    "The AI read rows 15 to 16 on Budget as notes: they were not checked."], "AH-215: what the hints changed, said plainly");
+  assert.deepEqual(hintsSaid("Budget", [a, b], undefined), [], "AH-215: nothing said with no hints");
+  assert.deepEqual(hintsSaid("Budget", [{ ...a, rows: [...a.rows, ["i9", 1, 2]] }], book), ["The AI read row 10 on Budget as an input: it was not checked."],
+    "AH-215: a row typed under a table keeps it the same table, and its hints");
+  const moved = { ...b, startRow: b.startRow + 1 };
+  assert.deepEqual(hintsSaid("Budget", [moved], book), [], "AH-215: a table that moved is another table: its hints neither apply nor are said");
+  const lines = layoutLines(s, out, 50);
+  assert.deepEqual(lines, ["Row 10: an input. The AI says: <b>a rate</b>", "Rows 15 to 16: notes. The AI says: n",
+    "Find problems leaves these out of its next check of this sheet, and says so."], "AH-215: the AI's answer as lines, its words as they came");
+  assert.deepEqual(layoutLines(s, { rows: [], sent: [3] }, 50), ["Only the first 3 of 7 rows of the table at B3 were sent.",
+    "Only the first of 2 tables was sent.", "The AI found nothing to leave out."], "AH-215: what was not sent is said");
+  assert.equal(layoutLines(s, { rows: Array.from({ length: 60 }, () => out.rows[1]), sent: [7, 5] }, 50).length, 51, "AH-215: at most CAP lines");
+  assert.deepEqual(Object.keys(book[keyOf(b)]), ["rows"], "AH-215: no column is ever hinted");
 }
 
 console.log("panel self-check passed");

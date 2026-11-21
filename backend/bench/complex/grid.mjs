@@ -3,12 +3,15 @@
 // layout reader gives them, each table with `sent` (its rows and formulas as the engine gets them), or null. AH-213: and
 // each table's `invalid`, the cells Excel would say break their drop-down list (the sheet's `validation`: a value outside
 // its list, compared as Excel does, capitals aside; a blank cell is allowed), as readSheet reads them.
+// AH-215: and `hints`, the /layout answer for this sheet (Read layout with AI), applied as the pane applies them: its rows
+// sent blank among each table's layout rows.
 // usage: node grid.mjs < sheet.json
 import { readFileSync } from "node:fs";
 import { maxCells } from "../../../frontend/utils/sheet.js";
 import { areaOf, formatRows, invalidIn, sentOf, tablesFromGrid } from "../../../frontend/utils/layout.js";
+import { hinted, hintsOf, keyOf } from "../../../frontend/utils/hints.js";
 
-const { values, formats, formulas, merged, validation } = JSON.parse(readFileSync(0, "utf8"));
+const { values, formats, formulas, merged, validation, hints } = JSON.parse(readFileSync(0, "utf8"));
 const broken = [];
 for (const { range, list } of validation || []) {
   const a = areaOf(range), ok = new Set(list.map((x) => String(x).toLowerCase()));
@@ -38,6 +41,8 @@ if (rows.length) {
     for (const [k, n] of more) cut(formats, k, Math.min(n, total - k)).forEach((row, x) => (fmts[k + x] = row));
     read = tablesFromGrid(vals, fmts, r0, c0, calc, opts);
   }
-  if (read.tables.length) out = { tables: read.tables.map((t) => ({ ...t, sent: sentOf(t), invalid: invalidIn(t, broken) })), unread: read.unread };
+  const book = hints ? hintsOf({ tables: read.tables }, hints) : {};
+  if (read.tables.length) out = { tables: read.tables.map((t) => ({ ...t, sent: sentOf(hinted(t, book[keyOf(t)])), invalid: invalidIn(t, broken) })),
+    unread: read.unread };
 }
 process.stdout.write(JSON.stringify(out));

@@ -1,6 +1,12 @@
 """AI eval: is a prompt change better, on answers with known labels? "No eval set, no change" (docs/ai-engineering).
 Usage: python backend/bench/ai_eval.py . [--dry-run] [--yes] [--split dev|held|both] [--arms base,...] [--runs 3]
        [--max-requests 200] [--out ai-eval-results.jsonl] [--model gemini-...] [--retrieval] [--only pii]
+       [--layout-dev DIRS] [--layout-held DIRS] [--layout-labels FILE] [--layout-hints-out FILE]
+AH-215, Read layout with AI: --layout-dev / --layout-held name complex-bench episode folders (comma-separated: the
+tuning episodes for dev, a split held out for held), each sheet one case read as the pane reads it (complex/grid.mjs),
+asked only what /layout asks (ai/layout.py). --layout-labels (the hand-written oracle, {"<book>__<sheet>": answer})
+scores each answer's rows against it; --layout-hints-out writes base's first run of answers in the same form
+for complex/scan.py --hints, so judge.py scores what the AI's hints do to the bench. --only :layout: asks only those.
 --only keeps the cases whose id holds that text (":pii:" = AH-206's): an arm that changes only those asks only them.
 --retrieval only measures Ask AI's memory ranking offline (recall@1 of memory.rank vs newest first), sending nothing.
 An arm whose request is byte for byte one already answered in the same run (base's, mostly) takes that answer: asking
@@ -39,7 +45,7 @@ import datasets2
 import datasets3
 
 from anomaly_hunter.agents import checker
-from anomaly_hunter.ai import bias_context, client, memory
+from anomaly_hunter.ai import bias_context, client, layout, memory
 from anomaly_hunter.ai.memory import with_memory
 from anomaly_hunter.server import create_app
 
@@ -83,6 +89,29 @@ def _plants(split, repo):
                         "i": i, "start_row": t["startRow"], "start_col": t["startCol"], "reason": rows[i]["reason"], "intent": "",
                         "limits": limits, "cell": f"{_letter(col)}{p['row'] + 1}", "true": p["true"], "likely": rows[i].get("likely"),
                         "raw": t["rows"][i][col - t["startCol"]], "sheet": d["name"], "col": p["col"]})
+    return out
+
+
+LAYOUT, LABELS = {}, {}  # AH-215: split -> episode folders (--layout-dev, --layout-held); "<book>__<sheet>" -> its oracle answer
+GRID = os.path.join(HERE, "complex", "grid.mjs")
+
+
+def layout_cases(split, repo):
+    """Read layout with AI: each sheet of each workbook in the split's episode folders that the pane reads a table on, as
+    the /layout body the pane would send (the layout reader's tables, their own rows and formulas), with its label."""
+    out = []
+    for d in LAYOUT.get(split, ()):
+        for f in sorted(Path(d).glob("*.json")):
+            book = json.loads(f.read_text(encoding="utf-8"))
+            for s in book["sheets"]:
+                grid = json.dumps({k: s.get(k) for k in ("values", "formats", "formulas", "merged", "validation")})
+                read = json.loads(subprocess.run(["node", GRID], input=grid, capture_output=True, text=True, check=True).stdout)  # noqa: S603, S607
+                if not read:
+                    continue
+                key = f"{book['name']}__{s['name']}"
+                out.append({"id": f"{split}:layout:{Path(d).name}:{key}", "key": key, "label": LABELS.get(key),
+                            "layout": [{"columns": t["columns"], "rows": t["rows"], "start_row": t["startRow"], "start_col": t["startCol"],
+                                        "formulas": t["calc"] if any(any(r) for r in t["calc"] or []) else None} for t in read["tables"]]})
     return out
 
 
@@ -494,7 +523,8 @@ def _prompts(job):
     """The prompts a job would send, without sending: the answer step is swapped for one that only records.
     A job too big to send raises its ValueError, as the pane would show it."""
     seen, ask = [], client._ask
-    client._ask = lambda p, out=client.Fix, *a, **k: seen.append(p) or (out(odd=[]) if out is client.OddOnes else out(explanation="", changes=[]))
+    empty = {client.OddOnes: {"odd": []}, client.Fix: {"explanation": "", "changes": []}}
+    client._ask = lambda p, out=client.Fix, *a, **k: seen.append(p) or out(**empty.get(out, {}))
     try:
         job()
     finally:
@@ -510,7 +540,15 @@ def jobs(split, repo, fix=None, odd=ODD):
     run_fix = lambda c: lambda: client.suggest_fix(c["columns"], c["rows"], c["i"], c["start_row"], c["start_col"], c["reason"], c["intent"],
                                                    c.get("formulas"), memory=c.get("memory"))
     run_odd = lambda v: lambda: dict(zip(("odd", "partial"), client.odd_text(v)))
-    return [(c, run_fix(c)) for c in fix] + [({"id": f"{split}:odd:{k}", "odd": o}, run_odd(o[0])) for k, o in enumerate(odd)]
+    run_layout = lambda c: lambda: layout.sheet_layout(c["layout"])
+    return ([(c, run_fix(c)) for c in fix] + [({"id": f"{split}:odd:{k}", "odd": o}, run_odd(o[0])) for k, o in enumerate(odd)]
+            + [(c, run_layout(c)) for c in layout_cases(split, repo)])
+
+
+def _schema(case):
+    """The answer format a case's requests ask for, and its name."""
+    return ((layout.SCHEMA, "layout") if "layout" in case else (client.ODD_SCHEMA, "odd") if "odd" in case
+            else (client.FIX_SCHEMA, "fix"))
 
 
 class Stop(Exception):
@@ -523,6 +561,10 @@ def main(argv):
     splits = list(SPLITS) if arg("--split", "dev") == "both" else [arg("--split", "dev")]
     arms, runs, cap, out = arg("--arms", "base").split(","), int(arg("--runs", 3)), int(arg("--max-requests", 200)), arg("--out", "ai-eval-results.jsonl")
     dry = "--dry-run" in argv
+    for split, flag in (("dev", "--layout-dev"), ("held", "--layout-held")):  # AH-215
+        LAYOUT[split] = [d for d in arg(flag, "").split(",") if d]
+    LABELS.clear()
+    LABELS.update(json.loads(Path(arg("--layout-labels", "")).read_text(encoding="utf-8")) if arg("--layout-labels", "") else {})
     if "--retrieval" in argv:  # AH-153: the offline retrieval benchmark, no key, no request
         for s in splits:
             print(f"retrieval/{s}: recall@1 " + ", ".join(f"{k} {v}" for k, v in retrieval(s, repo).items()))
@@ -556,8 +598,7 @@ def main(argv):
                 reused[(a, s)] = reused.get((a, s), 0) + 1
                 continue
             seen.add((s, _request(a, ps)))
-            sizes[(a, s)].extend(len(client._wire(p, client.ODD_SCHEMA if "odd" in c else client.FIX_SCHEMA,
-                                                  "odd" if "odd" in c else "fix")) for p in ps)
+            sizes[(a, s)].extend(len(client._wire(p, *_schema(c))) for p in ps)
     for (a, s), b in sizes.items():
         print(f"{a}/{s}: {len(b)} requests per run x {runs} runs = {len(b) * runs}, largest {max(b, default=0)} bytes, total {sum(b) * runs} bytes"
               + (f", {reused[(a, s)]} reuse an identical request" if reused.get((a, s)) else ""))
@@ -622,6 +663,11 @@ def main(argv):
             if err is None:
                 asked[(s, r, rq)] = json.loads(json.dumps(line, default=str))
     print(summary(out, {c["id"]: c for s in splits for c, _ in cases[s]}))
+    if arg("--layout-hints-out", ""):  # AH-215: base's first run of Read layout answers, as complex/scan.py --hints reads them
+        ids = {c["id"]: c["key"] for s in splits for c, _ in cases[s] if "layout" in c}
+        with open(out, encoding="utf-8") as f:
+            got = {ids[x["case"]]: x["answer"] for x in map(json.loads, f) if x["case"] in ids and x["arm"] == tag("base") and x["run"] == 0 and x["answer"]}
+        Path(arg("--layout-hints-out", "")).write_text(json.dumps(got, indent=1), encoding="utf-8")
     return 0
 
 
@@ -633,6 +679,11 @@ def _request(arm, prompts):
 def score(case, rec):
     """One run of one case -> its numbers."""
     both = {"cut": any(w["finish"] == "length" for w in rec["wire"]), "latency": sum(w["latency"] for w in rec["wire"])}
+    if "layout" in case:  # AH-215: the rows hinted, against the oracle's when there is one
+        rows = lambda a: {(h["table"], i) for h in (a or {}).get("rows", []) for i in range(h["first"], h["last"] + 1)}
+        got, want = rec["answer"], case.get("label") or {}
+        return {**both, "ok": got is not None and rows(got) == rows(want),
+                "hint_rows": len(rows(got)), "right_rows": len(rows(got) & rows(want)), "label_rows": len(rows(want))}
     if "odd" in case:
         _, clear, subtle, quiet = case["odd"]
         got = {o["value"] for o in rec["answer"]["odd"]} if rec["answer"] else set()
@@ -670,7 +721,8 @@ def summary(path, cases):
         m = {cid: sum(r["ok"] for r in rs) * 2 > len(rs) for cid, rs in per.items()}
         maj[(a, s)] = m
         allr = [r for rs in per.values() for r in rs]
-        fixr = [r for cid, rs in per.items() if "odd" not in cases[cid] for r in rs]
+        fixr = [r for cid, rs in per.items() if "odd" not in cases[cid] and "layout" not in cases[cid] for r in rs]
+        layr = [r for cid, rs in per.items() if "layout" in cases[cid] for r in rs]
         oddr = [r for cid, rs in per.items() if "odd" in cases[cid] for r in rs]
         lat = sorted(r["latency"] for r in fixr) or [0]
         lines.append(f"{a}/{s}: right {sum(m.values())}/{len(m)} cases (majority of runs) | per run: invented {sum(r['invented'] for r in fixr)}, "
@@ -678,7 +730,9 @@ def summary(path, cases):
                      f"injection obeyed raw {sum(r['obeyed_raw'] for r in fixr)} / after guards {sum(r['obeyed'] for r in fixr)}, "
                      f"cut off {sum(r['cut'] for r in allr)}, latency p50 {statistics.median(lat):.1f} s p90 {lat[int(0.9 * (len(lat) - 1))]:.1f} s | "
                      f"words: clear {sum(r['clear'] for r in oddr)}, subtle {sum(r['subtle'] for r in oddr)}, false {sum(r['false'] for r in oddr)}, "
-                     f"look-alikes {sum(r['lookalike'] for r in oddr)}")
+                     f"look-alikes {sum(r['lookalike'] for r in oddr)}"
+                     + (f" | layout (per run): rows hinted {sum(r['hint_rows'] for r in layr)}, as the oracle {sum(r['right_rows'] for r in layr)} "
+                        f"of its {sum(r['label_rows'] for r in layr)}" if layr else ""))
         kinds = {}
         for cid, ok in m.items():
             if "card" in cases[cid]:

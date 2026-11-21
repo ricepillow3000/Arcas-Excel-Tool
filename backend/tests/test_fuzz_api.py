@@ -12,7 +12,7 @@ from schemathesis.checks import not_a_server_error
 from schemathesis.specs.openapi.checks import (content_type_conformance, negative_data_rejection,
                                                response_schema_conformance, status_code_conformance)
 
-from anomaly_hunter.ai import client
+from anomaly_hunter.ai import client, layout
 from anomaly_hunter.server import create_app
 
 SPEC = Path(__file__).resolve().parents[1] / "openapi.yaml"
@@ -49,6 +49,10 @@ def test_no_input_breaks_the_engine(case, monkeypatch):
     monkeypatch.setattr(client, "odd_text", lambda values: ([{"column": c, "value": v[0], "why": "stub"} for c, v in values.items()], False))
     # AH-202: a rule of each kind over the headers sent, so the engine's own check of them is attacked too
     monkeypatch.setattr(client, "subject_rules", lambda heads: (stub_rules([h for h, _ in heads]), len(heads)))
+    # AH-215: the AI's answer stubbed below the engine's own shaping and guards, which the attack reaches: a hint in range
+    # and one past every limit
+    monkeypatch.setattr(client, "_ask", lambda prompt, *a, **k: layout.Layout(
+        rows=[layout.Row(table=0, first=0, last=0, kind="note", why="stub"), layout.Row(table=99, first=-1, last=10 ** 9, kind="x", why="")]))
     response = case.call()
     assert response.status_code != 403, "the origin gate refused the attack - it would test nothing"
     case.validate_response(response, checks=[not_a_server_error, status_code_conformance, content_type_conformance,

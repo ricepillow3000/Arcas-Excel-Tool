@@ -27,7 +27,7 @@ from werkzeug.serving import WSGIRequestHandler
 
 from anomaly_hunter import powerbi, sealed
 from anomaly_hunter.agents import checker, scan_agent
-from anomaly_hunter.ai import care, client
+from anomaly_hunter.ai import care, client, layout
 from anomaly_hunter.engine import rules
 from anomaly_hunter.engine.load import load_from_records
 from anomaly_hunter.engine.pipeline import KINDS, knobs
@@ -403,6 +403,33 @@ def create_app(scan_csv=None):
             checked, rows = rules.check(df, types, heads, asked)
             return {"rules": checked, "rows": rows, "sent": sent, "headers": len(heads)}
         return ai(found)
+
+    @app.post("/layout")
+    def layout_route():
+        """AH-215: Read layout with AI. Each table the pane's layout reader found, its rows, formulas and where it sits;
+        only its layout goes to the AI, never a cell's value (ai/layout.py). Every table is checked before any work."""
+        body = request.get_json(silent=True)
+        tables = body.get("tables") if isinstance(body, dict) else None
+        if not (isinstance(tables, list) and 0 < len(tables) <= layout.BODY):
+            return {"error": f"'tables' must be a list of 1 to {layout.BODY} tables"}, 400
+        cells = 0
+        for t in tables:
+            if not isinstance(t, dict):
+                return {"error": "each table must be {columns, rows, formulas, start_row, start_col}"}, 400
+            if err := _bad({"columns": t.get("columns"), "rows": t.get("rows")}):
+                return {"error": err}, 400
+            n, w, calc = len(t["rows"]), len(t["columns"]), t.get("formulas")
+            if calc is not None and not (isinstance(calc, list) and len(calc) == n and all(isinstance(r, list) and len(r) == w and all(
+                    f is None or (type(f) is str and f[:1] == "=" and len(f) <= EXCEL_FORMULA) for f in r) for r in calc)):
+                return {"error": f"a table's 'formulas' must be shaped like its 'rows', each cell null or \"=...\" of at most "
+                                 f"{EXCEL_FORMULA:,} characters"}, 400
+            at, col = t.get("start_row"), t.get("start_col")
+            if not (type(at) is int and 0 <= at and at + 1 + n <= EXCEL_ROWS and type(col) is int and 0 <= col and col + w <= EXCEL_COLUMNS):
+                return {"error": "a table's 'start_row' and 'start_col' must place it inside the sheet"}, 400
+            cells += n * w
+        if cells > MAX_CELLS:
+            return {"error": f"That's too many cells for one request. Select at most {MAX_CELLS:,} cells and try again."}, 400
+        return ai(lambda: layout.sheet_layout(tables))
 
     @app.post("/check")
     def check_route():

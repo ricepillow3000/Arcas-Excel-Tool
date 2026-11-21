@@ -24,6 +24,10 @@ class H(BaseHTTPRequestHandler):
                               "target": names[-1], "factors": names[-3:-1]},
                              {**rule, "kind": "order", "why": "not in the sheet", "first": "Ship date", "then": names[0]}]}
             return self.reply(body, ans)
+        if "layout of the tables" in prompt:  # /layout (AH-215): row 22 of the first table a note, with markup in "why", and
+            row = {"table": 0, "kind": "note"}  # a row past every table, which the engine must drop
+            return self.reply(body, {"rows": [{**row, "first": 20, "last": 20, "why": "<img src=x onerror=window.__pwned=3> a note"},
+                                              {**row, "first": 9999, "last": 9999, "why": "not in the sheet"}]})
         flagged =re.search(r"Flagged row (\d+):", prompt).group(1)
         rng = re.search(r"Data range: (\S+)", prompt).group(1)
         last = rng.split(":")[1][1:]

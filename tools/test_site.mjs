@@ -549,7 +549,7 @@ for (const f of SCRIPTS) {
   // the home page's questions: how to tell which Excel you have, and what leaves the PC, in plain words
   const faq = sections["faq"] || "";
   assert.ok(text(faq).includes("To check, open Excel and click File > Account. If it says Microsoft 365 under Product information, you have the right Excel. Click About Excel: the first line ends with 64-bit or 32-bit."), "the FAQ does not say how to check which Excel you have");
-  assert.ok(text(faq).includes("No, not when it checks your sheet. Arcas does all its checking on your own computer and sends nothing. Part of your sheet leaves your computer only when you click Ask AI, Check words with AI or Check subject rules with AI. Then it goes to Google, through John's own server first unless you saved your own Google key. The privacy page lists exactly what goes."), "the FAQ's data answer");
+  assert.ok(text(faq).includes("No, not when it checks your sheet. Arcas does all its checking on your own computer and sends nothing. Part of your sheet leaves your computer only when you click Ask AI, Check words with AI, Check subject rules with AI or Read layout with AI. Then it goes to Google, through John's own server first unless you saved your own Google key. The privacy page lists exactly what goes."), "the FAQ's data answer");
   // a phone can't install it: said under the hero's download, on narrow screens only
   // ... with the same email to oneself (AH-171): a shared link mostly opens on a phone, where it was a dead end
   const phoneLine = /<div class="hero-cta">[\s\S]*?<\/div>\s*<p class="phone-only">Arcas runs on a Windows computer\. Open this page on that computer to download it, or <a href="([^"]+)">email yourself the link<\/a>\.<\/p>/.exec(home);
@@ -819,7 +819,10 @@ function woff2(file) {
   // the checks stopped, never the values (76 bytes gzipped; a promise test_privacy_promises.py holds word for word)
   // AH-206 raised privacy.html's by 150: the twins' sentences that Ask AI swaps emails, phone numbers, SSNs and card
   // numbers for stand-ins on this PC and that Check words sends its words as they are (127 bytes gzipped, held the same way)
-  const CAPS = { "index.html": 89900, "privacy.html": 85750, "support.html": 82400, "terms.html": 79400, "thanks.html": 78200, "checks.html": 79500, "cases.html": 79200, "code-signing.html": 78900 };
+  // AH-215 raised index.html's by 50 and privacy.html's by 150: Read layout with AI named among the buttons that send part of
+  // the sheet (the FAQ's answer and its structured data, the download's facts), and the privacy twins' sentence of what it
+  // sends (6 and 72 bytes gzipped over the caps; every "only when you click" list must name every button that sends)
+  const CAPS = { "index.html": 89950, "privacy.html": 85900, "support.html": 82400, "terms.html": 79400, "thanks.html": 78200, "checks.html": 79500, "cases.html": 79200, "code-signing.html": 78900 };
   for (const p of PAGES) {
     const files = [p, ...new Set([...html[p].matchAll(/\s(?:src|href)="([a-z-]+\.(?:css|js))"/g)].map((m) => m[1]))];
     const sizes = files.map((f) => [f, zlib.gzipSync(fs.readFileSync(path.join(SITE, f)), { level: 9 }).length]);

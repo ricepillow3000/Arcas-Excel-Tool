@@ -16,5 +16,6 @@ export const state = {
   aiProvider: null, // the engine's /health ai_provider: "gemini", "relay", "claude", "free" (AH-151) or null
   working: false, // one sheet action at a time; while one runs the buttons are disabled, never silently queued
   view: null, // which page is showing
+  layoutHints: Object.create(null), // AH-215: {sheet: what Read layout with AI found}, this session only, never saved
 };
 globalThis.__state = state; // the browser tests reach in (e.g. "pane reopened" = forget what was painted)

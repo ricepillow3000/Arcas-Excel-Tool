@@ -8,7 +8,7 @@ Arcas is made and run by John Nguyen (GitHub: ricepillow3000). To reach him, use
 opens a question form on GitHub, email john4000.nguyen@gmail.com, or call (770) 265-9930. An email to John goes to his Gmail, so Google's terms apply to it.
 
 A scan runs on your PC and sends nothing to the internet. Your sheet's data leaves your PC only when you click
-**Ask AI**, **Check words with AI** or **Check subject rules with AI**. There are no accounts and no cookies, and the add-in has no analytics and no tracking. Only this project's website may count its page views, with GoatCounter (see who else sees something).
+**Ask AI**, **Check words with AI**, **Check subject rules with AI** or **Read layout with AI**. There are no accounts and no cookies, and the add-in has no analytics and no tracking. Only this project's website may count its page views, with GoatCounter (see who else sees something).
 
 ## Always on this PC
 - The scan runs in the engine at `https://127.0.0.1:5055`: Excel hands it the sheet, and it answers only this PC. Websites
@@ -81,6 +81,12 @@ can be charged by Google for what AI help uses; without billing, the free tier c
 - **Check subject rules with AI** sends your column headers (the first 200, each cut to 100 characters) and whether each
   column holds numbers, dates, text or IDs. It never sends a cell. Arcas checks each rule the AI names on every row on
   this PC. Headers can include names of people or places.
+- **Read layout with AI** sends the layout of the first 8 tables on the sheet: where each sits, its column headers
+  (each cut to 100 characters), whether each column holds numbers, dates, text or IDs, and for the first 200 rows of
+  each, whether each cell is a number, a date, text, a formula or blank, each formula with its numbers and text
+  hidden. It never sends a cell's value. A formula's cell references, its functions and the names of the ranges and
+  tables it reads go as written. The pane keeps the AI's answer only until it closes, and the next Find problems on
+  that sheet leaves out the rows it names and says which. Headers can include names of people or places.
 - If what you type to Ask AI reads as someone in crisis, the pane shows helpline numbers instead and
   sends nothing to the AI.
 - Where it goes:
@@ -124,7 +130,7 @@ can be charged by Google for what AI help uses; without billing, the free tier c
 ## Your control
 - **Remove key** (in the pane) deletes the key and invite code saved in `%LOCALAPPDATA%\AnomalyHunter`. Scans and
   fixes keep working, and AI help goes back to John's free AI, which sends nothing until you click Ask AI, Check
-  words with AI or Check subject rules with AI. An invite kit keeps its own copy, and running its install.bat again turns AI help back on, so
+  words with AI, Check subject rules with AI or Read layout with AI. An invite kit keeps its own copy, and running its install.bat again turns AI help back on, so
   also delete `invite-code.txt` from the kit folder. A `GEMINI_API_KEY` or `ANTHROPIC_API_KEY` setting keeps AI help on.
 - You can delete `ai-cache`, `server.log` or `server.log.1` in the folder above whenever you like.
 - **Forget what this workbook saved** (in the pane, under Options > Saved in this workbook) removes everything the pane
