@@ -85,3 +85,13 @@ def test_a_huge_amount_in_an_entry_that_does_not_balance_is_still_a_slip():
     rows[31][4] = round(rows[31][4] * 100, 2)  # the revenue typed 100x: the entry is off by it
     out = scan(rows)
     assert out[31]["severity"] == "Medium" and "Credit" in out[31]["cells"]
+
+
+def test_a_balanced_entry_100_times_its_accounts_usual_size_is_worth_a_check_never_a_slip():
+    # AH-215: once each account kept its own normal (by_scale at 2x), a real entry 100x the usual one, its debits equal
+    # to its credits, was Medium as "a slip of zeros": the balance that confirms it was read only by the limits
+    rows = journal()
+    for i in (30, 31, 32):
+        rows[i] = [v * 100 if isinstance(v, float) else v for v in rows[i]]
+    out = scan(rows)
+    assert sure(out) == {}, {i: out[i]["reason"] for i in sure(out)}

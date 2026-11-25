@@ -4,7 +4,7 @@ nothing the scan finds."""
 from anomaly_hunter.engine import fairness
 from anomaly_hunter.engine.detectors import series_gate
 from anomaly_hunter.engine.load import load_from_records, numbers
-from anomaly_hunter.engine.pipeline import _survey, named_totals
+from anomaly_hunter.engine.pipeline import _survey, named_totals, scale_groups, summary_rows
 
 
 def _names(cols, most=5):
@@ -32,11 +32,15 @@ def profile(columns, rows):
              "totals": named_totals(nums) if len(nums) > 3 else [],  # pipeline._totals reads 4+ number columns
              "dates": [c for c, t in types.items() if t == "date"], "ids": [c for c, t in types.items() if t == "id"],
              "no_value": {c: w for c, (_, w) in df.attrs["no_value"].items()},
-             "codes": {c: int(code) for c, (_, code) in df.attrs["codes"].items()}}
+             "codes": {c: int(code) for c, (_, code) in df.attrs["codes"].items()},
+             # AH-215 ("show why"): a column whose groups each keep their own normal, and the column that names them
+             "by_group": {c: g for c, (g, _, _) in scale_groups(df, types, summary_rows(df)).items()}}
     kind = ("a survey of people" if about["people"] and about["survey"] else "a survey" if about["survey"]
             else "a list of people" if about["people"] else f"a time series by {by}" if about["series"]
             else f"a list of transactions (many rows share each {by})" if ledger else "a table")
-    lines = [f"This sheet looks like {kind}."]
+    lines = [f"This sheet looks like {kind}." + "".join(
+        f" {_names([c for c, h in about['by_group'].items() if h == g])} judged within each {g}."
+        for g in dict.fromkeys(about["by_group"].values()))]
     lines.append(f"Fairness will compare {_names(['flagged rows', *outcomes, *amounts])} across {_names(prot)}." if prot
                  else "No column says who the rows are, so no fairness check will run.")
     if about["totals"]:

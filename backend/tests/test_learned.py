@@ -115,3 +115,23 @@ def test_a_row_the_user_dismissed_keeps_its_own_reasons_and_what_it_taught_is_fo
         "accept": [["Glass", "Highball Glass"], ["Units", "7777"]], "ignore": [["spelling", "Glass"]]}})
     flagged = {i for i, row in enumerate(r.get_json()["rows"]) if row["severity"] in ("High", "Medium", "Low")}
     assert {5, 30} <= flagged and not {40, 77, 120, 160} & flagged
+
+
+
+def test_a_user_who_dismisses_every_flag_still_has_new_mistakes_caught():
+    # AH-215 (the ML engineer, John 2026-11-25: "if people dismiss flags they don't want to deal with, the tool learns to
+    # stop flagging real errors"): a Dismiss teaches only the exact value in its column, and never a sum, an order, a
+    # record, a formula, a duplicate or a blank (ONE_CELL), so a user who dismisses every flag on the sheet still sees
+    # the next slip of each kind
+    columns, rows = sheet()
+    app = create_app().test_client()
+    first = app.post("/scan", json={"columns": columns, "rows": rows}).get_json()["rows"]
+    lazy = [[c, str(rows[i][columns.index(c)])] for i, r in enumerate(first) if r["severity"] in ("High", "Medium", "Low")
+            for c in r["cells"]]
+    assert len(lazy) >= 4
+    rows[50][2], rows[150][5], rows[170][1], rows[180][2] = 6100, 999.0, "Higball glass", ""  # the next day's slips
+    out = app.post("/scan", json={"columns": columns, "rows": rows, "learned": {"accept": lazy}}).get_json()["rows"]
+    assert all(out[i]["severity"] in ("High", "Medium", "Low") for i in (50, 150, 170, 180)), \
+        {i: out[i]["reason"] for i in (50, 150, 170, 180)}
+    # ...and the very values dismissed are quiet, as AH-205 promised
+    assert all(out[i]["severity"] not in ("High", "Medium") for i in (30, 100) if [columns[2], str(rows[i][2])] in lazy)

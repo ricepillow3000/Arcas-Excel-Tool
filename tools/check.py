@@ -1,6 +1,6 @@
 """Every gate, in layers, fastest first - run before every commit: python tools/check.py [--e2e] [--keep-going]
 0 CI workflows parse  1 security lint (ruff, Bandit rules), secrets anywhere in the git history, every mutant's text in its file once  2 pane self-check, website links and scripts  3 relay abuse tests and load test  4 engine tests + API fuzzing
-5 accuracy: the industry bench and the blind 14-domain bench (gates: no crash, no harmful fix, no new Medium+ false alarm)
+5 accuracy: the industry bench and the blind 14-domain bench (gates: no crash, no harmful fix, no new Medium+ false alarm), the group scorecard
 6 dependencies with known vulnerabilities (needs the internet)  7 browser e2e and the website in a browser, with --e2e (needs .venv + playwright)
 8 mutation testing, with --mutate: every guard broken on purpose must turn a test red (tools/mutate.py; --e2e adds the browser's mutants)
 Stops at the first red layer (a broken base hides the real failure); --keep-going runs them all. Exit 1 = a red layer."""
@@ -29,6 +29,8 @@ LAYERS = [
     ("engine tests + fuzzing", [PY, "-m", "pytest", "-q", "backend/tests"]),
     ("industry bench", [PY, "backend/bench/score.py", "."]),
     ("blind 14-domain bench", [PY, "backend/bench/score.py", ".", "--blind"]),
+    # AH-215: the benches grade every planted slip together, so a small group's misses hid among the big group's catches
+    ("group scorecard", [PY, "backend/bench/groups.py", "."]),
     ("known-vulnerable dependencies", [PY, "-m", "pip_audit", "--skip-editable"]),
     # every pin too, not only what this PC installed: setuptools (the build tool) and the Windows-only pins are never
     # installed here, and setuptools 84.0.0 carried GHSA-xmj3-9gf7-h52w while the line above was green (AH-96)
