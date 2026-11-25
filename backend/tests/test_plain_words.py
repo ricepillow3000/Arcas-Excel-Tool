@@ -471,3 +471,22 @@ def test_the_praise_reader_catches_what_a_fake_testimonial_looks_like():
 def test_no_page_carries_a_testimonial_a_rating_or_a_user_count():
     found = praise()
     assert found == [], "made-up praise:\n" + "\n".join(found)
+
+
+# ---- The reasons a scan gives (AH-228 P-12) ----
+# The pane shows each reason word for word, so a dash in one is a dash on screen: "Day 7.3 is not a whole number -
+# every other Day is" went past the page reader, which never reads the engine. Every Why(...) sentence, {} slots as "x"
+def reason_sentences():
+    out = []
+    for f in sorted((ROOT / "backend/anomaly_hunter/engine").glob("*.py")):
+        for node in ast.walk(ast.parse(f.read_text(encoding="utf-8"))):
+            if isinstance(node, ast.Call) and getattr(node.func, "id", None) == "Why" and node.args:
+                out += [(f"{f.relative_to(ROOT).as_posix()}:{node.lineno}", t) for t in _texts(node.args[0], {}, {})]
+    return out
+
+
+def test_no_reason_the_engine_gives_uses_a_dash():
+    said = reason_sentences()
+    assert len(said) > 50 and any("is not a whole number" in t for _, t in said)
+    found = [f"{w}: {t!r}" for w, t in said if DASHES.search(t) or " - " in " ".join(t.split())]
+    assert found == [], f"{len(found)} reasons with a dash:\n" + "\n".join(found)

@@ -158,10 +158,10 @@ const HINTS = [
   // AH-178: one column at most another on every other row; which of the two cells is wrong is unknown, so no value is written
   [/ is above .+, where .+ is at most .+ on \d+ of \d+ rows$/, "two values typed in each other's place (a Low and its High, " +
     "a 10th and a 90th percentile) or one mistyped value is the usual cause; check both cells against the source"],
-  [/ looks like a code, not a real value/, 'a code like 99999 often stands for "missing": put the real value or leave the cell empty'],
-  [/ is above 100% - /, "it may be a whole percent typed where a fraction belongs (85 for 0.85)"],
+  [/ is all 9s: often a stand-in for no value/, 'a code like 99999 often stands for "missing": put the real value or leave the cell empty'],
+  [/ is above 100%: /, "it may be a whole percent typed where a fraction belongs (85 for 0.85)"],
   [/ looks like an? .+ value$/, "it may have been typed into the wrong column"],
-  [/ is not a whole number - /, "check the decimal point"],
+  [/ is not a whole number: /, "check the decimal point"],
   // AH-152: a typed value or another formula among a column's formulas; the card never says "fix the cells it uses"
   [/ is (?:a typed number|typed text) where the column's other rows use a formula$/, "a value typed over the column's formula " +
     "stays the same when its inputs change; Accept puts the column's formula back in this cell"],
@@ -181,7 +181,7 @@ const HINTS = [
   [/ is "([^"]+)" \(no value\) in \d+ of \d+ rows$/, (m) => `a word written this often and this spread out is usually how the ` +
     `source says a value is not known, not a slip; if the column must always hold a value, filter it for "${m[1]}" and fill those in`],
   // AH-48: many identical rows through a sheet with no ID, one note for them all
-  [/ rows repeat an earlier row exactly, all through the sheet - /, "this many, spread out, are usually separate real records " +
+  [/ rows repeat an earlier row exactly, all through the sheet: /, "this many, spread out, are usually separate real records " +
     "that happen to match (nothing like an ID tells them apart); if every row must be unique, check them, then use Data > Remove Duplicates"],
   // AH-56: an unfinished record, a survey's skipped question, and many blanks where a layout would fill the column
   [/ usually filled cells in this row are blank: an unfinished record/, "the rest of this record was never entered; fill it in " +

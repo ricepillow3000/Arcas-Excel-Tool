@@ -7,6 +7,7 @@
   // as the user (__edit, __paste) comes with triggerSource "Unknown", any other is the pane's own: "ThisLocalAddin"
   const bookChanged = []; let byUser = false;
   const bookSelected = []; // AH-218: the workbook's onSelectionChanged handlers, told {address, worksheetId} on any tab
+  const bookActivated = []; // AH-228 P-15: the workbook's onActivated handlers, told {worksheetId} when __activate brings a tab in front
   // "=B2*C3" in cell (r, c) -> "=RC[-2]*R[1]C[-1]", as Excel's formulasR1C1 gives it (AH-152); "$B$2" -> "R2C2"
   const r1c1 = (f, r, c) => f.replace(/(?<![A-Za-z_\d])(\$?)([A-Z]{1,3})(\$?)(\d+)(?![\d(A-Za-z_])/g, (m, ca, col, ra, row) => {
     const [rr, cc] = parse(col + row), rel = (d) => (d ? `[${d}]` : "");
@@ -81,6 +82,7 @@
     load() { return this; }, get items() { return Object.values(sheets); }, // in the order the tabs were made
     onChanged: { add: (h) => { bookChanged.push(h); return handle(bookChanged, h); } },
     onSelectionChanged: { add: (h) => { bookSelected.push(h); return handle(bookSelected, h); } },
+    onActivated: { add: (h) => { bookActivated.push(h); return handle(bookActivated, h); } },
   } };
   sheets.Sheet1 = makeSheet("Sheet1");
   const settings = {};
@@ -140,6 +142,6 @@
   window.__formula = (name, a, f) => { const [r, c] = parse(a); sheets[name].cell(r, c).f = f; }; // value stays as loaded
   window.__cell = (name, a) => { const [r, c] = parse(a); const k = sheets[name].cells[r + "," + c] || {}; return { v: k.v, f: k.f, fill: k.fill }; };
   window.__userSelect = (name, address) => { sheets[name].selected.forEach((h) => h({ address })); bookSelected.forEach((h) => h({ address, worksheetId: name })); };
-  window.__activate = (n) => (active = n);
+  window.__activate = (n) => { active = n; setTimeout(() => bookActivated.forEach((h) => h({ worksheetId: n, type: "WorksheetActivated" }))); };
   window.__log = log; window.__settings = settings; window.__handlers = (n) => sheets[n].selected.length;
 })();

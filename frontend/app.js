@@ -6,8 +6,8 @@ import { $, show, only } from "./utils/dom.js";
 import { act, oneClickEach } from "./hooks/use-action.js";
 import { getHealth } from "./services/api.js";
 import { activeSheet, saveLimits } from "./services/excel.js";
-import { powerBiOn, runScan, sayLastScan, setPowerBi } from "./features/scan.js";
-import { clearHighlights } from "./features/highlight.js";
+import { otherTabSaid, powerBiOn, runScan, sayLastScan, setPowerBi, stopScan } from "./features/scan.js";
+import { toggleHighlights } from "./features/highlight.js";
 import { applyFix, undoFix } from "./features/fix.js";
 import { setAi, askFix, checkWords, checkRules } from "./features/ai.js";
 import { openLimitsEditor, saveLimitsAndRescan } from "./pages/limits.js";
@@ -15,7 +15,7 @@ import { backToList, dismissFix, muteFix, nextFix } from "./pages/fix.js";
 import { initStrength } from "./pages/strength.js";
 import { autoOn, setAuto, autoUndo, undoAutoFix } from "./features/autofix.js";
 import { notice } from "./components/progress.js";
-import { n } from "./utils/text.js";
+import { n, versionSaid } from "./utils/text.js";
 import { initSettings } from "./pages/settings.js";
 import { initMotion } from "./components/motion.js";
 import { plainError } from "./utils/errors.js";
@@ -45,7 +45,8 @@ else {
     oneClickEach();
     $("scan").onclick = act(() => runScan(true, true)); // held: the skeleton stays long enough to be seen
     $("retry-health").onclick = () => checkHealth();
-    $("clear-highlights").onclick = act(clearHighlights);
+    $("clear-highlights").onclick = act(toggleHighlights); // AH-228 P-38: Remove highlights, then Show highlights again
+    $("stop-scan").onclick = stopScan; // AH-228 P-28
     $("edit-limits").onclick = act(openLimitsEditor); // AH-170: like every action, it clears the last one's notice
     $("cancel-limits").onclick = () => only(state.lastScan ? "results" : "empty-state");
     $("save-limits").onclick = act(saveLimitsAndRescan);
@@ -82,6 +83,7 @@ else {
     });
     show("undo-auto", !!autoUndo());
     activeSheet().then((name) => { $("sheet-name").textContent = name; }).catch(() => {}); // Excel refuses while a cell is being typed in: the name stays blank until the first scan (AH-58)
+    followTabs();
     initLive(); // AH-181: check as you work
     initHistory(); // AH-218: the fixes accepted in this workbook, each with its Undo
     only("empty-state");
@@ -108,12 +110,13 @@ async function checkHealth(auto = false) {
     if (me !== asked) return;
     setAi(h.ai_available, h.ai_provider);
     // which engine answers: an old one gave 2 of 279 on a credit sheet and looked just like a new one (2026-10-15)
-    $("engine-version").textContent = `Engine ${h.version || "from before 2026-10-15: update it"}`;
+    $("engine-version").textContent = versionSaid(h.version); // AH-228 P-31: in plain words
     // AH-169: what a scan will check, before it. The main view waits for its lines, a second at most, the start-up
     // skeleton standing in, so they land with it: shown first, a 300-row sheet's lines grew the box 33 px under the
     // options and the footer (CLS 0.0156, AH-193 fix round). Past the second it says "Reading your sheet…", held
     if (state.view === "empty-state" && !state.lastScan) await Promise.race([sayProfile(), new Promise((go) => setTimeout(go, 1000))]);
     if (me !== asked) return;
+    if ($("main-ui").hidden && $("notice").textContent.startsWith("Arcas has stopped")) notice(""); // back: that is past
     show("main-ui");
     show("server-down", false);
     moveTo("scan");
@@ -121,7 +124,36 @@ async function checkHealth(auto = false) {
     if (me !== asked) return;
     show("main-ui", false);
     show("server-down");
+    show("retrying", Date.now() < until); // only while it does (AH-228 P-24)
     moveTo("retry-health");
     if (Date.now() < until) again = setTimeout(() => checkHealth(true), AGAIN);
   }
+}
+
+// AH-228 P-24: a call that found Arcas stopped asks /health at once. Still down, the pane says so the one way, #server-down,
+// and asks again by itself; a call that was only cut short leaves the pane as it is
+document.addEventListener("arcas-stopped", () => { getHealth().catch(() => checkHealth()); });
+
+// AH-228 P-15: the header names the tab in front as it changes (it changed only with a scan), and a list made on another
+// tab says so. Excel tells the pane since ExcelApi 1.7; before it, or while a cell is typed in, the name follows each scan
+async function followTabs() {
+  try {
+    await Excel.run(async (ctx) => {
+      ctx.workbook.worksheets.onActivated.add(tabShown);
+      await ctx.sync();
+    });
+  } catch { /* as before: the name changes with a scan */ }
+}
+
+async function tabShown(e) {
+  const name = await Excel.run(async (ctx) => {
+    const sheet = ctx.workbook.worksheets.getItem(e.worksheetId).load("name");
+    await ctx.sync();
+    return sheet.name;
+  }).catch(() => null);
+  if (!name) return;
+  $("sheet-name").textContent = name;
+  const was = $("notice").textContent, said = state.view === "results" && state.lastScan ? otherTabSaid(state.lastScan.sheet, name) : "";
+  if (said) notice(said);
+  else if (was.startsWith("This list is for ")) notice("");
 }

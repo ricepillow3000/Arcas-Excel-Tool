@@ -31,6 +31,7 @@
 
     <section id="server-down" class="pad" hidden>
       <p><b>Arcas has stopped.</b></p>
+      <p id="retrying">Arcas is trying again by itself.</p>
       <p>Wait half a minute and press Try again. If that doesn't work, open your Downloads folder, double-click <code>Arcas.exe</code>, then press Try again.</p>
       <button id="retry-health" class="secondary">Try again</button>
     </section>
@@ -61,13 +62,13 @@
       <div id="status">
         <div id="busy" role="status" aria-live="polite" hidden>
           <div class="bar"><div id="busy-bar"></div></div>
-          <p id="busy-line"><span id="busy-text"></span><span id="busy-secs" aria-hidden="true"></span></p>
+          <p id="busy-line"><span><span id="busy-text"></span><span id="busy-secs" aria-hidden="true"></span></span><button id="stop-scan" class="link-btn" hidden>Stop</button></p>
         </div>
         <p id="notice" role="status" aria-live="polite"></p>
       </div>
 
       <section id="empty-state" data-enter="left">
-        <p>Click <b>Find problems</b> to check the sheet that is open.</p>
+        <p>Arcas checks the sheet that is open.</p>
         <p id="last-scan" hidden></p>
         <p class="hint">Your data needs a top row of column names (like Date, Amount), with one record per row below it.</p>
         <!-- AH-169: what the sheet looks like and what a scan will check, worked out on this PC (features/profile.js) -->
@@ -109,6 +110,9 @@
         <p id="list-hint" class="hint">Worst first. Click a row to see what's wrong and a suggested fix. Check each one before you accept: you know your data best. The cells to check are coloured in your sheet. This changes no values. Remove highlights takes the colour off.</p>
         <ul id="flagged-list" class="flagged-list"></ul>
         <button id="clear-highlights" class="secondary">Remove highlights</button>
+        <!-- AH-228 P-18: the two AI checks fold under one line, under the list -->
+        <details id="ai-checks" class="more" hidden>
+        <summary>More checks with AI</summary>
         <div id="odd-box" hidden>
           <button id="odd-check" class="secondary">Check words with AI</button>
           <p class="hint">AI spots a word that doesn't fit its column.</p>
@@ -127,22 +131,20 @@
           </details>
           <ul id="rules-list" class="fix-changes"></ul>
         </div>
-        <details class="more">
-          <summary>Exact limits per column (advanced)</summary>
-          <p class="hint">The slider above is the easy way. Here you can set the exact number below or above which a column gets flagged; these win over the slider for that column.</p>
-          <button id="edit-limits" class="secondary">Change limits</button>
         </details>
+        <!-- AH-228 P-35: one press opens the limits; the slider is folded under Find problems, so the words never point "above" -->
+        <button id="edit-limits" class="link-btn">Exact limits per column</button>
       </section>
 
       <section id="limits-editor" hidden>
         <h2>When to flag a number</h2>
-        <p class="hint">A number below <b>Flag below</b> or above <b>Flag above</b> gets flagged. Leave a box empty for no limit.</p>
+        <p class="hint">Flag a number below the first box or above the second. Leave a box empty for no limit. These win over How hard to look for that column.</p>
         <div id="limits-rows"></div>
         <p id="limits-error" class="hint warn" role="alert"></p>
         <button id="save-limits" class="primary">Save and check again</button>
         <div class="row-buttons">
           <button id="cancel-limits" class="secondary">Cancel</button>
-          <button id="auto-limits" class="secondary">Back to automatic</button>
+          <button id="auto-limits" class="secondary">Use automatic limits</button>
         </div>
       </section>
 
@@ -214,25 +216,33 @@
       <details class="more">
         <summary>Power BI (optional)</summary>
         <label class="check"><input type="checkbox" id="power-bi" /> Save each scan for Power BI</label>
-        <p class="hint">Off: Arcas keeps no copy of your sheet. On: after each scan, Arcas saves two files on this PC for Power BI to open. One is a copy of your sheet (latest-scan.csv). The other lists the rows it flagged and the ones you fixed or dismissed (latest-flags.csv). To find them, type <code>%LOCALAPPDATA%\AnomalyHunter</code> in the address bar of File Explorer. Turn this off and the next scan deletes both.</p>
+        <p class="hint">Off: Arcas keeps no copy of your sheet. On: after each scan, Arcas saves a copy of your sheet and its flagged rows on this PC for Power BI to open.</p>
+        <details id="power-bi-files" class="more">
+          <summary>Where the files are</summary>
+          <p class="hint">One is a copy of your sheet (latest-scan.csv). The other lists the rows it flagged and the ones you fixed or dismissed (latest-flags.csv). To find them, type <code>%LOCALAPPDATA%\AnomalyHunter</code> in the address bar of File Explorer. Turn this off and the next scan deletes both.</p>
+        </details>
       </details>
 
       <details id="settings" class="more">
         <summary>AI help (optional, free)</summary>
         <p class="hint">Optional. Arcas finds problems without AI.</p>
         <p id="ai-state" class="hint"></p>
-        <ol class="steps">
-          <li>Open <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> and sign in with a Google account. No credit card.</li>
-          <li>Click <b>Create API key</b> and copy it.</li>
-          <li>Paste it here and click Save.</li>
-        </ol>
-        <p class="hint">Google charges for AI help only if the key's Google project has billing turned on, which means adding a payment card. Without billing, the free tier costs nothing.</p>
-        <input id="ai-key" type="password" autocomplete="off" placeholder="Paste your key" aria-label="Google AI key" />
-        <div class="row-buttons">
-          <button id="save-key" class="secondary">Save key</button>
-          <button id="remove-key" class="secondary">Remove key</button>
-        </div>
-        <p class="hint">If John gave you an invite code (it starts with inv_), paste it in the same box. It uses his shared AI with a daily limit, and his key never reaches this PC.</p>
+        <!-- AH-228 P-10: the steps and the key box fold away: AI help works with no key -->
+        <details id="own-key" class="more">
+          <summary>Use your own Google key</summary>
+          <ol class="steps">
+            <li>Open <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> and sign in with a Google account. No credit card.</li>
+            <li>Click <b>Create API key</b> and copy it.</li>
+            <li>Paste it here and click Save.</li>
+          </ol>
+          <p class="hint">Google charges for AI help only if the key's Google project has billing turned on, which means adding a payment card. Without billing, the free tier costs nothing.</p>
+          <input id="ai-key" type="password" autocomplete="off" placeholder="Paste your key" aria-label="Google AI key" />
+          <div class="row-buttons">
+            <button id="save-key" class="secondary">Save key</button>
+            <button id="remove-key" class="secondary">Remove key</button>
+          </div>
+          <p class="hint">If John, who makes Arcas, gave you an invite code (it starts with inv_), paste it in the same box. It uses his shared AI with a daily limit, and his key never reaches this PC.</p>
+        </details>
         <p class="hint">Google's free tier may use what AI help sends to improve its products, so don't ask AI about private data. The key is stored only on this computer.</p>
         <p class="hint">Ask AI remembers up to 200 fixes you accepted, on this PC and for every workbook: each one's column name, the kind of fix, and the old and new values. Undo takes a fix back out.</p>
         <button id="forget-ai" class="secondary">Forget what the AI learned</button>
@@ -242,7 +252,18 @@
 
       <details class="more">
         <summary>Saved in this workbook</summary>
-        <p class="hint">This workbook keeps the limits you changed, the strength slider, the last auto-fixes with their old values (for Undo auto-fixes), the old values and number formats of the cells you changed with Accept, and what Accept wrote (for Undo), a short code for each row you fixed or dismissed, a short code for each value you dismissed and the checks you stopped (never the values), the subject rules that held (their kind and headers), the numbers of the last check (how many rows it read and flagged, never a value), and a setting that opens this pane with the file. They stay in the file after you uninstall. Forgetting them never changes a cell.</p>
+        <p class="hint">This workbook keeps:</p>
+        <ul id="book-kept" class="hint">
+          <li>the limits you changed and the strength slider</li>
+          <li>the last auto-fixes with their old values (for Undo auto-fixes)</li>
+          <li>the old values and number formats of the cells you changed with Accept, and what Accept wrote (for Undo)</li>
+          <li>a short code for each row you fixed or dismissed</li>
+          <li>a short code for each value you dismissed and the checks you stopped (never the values)</li>
+          <li>the subject rules that held (their kind and headers)</li>
+          <li>the numbers of the last check (how many rows it read and flagged, never a value)</li>
+          <li>a setting that opens this pane with the file</li>
+        </ul>
+        <p class="hint">They stay in the file after you uninstall. Forgetting them never changes a cell.</p>
         <button id="forget-book" class="secondary">Forget what this workbook saved</button>
         <p id="forget-state" class="hint" role="status" aria-live="polite"></p>
       </details>
@@ -255,6 +276,7 @@
         <div class="row-buttons">
           <button id="live-show" class="secondary">Show me</button>
           <button id="live-close" class="secondary">Close</button>
+          <button id="live-more" class="secondary">Check the whole sheet</button>
         </div>
       </div>
 

@@ -3,7 +3,7 @@ import { state } from "../hooks/use-state.js";
 import { $, only, show } from "../utils/dom.js";
 import { n } from "../utils/text.js";
 import { busy, counting, notice } from "../components/progress.js";
-import { post } from "../services/api.js";
+import { post, stopped } from "../services/api.js";
 import { getLimits, readSheet, watchSelection } from "../services/excel.js";
 import { shownAs } from "../utils/sheet.js";
 import { invalidIn, local, sentOf } from "../utils/layout.js";
@@ -32,6 +32,12 @@ export const setPowerBi = (on) => { try { localStorage.setItem(POWER_BI_KEY, on 
 const HOLD = 450;
 const scanning = (on) => $("main-ui").toggleAttribute("data-scanning", on);
 
+// AH-228 P-28: Stop, at the progress line's end while the sheet is read and checked, ends the scan there: the list or the
+// empty state stays as it was, nothing written
+let stopper = null;
+export const stopScan = () => stopper?.abort();
+const stopShown = (on) => { show("stop-scan", on); $("stop-scan").disabled = !on; };
+
 export async function runScan(auto, held = false) { // auto === false: the re-check right after auto-fix (never auto-fixes twice)
   const t0 = Date.now();
   hideProfile(); // the scan says what it found: what it would check goes (AH-169)
@@ -41,17 +47,23 @@ export async function runScan(auto, held = false) { // auto === false: the re-ch
   $("rules-list").replaceChildren(); // AH-202: so are Check subject rules' lines
   if (state.view !== "results") only(state.lastScan ? "results" : "empty-state"); // no fix view left without its row
   scanning(true);
-  $("main-ui").toggleAttribute("data-held", true); // the progress and then "Done" take one held space till the action ends (use-action.js)
+  $("main-ui").toggleAttribute("data-held", true); // the progress takes one held space till the action ends (use-action.js)
+  $("main-ui").toggleAttribute("data-landed", false);
+  stopper = new AbortController();
+  stopShown(true);
   try {
-    await scan(auto, held, t0);
+    await scan(auto, held, t0, stopper.signal);
   } finally {
+    stopShown(false);
+    stopper = null;
     scanning(false);
   }
 }
 
-async function scan(auto, held, t0) {
+async function scan(auto, held, t0, stop) {
   busy("Step 1 of 3: reading your sheet…", 0);
   const s = await readSheet((p) => busy(`Step 1 of 3: reading your sheet… ${Math.round(p * 100)}%`, p));
+  if (stop.aborted) throw stopped();
   if (!s) {
     only("empty-state");
     return notice("Not enough data here. Put a row of column names on top, with at least one row of data below it.");
@@ -61,8 +73,10 @@ async function scan(auto, held, t0) {
   // the scan before this one, to say what a new level changed (not after auto-fix's own re-check: the level is the same)
   const before = auto !== false && state.lastRows ? { level: state.lastStrength, rows: state.lastRows, hashes: state.hashes, sheet: state.lastScan?.sheet } : null;
   const { level, hashes, keys, decided, requests } = await scanRequest(s, powerBiOn());
-  const body = await scanAll(s, requests);
+  const body = await scanAll(s, requests, stop);
   const notes = await bookNotes(s); // AH-180: read before the results land, so nothing moves when they do
+  if (stop.aborted) throw stopped();
+  stopShown(false); // what follows writes the results: no stopping halfway
   if (held) await new Promise((go) => setTimeout(go, Math.max(0, HOLD - (Date.now() - t0))));
   scanning(false); // the results take the skeleton's place
   state.lastStrength = level; // Agent 3 judges fixes at the level this scan used
@@ -73,6 +87,9 @@ async function scan(auto, held, t0) {
   Object.assign(state, { hashes, codes: keys, decided });
   $("sheet-name").textContent = s.sheet;
   renderResults(body.rows, s, body.fairness);
+  // AH-228 P-32: how long it took, in the summary's own line ("Done in 1 second." stood in a box over the results)
+  const secs = Math.max(1, Math.round((Date.now() - t0) / 1000));
+  $("summary").append(` ${checkedIn(secs)}`);
   $("book-notes").replaceChildren(...notes.map((line) => Object.assign(document.createElement("p"), { className: "notice", textContent: line })));
   if (auto !== false) {
     const said = levelChange(before, { level, rows: body.rows, hashes, sheet: s.sheet });
@@ -88,9 +105,10 @@ async function scan(auto, held, t0) {
   sayLastScan();
   await paint(body.rows, s, decided); // a decided row is not highlighted again
   await watchSelection(s.sheet, onSelect);
-  const secs = Math.max(1, Math.round((Date.now() - t0) / 1000));
-  notice(`Done in ${secs} second${secs === 1 ? "" : "s"}.` + (body.power_bi_saved === false
-    ? " The files for Power BI could not be saved. If latest-scan.csv is open in another program, close it, then click Find problems again." : ""));
+  notice(body.power_bi_saved === false
+    ? "The files for Power BI could not be saved. If latest-scan.csv is open in another program, close it, then click Find problems again." : "");
+  // the progress's space stays held over the list once the scan ends with nothing to say, so nothing moves (N12)
+  $("main-ui").toggleAttribute("data-landed", true);
   // a checked workbook reopens with this pane open (Office autoopen; manifest TaskpaneId). Set once: written on every
   // scan it made Excel ask to save a workbook nothing had changed, and opened the pane for everyone it went to (AH-150)
   const settings = Office.context.document.settings;
@@ -138,9 +156,9 @@ export async function scanRequest(s, powerBi) {
 
 // AH-212: each table's /scan, one after another, as one answer: the rows in the sheet's order, each table's limits kept on
 // it (a card judges a row by its own table's), the fairness report of the biggest table
-export async function scanAll(s, requests) {
+export async function scanAll(s, requests, stop = null) {
   const bodies = [];
-  for (const r of requests) bodies.push(await post("/scan", r, 300));
+  for (const r of requests) bodies.push(await post("/scan", r, 300, stop));
   if (bodies.length === 1) return bodies[0];
   s.tables.forEach((t, k) => (t.limits = bodies[k].limits || {}));
   const big = requests.reduce((b, r, k) => (r.rows.length > requests[b].rows.length ? k : b), 0);
@@ -213,6 +231,12 @@ export function levelChange(before, after) {
   return `${head} ${parts.join("; ")}.${hidden}`;
 }
 
+// Pure (AH-228 P-32): how long a scan took, said after the summary
+export const checkedIn = (secs) => `Checked in ${n(secs)} second${secs === 1 ? "" : "s"}.`;
+
+// Pure (AH-228 P-15): the list was made on another tab than the one in front ("" when it is the same)
+export const otherTabSaid = (list, shown) => (list === shown ? "" : `This list is for ${list}. Find problems checks ${shown}.`);
+
 // Pure: the summary sentence
 // Pure (AH-166): the legend's [severity, count] pairs, worst first, only when 2+ severities are listed: one alone repeated
 // the summary ("5 of 300 rows look wrong." over "Probably wrong: 5")
@@ -284,5 +308,8 @@ export function plainReason(reason, names = state.lastScan?.names, sep = "\n") {
     .replace(/Unusual combination of values, mainly (.+?)(?=;|$)/g, "Unusual mix of values, mostly in $1")
     .replace(/ is unusual relative to its local trend near/g, " breaks its usual pattern near")
     .replace(/ 00:00:00/g, "")
-    .split("; ").join(sep), names);
+    .split("; ").filter((line, _, all) => { // AH-228 P-11: one jump said once, in its plainer words
+      const m = / breaks its usual pattern near (.+)$/.exec(line);
+      return !m || !all.includes(`${line.slice(0, m.index)} jumped sharply near ${m[1]}`);
+    }).join(sep), names);
 }

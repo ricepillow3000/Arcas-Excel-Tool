@@ -11,14 +11,22 @@ export async function getHealth(seconds = 10) {
   return r.json();
 }
 
-export async function post(path, body, seconds = 120) { // a stuck engine never leaves the pane waiting forever
+// AH-228 P-28: what a scan stopped by its Stop says
+export const stopped = () => Object.assign(ours("Stopped. Nothing was changed."), { stopped: true });
+
+// AH-228 P-28: `stop`, an AbortSignal, ends the call when the person presses Stop
+export async function post(path, body, seconds = 120, stop = null) { // a stuck engine never leaves the pane waiting forever
+  const timeout = AbortSignal.timeout(seconds * 1000);
   const r = await fetch(SERVER + path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(seconds * 1000),
+    signal: stop ? AbortSignal.any([timeout, stop]) : timeout,
   }).catch((e) => {
+    if (stop?.aborted) throw stopped();
     if (e.name === "TimeoutError") throw ours(`the checker took over ${seconds} seconds. Try again.`);
+    // AH-228 P-24: the pane asks /health at once (app.js): still down, it says so the one way, #server-down, and tries again
+    document.dispatchEvent(new Event("arcas-stopped"));
     // AH-135: as #server-down says it, in words a person with few computer skills can act on. The exe is what most people
     // have, in their Downloads folder; the pane can't tell a source folder or an invite kit from it, so it names only that.
     // "try again", not "press Try again": here it is the button they pressed (Find problems, Accept...)

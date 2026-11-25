@@ -19,7 +19,7 @@ export const LIVE_KEY = "anomalyHunterLive"; // Check as you work (AH-181): this
 export const SOUND_KEY = "anomalyHunterSound"; // its chime: this PC (localStorage), on unless turned off
 
 // What each slider level does, in its own words (2, 4, 6, 8 and 10 once showed the level below's, so 6 opened
-// "Recommended.", AH-20), then what that very level did on the industry bench's 27 sheets (backend/bench: 51 planted
+// "Recommended.", AH-20), each in full (AH-228 P-22: "Plus ..." sent the reader to the levels below), then what that very level did on the industry bench's 27 sheets (backend/bench: 51 planted
 // mistakes, 2,724 fine rows): [found, of them called probably or very likely wrong, fine rows listed as worth a check,
 // fine rows called probably wrong]. Measured, not estimated:
 // backend/tests/test_strength_promise.py scans the bench at every level and fails when a number here is not what the
@@ -27,16 +27,16 @@ export const SOUND_KEY = "anomalyHunterSound"; // its chime: this PC (localStora
 export const MEASURED = {"sheets":27,"planted":51,"fine":2724,"levels":{"0":[43,42,0,0],"1":[44,44,0,0],"2":[44,44,0,0],"3":[51,45,18,0],"4":[51,46,23,0],"5":[51,48,25,0],"6":[51,48,30,0],"7":[51,48,43,0],"8":[51,48,50,0],"9":[51,51,74,0],"10":[51,51,96,3]}};
 export const STRENGTH = [
   [0, "Basics: misspellings, totals that don't add up, duplicates, blanks, text in number columns, obvious typos (extra zeros, minus signs where none belong)."],
-  [1, "Basics, plus numbers far outside their column's usual range."],
-  [2, "A step up from 1: the same checks, with a slightly tighter range."],
-  [3, "Plus sudden jumps in data over time."],
-  [4, "A step up from 3: the same checks, a little tighter."],
-  [5, "Recommended. Plus unusual mixes of values across columns."],
-  [6, "A step past the recommended level: the same checks as 5, a little tighter."],
-  [7, "Stricter: the same mistakes as at 5, plus values a little past their column's usual range to check."],
-  [8, "A step up from 7: the same mistakes as at 5, the same checks as 7, a little tighter."],
-  [9, "Very strict: the same mistakes as at 5, plus anything slightly unusual, so many more rows to check, most of them fine. A few fine rows may even be called probably wrong."],
-  [10, "Strictest: the same mistakes as at 5, everything 9 checks at its tightest: the most rows to check, most of them fine."],
+  [1, "The basics, and numbers far outside their column's usual range."],
+  [2, "The basics, and numbers outside their column's usual range, judged a little tighter than at 1."],
+  [3, "The basics, numbers outside their column's usual range, and sudden jumps in data over time."],
+  [4, "The basics, numbers outside their column's usual range and sudden jumps over time, judged a little tighter than at 3."],
+  [5, "Recommended. The basics, numbers outside their column's usual range, sudden jumps over time, and unusual mixes of values across columns."],
+  [6, "The basics, usual ranges, jumps over time and unusual mixes of values, judged a little tighter than at 5."],
+  [7, "Stricter: the same mistakes as at 5, and values a little past their column's usual range listed to check."],
+  [8, "Stricter still: the same mistakes as at 5, and values a little past their column's usual range listed to check, judged a little tighter than at 7."],
+  [9, "Very strict: the same mistakes as at 5, and anything slightly unusual, so many more rows to check, most of them fine. A few fine rows may even be called probably wrong."],
+  [10, "Strictest: the same mistakes as at 5, and anything slightly unusual at its tightest: the most rows to check, most of them fine."],
 ];
 
 export const SEV = { High: "Very likely wrong", Medium: "Probably wrong", Low: "Worth a check" }; // Noted = fine, not shown
