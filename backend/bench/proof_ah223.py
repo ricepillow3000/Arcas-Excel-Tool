@@ -1,5 +1,5 @@
-"""AH-215 proof: does the scan adapt to what the sheet is about, to its groups and to what the user taught it?
-Run once against each engine and compare: python backend/bench/proof_ah215.py <repo>  (main, then this branch).
+"""AH-223 proof: does the scan adapt to what the sheet is about, to its groups and to what the user taught it?
+Run once against each engine and compare: python backend/bench/proof_ah223.py <repo>  (main, then this branch).
 
 Four questions, each graded on sheets with planted slips whose true values are known (synthetic only):
 1 subject: does it say what the sheet is, and which column sets each group's normal?

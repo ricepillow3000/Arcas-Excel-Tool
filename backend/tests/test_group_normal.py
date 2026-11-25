@@ -1,4 +1,4 @@
-"""AH-215 (the ML engineer's advice, John 2026-11-25: "judge normal within each group, not across the whole sheet"):
+"""AH-223 (the ML engineer's advice, John 2026-11-25: "judge normal within each group, not across the whole sheet"):
 a small product line priced 3x the big one had its decimal slips (300 -> 30) caught 0 times in 20 and the big line's
 18, because the slip landed inside the big line's prices. A label column now sets its groups' own limits when their
 usual sizes differ 2x or more (it was 10x). Synthetic sheets only."""
@@ -56,7 +56,7 @@ def flagged_in(group, mult, strength, seeds=range(10)):
 
 
 def test_at_strength_8_a_small_groups_honest_prices_are_judged_by_its_own_normal():
-    # AH-215: the column's limits and the cross-column score, both set by the big group, flagged 2.25% of the small
+    # AH-223: the column's limits and the cross-column score, both set by the big group, flagged 2.25% of the small
     # group's honest rows and 0.24% of the big group's (about 9 of the small group's 400 rows in 10 sheets)
     assert flagged_in("Gadget", 3, 8) <= 2
 
