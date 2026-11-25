@@ -6,8 +6,11 @@
        name Arcas (AH-101): Excel shows the ribbon and Add-ins names from the manifest it cached for the old Version;
        1.0.7.0 = the flat crest-*.png icons (AH-103); 1.0.8.0 = crest2-*.png, a drawing fitted to each size (AH-121);
        1.0.9.0 = crest4-*.png, John's A of tiles, wine to navy, in a gold ring (AH-203);
+       1.0.10.0 = one shared runtime, kept for the life of the workbook, so Check as you work goes on with the pane closed
+       (AH-220); no SharedRuntime requirement is set, so an Excel without it still installs Arcas and checks only while
+       the pane is open;
        an icon URL is never retired: Excel kept the 1.0.5.0 manifest across upgrades (AH-154, server.OLD_ICONS) -->
-  <Version>1.0.9.0</Version>
+  <Version>1.0.10.0</Version>
   <ProviderName>ricepillow3000</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="Arcas"/>
@@ -25,6 +28,9 @@
   <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xsi:type="VersionOverridesV1_0">
     <Hosts>
       <Host xsi:type="Workbook">
+        <Runtimes>
+          <Runtime resid="Taskpane.Url" lifetime="long"/>
+        </Runtimes>
         <DesktopFormFactor>
           <FunctionFile resid="Taskpane.Url"/>
           <ExtensionPoint xsi:type="PrimaryCommandSurface">

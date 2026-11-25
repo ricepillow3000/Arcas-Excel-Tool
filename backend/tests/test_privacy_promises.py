@@ -291,11 +291,13 @@ def test_every_privacy_page_says_what_the_pane_reads_before_a_scan_and_that_it_s
 def test_every_privacy_page_says_what_the_copied_tabs_check_and_check_as_you_work_read_and_that_they_send_and_save_nothing():
     """AH-180: Find problems reads every tab to find two holding the same numbers, on this PC. AH-181: Check as you work
     reads the sheet a user changes, on this PC, and keeps its two switches there. The pages say how much is read and the
-    switches' names, and the pane reads exactly that much and keeps them under those names."""
+    switches' names, and the pane reads exactly that much and keeps them under those names. AH-220: where Excel allows
+    it, Check as you work goes on after the pane is closed, until the workbook is: the manifest's runtime lives as long."""
     said = ("Find problems also reads the first 5,000 rows of every tab (up to 20) on your PC, to say when two tabs hold the "
             "same numbers; it sends nothing to the internet and saves nothing.",
             "Check as you work reads the sheet you change on your PC, a moment after you change it, to say when a cell you "
-            "changed looks wrong; it sends nothing to the internet and saves nothing.",
+            "changed looks wrong, and where your Excel allows it, goes on after you close the pane until you close the workbook; "
+            "it sends nothing to the internet and saves nothing.",
             "The two Check as you work switches (anomalyHunterLive and anomalyHunterSound) are saved there too.")
     for page in PAGES:
         assert [p for p in said if p not in words(page)] == [], page
@@ -303,6 +305,7 @@ def test_every_privacy_page_says_what_the_copied_tabs_check_and_check_as_you_wor
     constants = (ROOT / "frontend/constants/index.js").read_text(encoding="utf-8")
     assert '"anomalyHunterLive"' in constants and '"anomalyHunterSound"' in constants
     assert "scanRequest(s, false)" in (ROOT / "frontend/features/live.js").read_text(encoding="utf-8")  # no Power BI copy
+    assert '<Runtime resid="Taskpane.Url" lifetime="long"/>' in (ROOT / "frontend/manifest.xml").read_text(encoding="utf-8")
 
 
 def test_every_privacy_page_says_the_workbook_keeps_codes_of_the_values_dismissed_and_the_checks_stopped():

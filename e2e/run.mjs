@@ -2034,6 +2034,55 @@ if (mode === "live") {
   { const m = await matchesEngine(); ok(m.ok, "AH-217: the list shows exactly what the engine answered - " + m.why); }
 }
 
+// AH-220 (John, 2026-11-25: "runs continuously from open until Excel closes, even with the task pane closed"): with a shared
+// runtime a finding brings the closed pane back with its note, once; never for "nothing unusual", with Check as you work
+// off, or when the person closes it again soon after (until they open and close it themselves); without SharedRuntime 1.1,
+// never, and the fold says so. __pane(false) is the person closing the pane; __shown counts Arcas's showAsTaskpane()
+if (mode === "live") {
+  const note = () => page.evaluate(() => { const n = document.getElementById("live-note"); return n.checkVisibility() ? n.textContent.replace(/\s+/g, " ").trim() : ""; });
+  const waitNote = (has) => page.waitForFunction((has) => document.getElementById("live-note").textContent.includes(has) && !document.getElementById("live-note").hidden, has, { timeout: 8000 }).catch(() => {});
+  const pane = () => page.evaluate(() => ({ shown: __shown, open: __open }));
+  const typed = async (cell, v) => { await page.evaluate(([c, v]) => __edit("Sales", c, v), [cell, v]); await waitNote(`cell ${cell}:`); };
+  if (await note()) await page.click("#live-close");
+  await page.$eval("#live-box", (d) => (d.open = true));
+  ok((await text("#live-hint")).includes(" It keeps checking after you close this pane, and opens the pane again to tell you. "), "AH-220: the fold says Check as you work goes on with the pane closed - " + (await text("#live-hint")));
+  await typed("C201", 88881);
+  ok((await note()).includes("cell C201:") && JSON.stringify(await pane()) === '{"shown":0,"open":true}', "AH-220: with the pane open, a finding is said and the pane is not asked to open - " + JSON.stringify(await pane()));
+  await page.click("#live-close");
+  await page.evaluate(() => __pane(false));
+  await typed("C202", 88882);
+  ok((await note()).includes('Sheet "Sales", cell C202: ') && JSON.stringify(await pane()) === '{"shown":1,"open":true}', "AH-220: with the pane closed, a finding opens it once, its note showing - " + JSON.stringify({ ...await pane(), note: await note() }));
+  await page.click("#live-close");
+  await page.evaluate(() => __pane(false)); // closed again at once: left alone
+  await typed("C203", 88883);
+  ok(JSON.stringify(await pane()) === '{"shown":1,"open":false}', "AH-220: closed again soon after Arcas opened it, the next finding does not open it - " + JSON.stringify(await pane()));
+  await page.click("#live-close");
+  await page.evaluate(() => { __pane(true); __pane(false); }); // opened and closed by the person: Arcas may open it again
+  await page.evaluate(() => __edit("Sales", "B204", __cell("Sales", "B204").v));
+  await page.waitForFunction(() => document.getElementById("notice").textContent === 'Checked B204 on "Sales": nothing unusual.', null, { timeout: 8000 }).catch(() => {});
+  ok((await text("#notice")) === 'Checked B204 on "Sales": nothing unusual.' && JSON.stringify(await pane()) === '{"shown":1,"open":false}', "AH-220: nothing unusual never opens the pane - " + JSON.stringify({ ...await pane(), notice: await text("#notice") }));
+  await page.click("#live");
+  await page.evaluate(() => __edit("Sales", "C205", 88885));
+  await page.waitForTimeout(3000);
+  ok(!(await note()) && JSON.stringify(await pane()) === '{"shown":1,"open":false}', "AH-220: with Check the cells I change off, an edit never opens the pane - " + JSON.stringify(await pane()));
+  await page.click("#live");
+  await typed("C206", 88886);
+  ok((await note()).includes("cell C206:") && JSON.stringify(await pane()) === '{"shown":2,"open":true}', "AH-220: after the person opened the pane themselves, a finding opens it again - " + JSON.stringify(await pane()));
+  await page.click("#live-close");
+  await typed("C208", 88889); // a new burst, the pane still open from that
+  ok((await note()).includes("cell C208:") && JSON.stringify(await pane()) === '{"shown":2,"open":true}', "AH-220: once Arcas has opened the pane, the next finding is said in it with no new ask - " + JSON.stringify(await pane()));
+  await page.click("#live-close");
+  // an Excel without SharedRuntime 1.1: the pane's code stops with the pane, as before AH-220, and the fold says so once
+  await page.evaluate(() => sessionStorage.setItem("__noShared", "1"));
+  await page.reload(); await page.waitForSelector("#main-ui", { state: "visible" }); await profiled();
+  const said = await text("#live-hint");
+  ok(said.includes(" This Excel checks your edits only while Arcas is open. ") && !said.includes("close this pane"), "AH-220: without SharedRuntime 1.1 the fold says checks run only while Arcas is open - " + said);
+  await page.evaluate(() => __pane(false));
+  await typed("C207", 88887);
+  ok(JSON.stringify(await pane()) === '{"shown":0,"open":false}', "AH-220: without SharedRuntime 1.1 nothing ever asks the pane to open - " + JSON.stringify(await pane()));
+  await page.evaluate(() => sessionStorage.removeItem("__noShared"));
+}
+
 // proof for people, at rest: the pointer off every button first (the full-page picture moved the page under it, and a
 // hover caught half-way read as a button turned off, AH-149 review r2)
 if (process.env.SHOTS) { await page.mouse.move(0, 0); await page.waitForTimeout(400); await page.screenshot({ path: `${process.env.SHOTS}/pane-${mode}.png`, fullPage: true }); }
