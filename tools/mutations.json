@@ -6668,5 +6668,27 @@
   "tests": [
    "backend/tests/test_blank_grids.py::test_a_row_blank_across_four_fifths_of_the_grid_is_a_record_left_unfinished_never_the_grids"
   ]
+ },
+ {
+  "id": "scale-witness-loosen",
+  "guard": "A row's arithmetic confirms a value for a group's own normal only where no column of the rule is a formula reading it: Amount =Qty*Rate repeats a Qty typed 10x (AH-224)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if any(c in reads.get(d, ()) for d in within[rule]):",
+  "new": "if False:",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_scale_witness.py::test_a_qty_typed_10x_is_a_slip_though_its_amount_formula_repeats_it"
+  ]
+ },
+ {
+  "id": "scale-witness-tighten",
+  "guard": "A row's arithmetic confirms a value for a group's own normal only where no column of the rule is a formula reading it: Amount =Qty*Rate repeats a Qty typed 10x (AH-224)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if any(c in reads.get(d, ()) for d in within[rule]):",
+  "new": "if any(d in reads for d in within[rule]):",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_scale_witness.py::test_a_rate_looked_up_from_its_unit_is_no_copy_of_the_qty_so_a_typed_amount_still_confirms_it"
+  ]
  }
 ]
