@@ -1,6 +1,6 @@
 # Arcas map: every layer and every check
 
-Moved out of `CLAUDE.md` (AH-226) so a session loads it only when its ticket needs it. Change a layer, a guard or a
+Moved out of `CLAUDE.md` (AH-230) so a session loads it only when its ticket needs it. Change a layer, a guard or a
 check: update its row here in the same commit.
 
 ## Layers: each request passes every one, each has its own guard and test
