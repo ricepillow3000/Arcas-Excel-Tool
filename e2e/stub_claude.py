@@ -20,6 +20,10 @@ class H(BaseHTTPRequestHandler):
         if "column headers of a spreadsheet" in prompt:  # /rules (AH-202): a rule of the sheet's last three headers with
             names = [h for h, _ in json.loads(prompt.splitlines()[1])]  # markup in "why", and one of a header never sent
             rule = dict.fromkeys(("target", "first", "then", "value", "when", "after", "id", "parent")) | {"plus": [], "minus": [], "factors": []}
+            if "Paid" in names:  # AH-217's ledger: two rules no check of the scan's own finds (an order, a product of three)
+                return self.reply(body, {"rules": [{**rule, "kind": "order", "why": "never paid more than billed", "first": "Paid", "then": "Amount"},
+                                                   {**rule, "kind": "product", "why": "quantity times price times rate", "target": "Amount",
+                                                    "factors": ["Qty", "Price", "FX rate"]}]})
             ans = {"rules": [{**rule, "kind": "product", "why": "<img src=x onerror=window.__pwned=2> qty times price",
                               "target": names[-1], "factors": names[-3:-1]},
                              {**rule, "kind": "order", "why": "not in the sheet", "first": "Ship date", "then": names[0]}]}

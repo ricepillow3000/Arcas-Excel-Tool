@@ -144,7 +144,7 @@ export function recommendFix(columns, rows, i, limits, reason, startRow, startCo
   for (const { text } of issuesOf(reason)) // worth-a-check reasons with no value to write: say what to look for
     for (const [rx, hint] of HINTS) {
       const m = rx.exec(text); // a hint may quote what the reason names: the word to filter the column for (AH-45 review)
-      if (m) notes.push(`${text}: ${typeof hint === "function" ? hint(m) : hint}. Check it against the source.`);
+      if (m) notes.push(`${text.replace(/\.$/, "")}: ${typeof hint === "function" ? hint(m) : hint}. Check it against the source.`);
     }
   if (!notes.length)
     notes.push("Nothing here is clearly broken, but the values are unusual together. Check them against the source; if they're right, leave them.");
@@ -228,6 +228,9 @@ const HINTS = [
   [/ is worked out differently from the \d+ other (?:cells of its row|rows of its column)/, "a formula copied from the " +
     "wrong cell or edited by hand is the usual cause; compare it with the cells beside it and point it at the same rows " +
     "and columns they read"],
+  // AH-217: a row against a subject rule the sheet kept: which of its cells is wrong is unknown, so no value is written
+  [/: a rule the AI read from your headers, true on \d+ of \d+ rows\.$/, "one mistyped cell is the usual cause; if this " +
+    "row is a real exception to the rule, Dismiss it, or Stop checking keeps the rule quiet in this column"],
   [/ starts like the rows under .+ \(".*"\), not like the other \d+ under /, "a row pasted into the wrong block is the " +
     "usual cause; move it under the group its code belongs to, or correct its code"],
 ];
@@ -288,10 +291,11 @@ const remembered = (u, columns, startCol) => u.changes.map((c, k) => [columns[ce
 // clears only this failure, never a helpline message (AH-125) that sits beside an Undo
 function failed(f, e, lead) {
   const words = plainError(e, lead);
-  if (state.fix !== f) return;
+  if (state.fix !== f) return words;
   $("fix-status").textContent = "";
   $("fix-care").textContent = f.failed = words;
   show("fix-care");
+  return words;
 }
 const tryAgain = (f) => $("fix-care").textContent === f.failed && show("fix-care", false);
 
@@ -350,7 +354,9 @@ export async function applyFix(f, changes, sheet) { // the fix, its changes and 
     : `Accepted, but the checker still sees a problem: ${plainReason(v.reason, undefined, "; ")}. Undo it, or describe a better fix to AI.`, v.clean);
 }
 
-export async function undoFix(f) {
+// -> nothing when the old values are back, else why not, in words. foot: the foot bar says how many rows are done (AH-218:
+// "Changes Arcas made" says its outcome in its own held line instead: a notice in the list's flow moved the fold 57 px)
+export async function undoFix(f, foot = true) {
   const u = state.undos[f.i];
   if (!u) return;
   if (state.fix === f) $("fix-status").classList.remove("tick");
@@ -366,7 +372,7 @@ export async function undoFix(f) {
     const [row] = await readRows(u.sheet, [{ row: rowNum - 1, col: startCol, width: columns.length }]);
     const now = await readCells(u.sheet, u.writes.map((w) => w.cell));
     const edited = u.writes.filter((w, k) => now[k] !== u.after[k]).map((w) => w.cell);
-    const say = (t) => void (state.fix === f && ($("fix-status").textContent = t)); // an answer, not a failure
+    const say = (t) => (state.fix === f && ($("fix-status").textContent = t), t); // an answer, not a failure
     const fixedHere = row.calc.map((calc, j) => calc || u.changes.some((c) => cellAt(c.cell).row === rowNum && cellAt(c.cell).col === startCol + j));
     if (!sameRow(row.values, u.row, fixedHere))
       return say(`Undo left the sheet alone: row ${rowNum} changed after the fix (edited, sorted or rows added).`);
@@ -388,12 +394,12 @@ export async function undoFix(f) {
     state.codes[f.i] = before;
     state.hashes[f.i] = before.slice(0, before.lastIndexOf("."));
     await fillRow(f.i, !u.was); // flagged again - unless it had been dismissed, then it stays unhighlighted
-    notice(doneOf(state.order, state.decided), shareOf(state.order, state.decided));
+    if (foot) notice(doneOf(state.order, state.decided), shareOf(state.order, state.decided));
     if (state.fix === f) {
       setApplied(false);
       $("fix-status").textContent = "Undone. The cells are back to what they were.";
     }
   } catch (e) {
-    failed(f, e, "Undo failed");
+    return failed(f, e, "Undo failed");
   }
 }

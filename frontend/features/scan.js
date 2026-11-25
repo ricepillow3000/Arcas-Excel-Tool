@@ -14,6 +14,7 @@ import { strength } from "../pages/strength.js";
 import { autoFix, autoOn, autoUndo } from "./autofix.js";
 import { codes, decisionsFor, rowHash } from "./decisions.js";
 import { learnedFor } from "./learned.js";
+import { rulesFor } from "./rules.js";
 import { undosFor } from "./undo-store.js";
 import { hideProfile } from "./profile.js";
 import { bookNotes } from "./tabs.js";
@@ -113,13 +114,14 @@ async function scan(auto, held, t0) {
 // keeps a copy for Power BI. AH-205: and what this sheet learned (values dismissed, checks stopped), so both use it.
 // AH-212: one request per table on the sheet, its rows as the engine reads them (merged labels filled down, subtotal and
 // notes rows blank: utils/layout.js), so the engine never compares two tables' columns. Power BI keeps one copy a scan:
-// the biggest table's. AH-213: and the cells of each table Excel says break their drop-down list
+// the biggest table's. AH-213: and the cells of each table Excel says break their drop-down list. AH-217: and the subject
+// rules this sheet kept, to every table (the engine skips a rule naming a header the table does not have)
 export async function scanRequest(s, powerBi) {
   const level = strength(), limits = await getLimits(); // getLimits re-reads the workbook's settings first
   // the rows fixed or dismissed before, in any session: found again by their codes, wherever a sort moved them
   const hashes = s.rows.map(rowHash), keys = codes(hashes), kept = decisionsFor(s.sheet), decided = {};
   keys.forEach((k, i) => kept[k] && (decided[i] = kept[k]));
-  const parts = s.tables || [s], tabs = parts.map(local);
+  const parts = s.tables || [s], tabs = parts.map(local), saved = rulesFor(s.sheet);
   const big = tabs.reduce((b, t, k) => (t.rows.length > tabs[b].rows.length ? k : b), 0);
   const requests = tabs.map((t, k) => {
     const o = parts[k].o || 0, sent = sentOf(t), invalid = invalidIn(t, s.invalid);
@@ -129,7 +131,7 @@ export async function scanRequest(s, powerBi) {
       power_bi: powerBi && k === big, start_row: t.startRow, sheet: String(s.sheet).slice(0, 31),
       decisions: t.rows.some((_, i) => decided[o + i]) ? t.rows.map((_, i) => decided[o + i] || null) : null,
       formulas: sent.calc?.some((r) => r.some(Boolean)) ? sent.calc : null, // AH-152: each cell's formula, only if any
-      learned: learnedFor(t), off_list: invalid.length ? invalid : null };
+      learned: learnedFor(t), off_list: invalid.length ? invalid : null, rules: saved.length ? saved : null };
   });
   return { level, hashes, keys, decided, requests };
 }

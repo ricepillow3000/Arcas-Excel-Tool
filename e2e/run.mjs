@@ -1611,12 +1611,13 @@ if (mode === "flow2") {
     sheet[49][2] = "two"; // C50: text in the second table's number column
     sheet[54][3] = "yes"; // D55: a capitals slip, a fix the card can write
     sheet[59][3] = "Maybe"; // D60: outside the column's drop-down list of Yes and No (AH-213)
-    sheet.push(["", "", "", "", "", ""], ["Pass mark", 40, "", "", "", ""]);
+    sheet.push(["", "", "", "", "", ""], ["Pass mark", 40, "", "", "", ""], ["", "", "", "", "", ""], ["#REF!", "", "", "", "", ""]); // A68: a formula's error, no table's (AH-218)
     await lay.evaluate(([rows, sums]) => {
       __load("Layout", rows);
       for (const r of sums) for (const c of "CDEF") __formula("Layout", `${c}${r}`, `=SUM(${c}${r - 12}:${c}${r - 1})`);
       __merge("Layout", ["A1:F1", "A3:A4", "B3:B4", "C3:E3", "F3:F4", "B5:B16", "B18:B29"]);
       __validate("Layout", "D35:D64", ["Yes", "No"]);
+      __formula("Layout", "A68", "=SUM(#REF!)");
     }, [sheet, sums]);
     await lay.click("#scan");
     await lay.waitForFunction(() => !document.getElementById("scan").disabled && !__state.working);
@@ -1637,6 +1638,8 @@ if (mode === "flow2") {
       "AH-212: the planted cell in each table is listed and coloured at its own sheet row, the subtotal and the merged label never - " + JSON.stringify(got));
     ok(got.notes.includes("Cells A66:B66 on this sheet were not checked: they hold no table Arcas can read."),
       "AH-212: the cells no table holds are said under the results, in a notice - " + JSON.stringify(got.notes));
+    ok(got.notes.includes("Cell A68 on this sheet shows #REF!, outside any table Arcas checks: it points at a cell or sheet that was deleted.") && !got.notes.includes("A68 on this sheet was")
+      && !got.notes.includes("A66:B66 and"), "AH-218: an Excel error no table holds is named with what it means, once - " + JSON.stringify(got.notes));
     // a cell of the second table picked in the sheet opens its own row's card; Accept there writes its own cell, D55
     await lay.evaluate(() => __userSelect("Layout", "C50"));
     await lay.waitForFunction(() => /^Row 50:/.test(document.getElementById("fix-title").textContent) && !__state.working);
@@ -1650,7 +1653,83 @@ if (mode === "flow2") {
       c50: __cell("Layout", "C50").v, f8: __cell("Layout", "F8").v }));
     ok(after.d55 === "Yes" && after.c50 === "two" && after.f8 === 1395 && after.status === "Accepted and checked again: row 55 looks right now." && slipped.length === 0,
       "AH-212: Accept in the second table writes its own cell, and the row is checked again in its own table - " + JSON.stringify({ ...after, slipped }));
+    // AH-218: a write of several cells holds Excel's recalculation once, before its writes, never once a cell; a write of
+    // one cell (that Accept) and an Excel without ExcelApi 1.6 never ask, and still write
+    const held = await lay.evaluate(async () => {
+      const { writeCells } = await import("./services/excel.js"), n = () => window.__suspended || 0, out = { accept: n() };
+      __log.length = 0;
+      await writeCells("Layout", [{ cell: "H1", value: "a" }, { cell: "H2", value: "b" }]);
+      out.two = [n(), __log.map((e) => e[0]).join()];
+      await writeCells("Layout", [{ cell: "H1", value: "" }, { cell: "H2", value: "" }, { cell: "H3", value: "" }]);
+      out.three = n();
+      window.__noApi = "1.6";
+      await writeCells("Layout", [{ cell: "H1", value: "c" }, { cell: "H2", value: "d" }]);
+      out.old = [n(), __cell("Layout", "H1").v, __cell("Layout", "H2").v];
+      return out;
+    });
+    ok(held.accept === 0 && JSON.stringify(held.two) === '[1,"suspend,write,write"]' && held.three === 2 && JSON.stringify(held.old) === '[2,"c","d"]',
+      "AH-218: a multi-cell write holds Excel's recalculation once, first; one cell or an older Excel never asks - " + JSON.stringify(held));
     await lay.close();
+  }
+
+  // AH-218 (John's master spec): "Changes Arcas made" lists every fix accepted in the workbook, newest first, each with
+  // its own Undo, and outlives a reload: two fixes accepted, the pane reloaded, the older one undone from the list puts
+  // its cell back and leaves the newer; a cell changed by hand since is left alone and said; with a scan showing, the
+  // card's own Undo does the work
+  {
+    const his = await browser.newPage({ ignoreHTTPSErrors: true, viewport: { width: 360, height: 900 } });
+    const slipped = [];
+    his.on("pageerror", (e) => slipped.push(e.message));
+    await his.route("https://appsforoffice.microsoft.com/**", (r) => r.fulfill({ contentType: "text/javascript", body: fs.readFileSync(DIR + "fake-office.js", "utf8") }));
+    await his.goto("https://127.0.0.1:5055/taskpane.html");
+    await his.waitForSelector("#main-ui", { state: "visible" });
+    const ready = () => his.waitForFunction(() => !__state.working && !document.getElementById("scan").disabled);
+    const accept = async (r) => {
+      await his.click(`#flagged-list button:has-text("Row ${r} ")`);
+      await his.waitForFunction(() => !__state.working && document.getElementById("fix-apply").checkVisibility() && !document.getElementById("fix-apply").disabled);
+      await his.click("#fix-apply");
+      await his.waitForFunction(() => !__state.working && document.getElementById("fix-undo").checkVisibility());
+      await his.click("#fix-back"); await his.waitForSelector("#results", { state: "visible" });
+    };
+    await his.evaluate((rows) => __load("Sales", rows, [0]), rows);
+    await his.click("#scan"); await ready();
+    await accept(11); await accept(22);
+    const fixed = await his.evaluate(() => [__cell("Sales", "C11").v, __cell("Sales", "C22").v]);
+    await his.reload(); await his.waitForSelector("#main-ui", { state: "visible" });
+    await his.click("#history-box summary");
+    await his.waitForFunction(() => document.querySelectorAll("#history-list li").length === 2, null, { timeout: 3000 }).catch(() => {});
+    const items = () => his.$$eval("#history-list li", (ls) => ls.map((l) => l.innerText.replace(/\s+/g, " ").trim()));
+    const listed = await items();
+    ok(listed.length === 2 && listed[0].startsWith(`Sales C22: 7777 → ${fixed[1]}`) && listed[1].startsWith(`Sales C11: -5 → ${fixed[0]}`) && fixed[0] !== -5,
+      "AH-218: after a reload, Changes Arcas made lists both fixes, newest first, as the card shows a change - " + JSON.stringify({ listed, fixed }));
+    const m = await his.evaluate(() => ({ h: [...document.querySelectorAll("#history-list button")].map((b) => b.getBoundingClientRect().height), list: document.getElementById("history-list").offsetHeight,
+      next: Math.round(document.querySelector("#history-box + details").getBoundingClientRect().top + scrollY) }));
+    await his.locator("#history-list li").nth(1).locator("button").click(); await ready();
+    const after = await his.evaluate(() => ({ c11: __cell("Sales", "C11").v, c22: __cell("Sales", "C22").v, notice: document.getElementById("history-state").textContent,
+      kept: (__settings.anomalyHunterAcceptUndo || []).map((u) => u.cells.map((c) => c[0]).join()).join("|"), list: document.getElementById("history-list").offsetHeight,
+      done: [...document.querySelectorAll("#history-list button")].map((b) => `${b.textContent}:${b.disabled}`).join(), foot: document.getElementById("notice").textContent,
+      next: Math.round(document.querySelector("#history-box + details").getBoundingClientRect().top + scrollY),
+      fixed: Object.values(__settings.anomalyHunterDecisions?.Sales || {}).join() }));
+    ok(after.c11 === -5 && after.c22 === fixed[1] && after.kept === "C22" && after.fixed === "fixed" && after.notice === "Undone. C11 on Sales is back to what it was."
+      && after.done === "Undo:false,Undone:true" && after.list === m.list && after.next === m.next && !after.foot && m.h.every((h) => h >= 44),
+      "AH-218: Undo of the older fix from the list puts its cell back, takes its Fixed and its record out, leaves the newer, and nothing moves - " + JSON.stringify({ after, m }));
+    await his.evaluate(() => __edit("Sales", "C22", 12)); // changed by hand since the fix: the user's now
+    await his.locator("#history-list li").nth(0).locator("button").click(); await ready();
+    const refused = await his.evaluate(() => [__cell("Sales", "C22").v, document.getElementById("history-state").textContent, (__settings.anomalyHunterAcceptUndo || []).length]);
+    ok(JSON.stringify(refused) === '[12,"C22 changed after the fix, so Undo left it alone.",1]', "AH-218: a fixed cell changed by hand since is left alone, and said - " + JSON.stringify(refused));
+    await his.evaluate((v) => __edit("Sales", "C22", v), fixed[1]);
+    await his.click("#scan"); await ready(); // a scan finds the fixed row again: the card's own Undo puts it back
+    await his.click("#history-box summary"); await his.click("#history-box summary"); // closed, then opened again
+    await his.waitForFunction(() => document.querySelectorAll("#history-list li").length === 1);
+    await his.locator("#history-list li button").click(); await ready();
+    const viaCard = await his.evaluate(() => ({ c22: __cell("Sales", "C22").v, notice: document.getElementById("history-state").textContent, kept: (__settings.anomalyHunterAcceptUndo || []).length,
+      tag: [...document.querySelectorAll("#flagged-list button")].find((b) => /^Row 22\b/.test(b.innerText))?.querySelector(".sev")?.textContent }));
+    ok(viaCard.c22 === 7777 && viaCard.notice === "Undone. C22 on Sales is back to what it was." && viaCard.kept === 0 && viaCard.tag !== "Fixed" && slipped.length === 0,
+      "AH-218: with a scan showing, the list's Undo goes through the card's Undo: the cell, the record and the row's tag - " + JSON.stringify({ viaCard, slipped }));
+    await his.click("#history-box summary"); await his.click("#history-box summary"); // closed, then opened again
+    await his.waitForFunction(() => !document.querySelectorAll("#history-list li").length, null, { timeout: 3000 }).catch(() => {});
+    ok((await items()).length === 0 && await his.isVisible("#history-empty"), "AH-218: opened again, the list says it holds nothing");
+    await his.close();
   }
 }
 
@@ -1797,6 +1876,99 @@ if (mode === "live") { // AH-180, AH-181
     await page.waitForFunction(() => document.getElementById("notice").textContent.startsWith('Checked B60 on "Sales"') || document.getElementById("live-note").checkVisibility(), null, { timeout: 8000 }).catch(() => {});
     ok((await text("#notice")) === 'Checked B60 on "Sales": nothing unusual.' && !(await note()) && JSON.stringify(scans.slice(s0)[0]?.learned?.accept) === '[["Region","Cnetral"]]',
       "AH-205: a value dismissed once, typed on another row, is not called wrong as you work - " + JSON.stringify({ notice: await text("#notice"), note: await note(), learned: scans.slice(s0)[0]?.learned })); }
+  // AH-218 (John's master spec: no nagging on the row being typed): a blank left on the row the selected cell is still on
+  // waits, and is said the moment the selection leaves the row; a spelling slip on that row is said at once
+  { const scanned = async (k) => { for (let t = 0; t < 100 && replies.length === k; t++) await page.waitForTimeout(100); await page.waitForTimeout(300); };
+    const units = await page.evaluate(() => { __activate("Sales"); __userSelect("Sales", "D12"); return __cell("Sales", "C12").v; });
+    let k = replies.length;
+    await page.evaluate(() => __edit("Sales", "C12", ""));
+    await scanned(k);
+    const typing = { note: await note(), notice: await text("#notice"), chimes: await chimes() };
+    ok(replies.length > k && !typing.note && !typing.notice.startsWith("Checked C12"), "AH-218: a blank left on the row still being typed is not said yet - " + JSON.stringify(typing));
+    const t0 = Date.now();
+    await page.evaluate(() => __userSelect("Sales", "C13"));
+    await waitNote('cell C12');
+    ok((await note()).startsWith('Sheet "Sales", cell C12: ') && Date.now() - t0 < 1000 && await chimes() === typing.chimes + 1,
+      `AH-218: it is said the moment the selection leaves the row (${Date.now() - t0} ms), with its chime - ` + (await note()));
+    await page.click("#live-close");
+    k = replies.length;
+    await page.evaluate((v) => __edit("Sales", "C12", v), units);
+    await scanned(k);
+    await page.evaluate(() => __userSelect("Sales", "C14"));
+    const t1 = Date.now();
+    await page.evaluate(() => __edit("Sales", "B14", "Cental"));
+    const ms = await waitNote('cell B14');
+    ok((await note()).startsWith('Sheet "Sales", cell B14: ') && ms < 3500, `AH-218: a spelling slip on the row the selection is on is said at once (${Date.now() - t1} ms) - ` + (await note()));
+    await page.click("#live-close"); }
+}
+
+// AH-217 (John, 2026-11-21: "AI proposes, the no-AI engine verifies, then enforces locally for free"), pass 1 and pass 2:
+// Check subject rules once (the stub names Paid at most Amount and Amount = Qty x Price x FX rate, which no check of the
+// scan's own finds), Stop checking on an honest exception to one, fix the other by hand; then the AI fails, the pane is
+// reloaded, and a new row against each rule is typed: Check as you work and Find problems flag the one against the kept
+// rule with no /rules call and no AI, and stay quiet on the stopped one. Here in mode live, which has Check as you work
+if (mode === "live") {
+  const ledger = [["Invoice", "Qty", "Price", "FX rate", "Amount", "Paid"]];
+  for (let i = 0; i < 40; i++) { const q = 1 + ((i * 3) % 9), pr = 10.5 + ((i * 7) % 13), fx = +(0.9 + (i % 5) * 0.01).toFixed(2), a = +(q * pr * fx).toFixed(2);
+    ledger.push([`INV-${1001 + i}`, q, pr, fx, a, +(a * (0.5 + (i % 4) * 0.1)).toFixed(2)]); }
+  ledger[10][4] = +(ledger[10][4] + 25).toFixed(2); // row 11: an honest fixed fee on top, an exception to the product
+  ledger[20][5] = +(ledger[20][4] + 10).toFixed(2); // row 21: paid more than billed, a slip
+  await page.evaluate((g) => { __load("Ledger", g); __activate("Ledger"); }, ledger);
+  const note = () => page.evaluate(() => { const n = document.getElementById("live-note"); return n.checkVisibility() ? n.textContent.replace(/\s+/g, " ").trim() : ""; });
+  const tagOn = (r) => page.locator(`#flagged-list button:has-text("Row ${r} ") .sev`).textContent({ timeout: 2000 }).catch(() => null);
+  const why = (r) => page.locator(`#flagged-list button:has-text("Row ${r} ") .row-why`).textContent({ timeout: 2000 }).catch(() => "");
+  const RULE = "a rule the AI read from your headers";
+  const KEPT = [{ kind: "order", first: "Paid", then: "Amount" }, { kind: "product", target: "Amount", factors: ["Qty", "Price", "FX rate"] }];
+  await find();
+  ok((await tagOn(11)) === null && (await tagOn(21)) === null, "AH-217: before Check subject rules, the scan's own checks flag neither row 11 nor row 21");
+  const k0 = calls.length;
+  await page.click("#rules-check"); await idle();
+  const lines = await page.$$eval("#rules-list li", (lis) => lis.map((li) => li.textContent));
+  ok(since(k0) === "/rules" && lines[0] === "Arcas keeps the 2 rules that held in this workbook and checks them in every scan of this sheet, with no AI.",
+    "AH-217: Check subject rules says the rules that held are kept - " + JSON.stringify(lines.slice(0, 2)));
+  const saved = await page.evaluate(() => JSON.stringify(__settings.anomalyHunterRules ?? null));
+  ok(saved === JSON.stringify({ Ledger: KEPT }), "AH-217: the workbook keeps each rule that held as its kind and headers alone, never a cell or the AI's words - " + saved);
+  const s0 = scans.length;
+  await find();
+  ok(JSON.stringify(scans[s0]?.rules) === JSON.stringify(KEPT) && (await why(11)).includes(RULE) && (await why(21)).includes(RULE),
+    "AH-217: Find problems sends the kept rules and lists the rows against them - " + JSON.stringify([await why(11), await why(21)]));
+  // pass 1: row 11 is an honest exception, so its check is stopped in its column; row 21 is fixed by hand
+  await openRow(11);
+  ok((await text("#fix-mute")) === "Stop checking subject rules in Amount", "AH-217: a kept rule's card offers to stop it in its column - " + (await text("#fix-mute")));
+  await page.click("#fix-mute"); await idle();
+  ok((await text("#notice")).startsWith("Arcas will not check subject rules in Amount on this sheet again."), "AH-217: the foot bar says the rule is stopped - " + (await text("#notice")));
+  if (await page.isVisible("#fix-back")) await back();
+  const fixed = +(ledger[20][4] * 0.6).toFixed(2);
+  await page.evaluate((v) => __edit("Ledger", "F21", v), fixed);
+  await page.waitForFunction(() => document.getElementById("notice").textContent.startsWith('Checked F21 on "Ledger"') || document.getElementById("live-note").checkVisibility(), null, { timeout: 8000 }).catch(() => {});
+  ok((await text("#notice")) === 'Checked F21 on "Ledger": nothing unusual.' && !(await note()), "AH-217: row 21 fixed by hand is checked against the kept rule and found right - " + (await text("#notice")));
+  // pass 2: no AI from here (its route fails, and the stand-in's log must not grow), the pane reloaded
+  let asked = 0;
+  await page.route("**/rules", (r) => { asked++; return r.abort("connectionrefused"); });
+  const log = () => fs.readFileSync(DIR + "claude.log", "utf8").trim().split("\n").length;
+  const ai0 = log(), k1 = calls.length, s1 = scans.length;
+  await page.reload(); await page.waitForSelector("#main-ui", { state: "visible" }); await profiled();
+  const typed = [["INV-1041", 4, 12.5, 0.93, 46.5, 61.5], ["INV-1042", 6, 14.5, 0.92, 105.04, 56.03]]; // Paid over Amount; a fee on top
+  await page.evaluate((r) => __paste("Ledger", "A42", [r]), typed[0]);
+  await page.waitForFunction(() => document.getElementById("live-note").checkVisibility(), null, { timeout: 8000 }).catch(() => {});
+  const said = await note();
+  ok(said.startsWith('Sheet "Ledger", cell E42: Probably wrong. Paid 61.5 is above Amount 46.5: ' + RULE),
+    "AH-217: after a reload with no AI, a new row against the kept rule is said as you work - " + said);
+  if (said) await page.click("#live-close");
+  await page.evaluate((r) => __paste("Ledger", "A43", [r]), typed[1]);
+  await page.waitForFunction(() => document.getElementById("notice").textContent.startsWith("Checked A43") || document.getElementById("live-note").checkVisibility(), null, { timeout: 8000 }).catch(() => {});
+  ok((await text("#notice")).startsWith("Checked A43") && (await text("#notice")).endsWith('on "Ledger": nothing unusual.') && !(await note()),
+    "AH-217: a new row like the exception whose rule was stopped is only said checked - " + JSON.stringify([await text("#notice"), await note()]));
+  await find();
+  ok((await why(42)).includes(RULE) && (await tagOn(43)) === null && (await tagOn(11)) === "Dismissed" && (await tagOn(21)) === null,
+    `AH-217: Find problems flags row 42 by the kept rule, row 43 stays quiet, row 11 Dismissed, row 21 fixed - ${await why(42)}, ${await tagOn(43)}, ${await tagOn(11)}, ${await tagOn(21)}`);
+  const sent = scans.slice(s1);
+  ok(!calls.slice(k1).some(([p]) => p === "/rules") && asked === 0 && log() === ai0 && sent.length >= 3 && sent.every((b) => JSON.stringify(b.rules) === JSON.stringify(KEPT)),
+    "AH-217: pass 2 asked neither /rules nor the AI, and every scan (as you work and Find problems) sent the kept rules - " + JSON.stringify({ asked, ai: log() - ai0, scans: sent.length, calls: since(k1) }));
+  const grid = await page.evaluate(() => ["F21", "E42", "F42", "E43", "F43", "E11"].map((a) => __cell("Ledger", a)));
+  ok(JSON.stringify(grid.map((c) => [c.v, c.f ?? null])) === JSON.stringify([[fixed, null], [46.5, null], [61.5, null], [105.04, null], [56.03, null], [ledger[10][4], null]]),
+    "AH-217: Arcas wrote no value and no formula in the sheet: every cell is as typed - " + JSON.stringify(grid));
+  { const m = await matchesEngine(); ok(m.ok, "AH-217: the list shows exactly what the engine answered - " + m.why); }
 }
 
 // proof for people, at rest: the pointer off every button first (the full-page picture moved the page under it, and a

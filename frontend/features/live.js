@@ -62,6 +62,23 @@ export function noteSaid(sheet, f, more, names = {}) {
   return `Sheet "${sheet}", cell ${f.cell}: ${SEV[f.severity]}. ${why}${/[.!?]$/.test(why) ? "" : "."}${more ? ` And ${n(more)} more in what you changed.` : ""}`;
 }
 
+// AH-218 (John's master spec: no nagging on the row being typed): a finding only about a row's whole (a blank not filled
+// yet, a total whose parts are still coming, a record's lines, a duplicate, a label's columns) waits while the selected
+// cell is still on that row of that sheet, and is said the moment the selection leaves it, or after HOLD: delayed, never
+// dropped ("every change is answered", John 2026-11-17). A slip in one cell's own value (a typo, a spelling, a value past
+// its limits) is said at once. AH-217's rule: a row against a subject rule the sheet kept (Net = Debit - Credit) is the row's
+// arithmetic, half typed until its last cell is
+export const ROW_KINDS = new Set(["blank", "sum", "record", "balance", "subtotal", "duplicate", "group", "rule"]), HOLD = 20000;
+
+// Pure: is sheet row `row` inside a selection's address, on any column? ("C12", "$B$11:$D$13", "12:12", "Sheet!C12")
+export const onRow = (address, row) => typeof address === "string"
+  && inRange(address.replace(/\$/g, "").replace(/(^|[!:,\s])[A-Z]+(?=\d)/gi, "$1"), `A${row}`);
+
+// Pure: hold this check's note back? Every finding is only about its row's whole, each on the row the selection is on,
+// on this sheet (sel: the last selection heard, {id, address})
+export const heldBack = (found, sel, id) => found.length > 0 && sel?.id === id
+  && found.every((f) => f.kinds?.length && f.kinds.every(([k]) => ROW_KINDS.has(k)) && onRow(sel.address, cellAt(f.cell)?.row));
+
 // Pure: a quiet word that the changed cells were checked and nothing there looks wrong (John, AH-181: the user sees Arcas
 // checked), each address once, at most 3 named
 export function checkedSaid(sheet, addresses) {
@@ -71,14 +88,31 @@ export function checkedSaid(sheet, addresses) {
 
 const edits = new Map(); // tab id -> the addresses changed since its last check
 const big = new Set(); // tabs said too big to check as you type, once each
-let timer = 0, running = false, tries = 0, audio = null, target = null;
+const waiting = new Map(); // AH-218: tab id -> a note held back while its row is being typed: {cells, rows, lines, where, timer}
+let timer = 0, running = false, tries = 0, audio = null, target = null, selected = null;
 
 function heard(e) {
   if (!liveOn() || ignored(e, state.working)) return;
   dropTab(e.worksheetId); // its numbers changed: read again for the copied tabs
-  edits.set(e.worksheetId, [...(edits.get(e.worksheetId) || []), e.address]);
+  const held = waiting.get(e.worksheetId); // AH-218: a held note's cells are judged again with this edit, never lost
+  if (held) clearTimeout(held.timer), waiting.delete(e.worksheetId);
+  edits.set(e.worksheetId, [...(held?.cells || []), ...(edits.get(e.worksheetId) || []), e.address]);
   clearTimeout(timer);
   timer = setTimeout(checkAll, QUIET);
+}
+
+// AH-218: the selection moved (any tab): a note held for a row it left is said now
+function picked(e) {
+  selected = { id: e.worksheetId, address: e.address };
+  for (const [id, w] of waiting) if (!(id === selected.id && w.rows.every((r) => onRow(selected.address, r)))) release(id);
+}
+
+function release(id) {
+  const w = waiting.get(id);
+  if (!w) return;
+  clearTimeout(w.timer);
+  waiting.delete(id);
+  say(w.lines, w.where);
 }
 
 // One check at a time, one sheet after another; edits made during a check wait for the next one
@@ -111,7 +145,10 @@ async function check(id, cells) {
   const found = findingsAt(body.rows, s, decided, cells);
   const pairs = await newPairs(s.sheet).catch(() => []);
   const lines = [found.length ? noteSaid(s.sheet, found[0], found.length - 1, s.names) : "", ...pairs.map(copiedSaid)].filter(Boolean);
-  if (lines.length) say(lines, found.length ? { sheet: s.sheet, cell: found[0].cell } : { sheet: pairs[0].sheet });
+  if (!pairs.length && heldBack(found, selected, id)) { // AH-218: the row is still being typed: said when it is left
+    const rows = found.map((f) => cellAt(f.cell).row);
+    waiting.set(id, { cells, rows, lines, where: { sheet: s.sheet, cell: found[0].cell }, timer: setTimeout(() => release(id), HOLD) });
+  } else if (lines.length) say(lines, found.length ? { sheet: s.sheet, cell: found[0].cell } : { sheet: pairs[0].sheet });
   // nothing flagged in the changed cells: said in the notice, with no sound, never over a note still showing
   else if ($("live-note").hidden) notice(checkedSaid(s.sheet, cells));
 }
@@ -164,6 +201,7 @@ async function listen() {
   try {
     await Excel.run(async (ctx) => {
       ctx.workbook.worksheets.onChanged.add(heard);
+      ctx.workbook.worksheets.onSelectionChanged.add(picked); // AH-218 (ExcelApi 1.9, as onChanged)
       await ctx.sync();
     });
   } catch {
