@@ -36,8 +36,8 @@ await page.addInitScript(() => {
   addEventListener("unhandledrejection", (e) => __unhandled("unhandledrejection", String(e.reason?.stack || e.reason)));
   addEventListener("error", (e) => __unhandled("error", String(e.error?.stack || e.message)));
   // every layout shift since this load, as CLS counts them (none just after a press)
-  window.__shift = 0;
-  new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) window.__shift += e.value; }).observe({ type: "layout-shift", buffered: true });
+  window.__shift = 0; window.__shifts = []; // and each with its time (AH-228 P-32)
+  new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) window.__shift += e.value, __shifts.push([e.startTime, e.value]); }).observe({ type: "layout-shift", buffered: true });
 });
 // AH-181: checking as you work is on unless turned off, and the other modes edit cells on purpose to test what a scan and
 // a fix do (a sort, a retyped cell): there it is off, so no check of its own adds a /scan call. Mode live turns it on, with
@@ -59,7 +59,7 @@ const AI_BROKE = `Ask AI hit a problem it didn't expect. Try again, and if it ha
 // AH-135: said as a person with few computer skills can act on it, naming where the file most people have is; the pane
 // cannot tell a source folder from the app, so no install.bat aside
 const DOWN = "Arcas has stopped. Wait half a minute and try again. If that doesn't work, open your Downloads folder, double-click Arcas.exe, then try again.";
-const DOWN_AT_START = "Arcas has stopped. Wait half a minute and press Try again. If that doesn't work, open your Downloads folder, double-click Arcas.exe, then press Try again.";
+const DOWN_AT_START = "Arcas has stopped. Arcas is trying again by itself. Wait half a minute and press Try again. If that doesn't work, open your Downloads folder, double-click Arcas.exe, then press Try again.";
 const dropMidway = async (r) => { await new Promise((go) => setTimeout(go, 300)); await r.abort("connectionreset"); }; // sent, then the engine is gone
 const scans = []; // every /scan body the pane sent: the slider's level and the Power BI switch must reach the engine
 page.on("request", (r) => r.url().endsWith("/scan") && scans.push(JSON.parse(r.postData())));
@@ -214,7 +214,7 @@ if (mode === "flow") {
     const f = () => { const b = document.querySelector("#flagged-list button"); if (b?.checkVisibility()) __tops.push(b.getBoundingClientRect().top); if (!window.__stopTops) requestAnimationFrame(f); };
     requestAnimationFrame(f);
     window.__slow = 150; // an Excel that takes its time, so every step of the scan gets frames of its own
-    new MutationObserver((_, mo) => { mo.disconnect(); __arrive = [...document.getElementById("flagged-list").children].slice(0, 12).map((li) => li.getAnimations().map((a) => [a.effect.getTiming().delay, Object.keys(a.effect.getKeyframes()[0]).filter((k) => !["offset", "easing", "composite", "computedOffset"].includes(k))])); })
+    new MutationObserver((_, mo) => { mo.disconnect(); window.__landAt = performance.now(); __arrive = [...document.getElementById("flagged-list").children].slice(0, 12).map((li) => li.getAnimations().map((a) => [a.effect.getTiming().delay, Object.keys(a.effect.getKeyframes()[0]).filter((k) => !["offset", "easing", "composite", "computedOffset"].includes(k))])); })
       .observe(document.getElementById("flagged-list"), { childList: true }); });
   // AH-149 review: every frame the summary counts, its words as drawn (a counting number is its counter's --n) and how wide
   // each drawn number is beside the number it becomes. The total was counted too and drew "0 of     0 rows look wrong."
@@ -300,7 +300,7 @@ if (mode === "flow") {
       `AH-149 review r1: a flagged number under 10 is drawn as itself from the first frame, never counted from 0 ("0 of 300 rows look wrong." above 5 flagged rows) - ${frames.length} counting frames, ${JSON.stringify(frames.slice(0, 3))}, "${said}"`); }
   { const h = await page.evaluate(() => ({ hint: document.getElementById("strength-hint").textContent, tested: document.getElementById("strength-measured")?.textContent,
       open: document.getElementById("strength-tested")?.open, summary: document.querySelector("#strength-tested summary")?.textContent })); // null-safe: a pane without them fails by name
-    ok(h.hint === "Recommended. Plus unusual mixes of values across columns." && !h.open && h.summary === "How we tested this level"
+    ok(h.hint === "Recommended. The basics, numbers outside their column's usual range, sudden jumps over time, and unusual mixes of values across columns." && !h.open && h.summary === "How we tested this level"
       && /^We tested it on \d+ practice sheets with \d+ mistakes hidden in them\. It found .* rows that were fine/.test(h.tested),
       "AH-149 review: under the slider, what the level does in one short line; what it did on the bench under \"How we tested this level\", closed - " + JSON.stringify(h)); }
   // AH-175: on first use the slider is folded under Find problems, its summary saying the level, and a press opens it
@@ -313,7 +313,17 @@ if (mode === "flow") {
   ok(since(c0) === "/scan" && calls[c0][1].strength === 5 && calls[c0][1].power_bi === false, "Find problems sends exactly one /scan, at the slider's level - " + since(c0));
   { const m = await matchesEngine(); ok(m.ok, "the list is exactly what the engine answered: each flagged row, its severity in words and its reason - " + m.why); }
   ok((await text("#summary")).startsWith("5 of 300 rows look wrong."), "summary in plain words - " + (await text("#summary")));
-  ok(/^Done in \d+ seconds?\.$/.test(await text("#notice")), "says when it is done - " + (await text("#notice")));
+  // AH-228 P-32 (was "Done in N seconds." in the notice box over the results): said in the summary's own line, and the
+  // rows start higher: the progress's space is let go as the list is drawn (step 3 says its progress in the foot bar), so
+  // the list lands where it stays and nothing moves after (fix round 1: the empty 57 px band stayed over the results)
+  { const end = await page.evaluate(() => { const st = document.getElementById("status");
+      return { notice: document.getElementById("notice").textContent, summary: document.getElementById("summary").textContent,
+        gap: Math.round(document.getElementById("results").getBoundingClientRect().top - document.querySelector(".pane-hero").getBoundingClientRect().bottom),
+        inFlow: getComputedStyle(st).position !== "fixed" ? st.getBoundingClientRect().height : 0,
+        // shifts past the frames the list lands in: the results taking the skeleton's place is the landing itself
+        shift: __shifts.filter(([t]) => t > __landAt + 100).reduce((k, [, v]) => k + v, 0), landing: __shifts.filter(([t]) => t > __landAt - 50 && t <= __landAt + 100).map(([t, v]) => [Math.round(t - __landAt), v]) }; });
+    ok(end.notice === "" && /^5 of 300 rows look wrong\..* Checked in \d+ seconds?\.$/.test(end.summary) && end.inFlow < 1 && end.gap < 40 && end.shift === 0,
+      "AH-228 P-32: how long it took is said in the summary's line, no band over the results, nothing moved after they landed - " + JSON.stringify(end)); }
   { const l = await line(); ok(!l.shown, "AH-184: no finish line before the first decision - " + JSON.stringify(l)); }
   const listed = await page.$$eval("#flagged-list button", (bs) => bs.slice(0, 5).map((b) => b.innerText.split("\n")[0]));
   ok(["11", "22", "51", "81", "121"].every((r) => listed.some((l) => l.startsWith(`Row ${r}`))), "all 5 planted problems listed first - " + listed);
@@ -582,8 +592,13 @@ if (mode === "flow") {
   ok((await cell("C11")).fill === "#FFEB9D" && (await cell("A51")).fill === "#FFEB9D", "reopened, then Find problems: the rows are highlighted again");
   await page.click("#clear-highlights"); await idle();
   ok((await fillsAt()) === OWN, "and Remove highlights puts back each cell's own fill, row 11's green too - " + (await fillsAt()));
+  // AH-228 P-38: the button then says Show highlights again, and a press paints the last scan's highlights back
+  const again = await text("#clear-highlights");
   await page.click("#clear-highlights"); await idle();
-  ok((await fillsAt()) === OWN, "a second Remove highlights changes nothing: the user's Bad and Neutral styles, a whole row too, stay - " + (await fillsAt()));
+  ok(again === "Show highlights again" && (await cell("C11")).fill === "#FFEB9D" && (await cell("A51")).fill === "#FFEB9D" && (await text("#clear-highlights")) === "Remove highlights"
+    && (await text("#notice")).startsWith("Highlights are back"), `AH-228 P-38: Show highlights again paints them back, and the button says Remove highlights again - ${again}, ${(await cell("C11")).fill}, ${await text("#notice")}`);
+  await page.click("#clear-highlights"); await idle();
+  ok((await fillsAt()) === OWN, "removed again: the user's Bad and Neutral styles, a whole row too, stay - " + (await fillsAt()));
   // the workbook no longer holds the old fills (Forget, or a pane from before AH-150): a cell in our colour that a scan
   // flags again is our highlight, never the user's fill, so Remove highlights takes it off
   await find(); await page.reload(); await page.waitForSelector("#main-ui", { state: "visible" });
@@ -593,8 +608,9 @@ if (mode === "flow") {
   await page.evaluate(() => { __fill("Sales", "A30", null); __fill("Sales", "D40", null); for (const c of "ABCDE") __fill("Sales", c + "60", null); });
 
   // 6) limits: plain words, bad input refused, saving rescans, "Back to automatic" resets
-  const openStrict = () => page.locator("details.more:has(#edit-limits)").evaluate((d) => (d.open = true));
-  await openStrict();
+  // AH-228 P-35: one press opens the limits (a fold, then a button, was two), and the words never point at a folded slider
+  const openStrict = async () => {};
+  ok(await page.isVisible("#edit-limits") && !(await page.$("details:has(#edit-limits)")), "AH-228 P-35: Exact limits per column is one press under the list");
   const noticed = await text("#notice"); // Remove highlights' words, just above
   await page.click("#edit-limits");
   ok(noticed.startsWith("Highlights removed") && (await text("#notice")) === "", `AH-170: opening the limits editor clears the last action's notice - ${JSON.stringify([noticed, await text("#notice")])}`);
@@ -614,7 +630,7 @@ if (mode === "flow") {
   ok(await page.evaluate(() => Object.keys(__settings.anomalyHunterLimits).join() === "Units"), "only the changed column is saved");
   await openStrict();
   await page.click("#edit-limits"); await page.click("#auto-limits"); await idle();
-  ok(await page.evaluate(() => __settings.anomalyHunterLimits === undefined) && (await text("#flagged-list")).includes("Units is 7777"), "Back to automatic");
+  ok(await page.evaluate(() => __settings.anomalyHunterLimits === undefined) && (await text("#flagged-list")).includes("Units is 7777"), "Use automatic limits");
 
   // 6b) the strength slider, driven by a real mouse: press the thumb, drag, let go -> re-check; 0 = basics only,
   // saved in the workbook; 5 brings everything back
@@ -670,8 +686,9 @@ if (mode === "flow") {
   await page.waitForTimeout(800); await idle();
   // the design (pages/strength.js): one check at a time, and a level chosen meanwhile gets exactly one more check, with
   // the newest level. The first key starts a check at 7 at once; the next two only queue one more, at 5; 6 is never checked
-  ok(scans.slice(s2).map((b) => b.strength).join() === "7,5" && (await page.evaluate(() => __settings.anomalyHunterStrength)) === 5,
-    "three quick arrow keys: the check the first key started, then exactly one more at the newest level (5), and 5 saved - " + scans.slice(s2).map((b) => b.strength));
+  // AH-228 P-27 (was "7,5": the first key checked at once): keys check once, a moment after the last one
+  ok(scans.slice(s2).map((b) => b.strength).join() === "5" && (await page.evaluate(() => __settings.anomalyHunterStrength)) === 5,
+    "three quick arrow keys: one check, at the newest level (5), and 5 saved - " + scans.slice(s2).map((b) => b.strength));
   { const m = await matchesEngine(); ok(m.ok, "at 5 the list is exactly what the engine answered at 5 - " + m.why); }
   ok((await page.$$("#flagged-list li")).length === listed5 && (await text("#strength-val")) === "5 of 10" && (await page.evaluate(() => __state.lastStrength)) === 5,
     "back to 5: the same rows as before");
@@ -830,8 +847,8 @@ if (mode === "flow") {
   // nothing in the workbook or on this PC. A scan takes its place
   { await profiled();
     const said = await page.$$eval("#before-scan-lines p", (ps) => ps.map((p) => p.textContent)), sent = calls.filter((c) => c[0] === "/profile").at(-1)?.[1];
-    ok(await page.isVisible("#before-scan") && (await text("#before-scan-head")) === "Before you scan" && said[0] === "This sheet looks like a time series by OrderDate."
-      && said.includes("No column says who the rows are, so no fairness check will run.") && JSON.stringify(said) === JSON.stringify(profiles.at(-1)?.lines)
+    ok(await page.isVisible("#before-scan") && (await text("#before-scan-head")) === "Before you scan" && said[0] === "Each row is a date in OrderDate."
+      && said.includes("No column about people, so the fairness check is off.") && said.includes("Dates are in OrderDate.") && JSON.stringify(said) === JSON.stringify(profiles.at(-1)?.lines)
       && sent?.rows.length === 300 && JSON.stringify(sent.columns) === JSON.stringify(rows[0]),
       "Before you scan: on opening the pane says the engine's /profile lines for the sheet, one a line - " + JSON.stringify(said));
     // AH-193: its first line is a sentence: the empty state's heading rule (#empty-state p:first-child) balanced it like
@@ -905,17 +922,17 @@ if (mode === "flow2") {
   await page.click("#scan"); await idle();
   const planned = (e) => /status of 500|hit a problem it didn't expect/.test(e); // this step's own 500, logged on purpose
   errors.splice(seen, Infinity, ...errors.slice(seen).filter((e) => !planned(e)));
-  ok((await text("#notice")) === "Something went wrong: " + BROKE && !(await page.evaluate(() => document.getElementById("clear-highlights").disabled)),
+  ok((await text("#notice")) === BROKE && !(await page.evaluate(() => document.getElementById("clear-highlights").disabled)),
     "an engine error is said in plain words, and the pane is usable again - " + (await text("#notice")));
 
   // 7c) the engine goes down mid-scan (the request is sent, then the connection drops): plain words that name the file
   // most people have (the exe; install.bat only in a source folder or an invite kit), and the pane is usable again
   await failing(DROPPED, async () => { await page.route("**/scan", dropMidway, { times: 1 }); await page.click("#scan"); await idle(); });
-  ok((await text("#notice")) === "Something went wrong: " + DOWN && !(await page.evaluate(() => document.getElementById("scan").disabled)),
+  ok((await text("#notice")) === DOWN && (await page.isVisible("#main-ui")) && !(await page.evaluate(() => document.getElementById("scan").disabled)),
     "the engine down mid-scan: said in plain words, buttons back - " + (await text("#notice")));
   // an engine from before a route existed answers 404 with no words of ours: told to update, naming the exe too
   await failing(/status of 404|out of date/, async () => { await page.route("**/scan", (r) => r.fulfill({ status: 404, body: "" }), { times: 1 }); await page.click("#scan"); await idle(); });
-  ok((await text("#notice")) === "Something went wrong: the checker is out of date. Close Excel, then run the newest Arcas.exe (from a source folder: install.bat).",
+  ok((await text("#notice")) === "The checker is out of date. Close Excel, then run the newest Arcas.exe (from a source folder: install.bat).",
     "an engine too old for the pane: said in plain words - " + (await text("#notice")));
   // and mid-Accept (on the Other sheet, checked last): the cell is written, the re-check that could not run is said on the card
   await find(); await openRow(81);
@@ -995,7 +1012,7 @@ if (mode === "flow2") {
   const listBits = () => page.evaluate(() => ["list-hint", "flagged-list", "clear-highlights", "list-title"].map((id) => document.getElementById(id)?.checkVisibility() ? id : "").filter(Boolean).join());
   await page.evaluate(() => __load("Clean", [["Item", "Units", "Cost"], ...Array.from({ length: 60 }, (_, k) => [["Pen", "Pad", "Ink"][k % 3], 40 + ((k * 7) % 23), +(1.99 + (k % 4)).toFixed(2)])]));
   await find();
-  ok((await text("#summary")) === "No problems found in 60 rows." && (await listBits()) === "", "a clean sheet: the summary alone, no hint, no empty list, no Remove highlights - " + (await listBits()));
+  ok(/^No problems found in 60 rows\. Checked in \d+ seconds?\.$/.test(await text("#summary")) && (await listBits()) === "", "a clean sheet: the summary alone, no hint, no empty list, no Remove highlights - " + (await listBits()));
   ok(await page.evaluate(() => document.getElementById("summary").classList.contains("tick") && getComputedStyle(document.getElementById("summary"), "::after").animationIterationCount === "1"),
     "AH-149: a sheet with no problem ends on a check mark, drawn once");
   await page.evaluate(() => __activate("Sales")); await find();
@@ -1133,7 +1150,8 @@ if (mode === "flow2") {
     // step 2 of a scan that takes a while counts its seconds, never a made-up percentage
     await page.route("**/scan", async (r) => { await new Promise((go) => setTimeout(go, 2300)); await r.continue(); }, { times: 1 });
     await page.click("#scan");
-    const secs = await page.waitForFunction(() => /^Step 2 of 3: checking 300 rows… 2 s$/.test(document.getElementById("busy-line").textContent), null, { timeout: 8000 }).then(() => true, () => false);
+    // its words, beside the line's Stop (AH-228 P-28)
+    const secs = await page.waitForFunction(() => /^Step 2 of 3: checking 300 rows… 2 s$/.test(document.querySelector("#busy-line > span").textContent), null, { timeout: 8000 }).then(() => true, () => false);
     await idle();
     ok(secs, "AH-149: while the engine checks, the progress line counts the seconds it has taken"); }
 
@@ -1209,6 +1227,13 @@ const shortNote = async (box, note, summary, full) => {
 if (mode === "ai") { // engine started with a Claude key pointed at stub_claude.py
   await find();
   ok(await page.isVisible("#ai-fold") || !(await page.isVisible("#ai-off")), "AI help is on when a key is set");
+  // AH-228 P-18 (AH-164's and AH-202's boxes, now folded): Check words and Check subject rules wait under one closed line,
+  // "More checks with AI", under the list; Remove highlights stays outside it
+  { const m = await page.evaluate(() => { const d = document.getElementById("ai-checks"), sum = d?.querySelector("summary");
+      return { shown: !!d?.checkVisibility(), open: d?.open, summary: sum?.textContent, tall: sum?.getBoundingClientRect().height, words: document.getElementById("odd-check").checkVisibility(),
+        clear: !d?.contains(document.getElementById("clear-highlights")) && document.getElementById("clear-highlights").checkVisibility() }; });
+    ok(m.shown && m.open === false && m.summary === "More checks with AI" && m.tall >= 44 && !m.words && m.clear, "AH-228 P-18: the AI checks fold under one closed line, 44 px tall, Remove highlights outside it - " + JSON.stringify(m)); }
+  await page.click("#ai-checks > summary");
   await shortNote("#odd-box", "#odd-box p", "What is sent?", ["It sends only the different words in your text columns to Google (through John's relay if you use an invite code), never your rows or numbers.", "Its answers are leads to check."]);
   await shortNote("#rules-box", "#rules-box p", "What is sent?", ["It sends only the first 200 column headers, each cut to 100 characters, and whether each column holds numbers, dates, text or IDs", "never a cell.", "Arcas checks each rule on every row on this PC."]);
   // AH-175: Ask AI is folded under a card's fix, "Want a different fix? Ask AI", and open by itself on a card with no fix
@@ -1344,8 +1369,9 @@ if (mode === "ai") { // engine started with a Claude key pointed at stub_claude.
       && posts.length === 0 && (await page.evaluate(() => document.activeElement.id)) === "fix-intent", "a request to start from fills the Ask AI box, sends nothing and leaves the caret in the box - " + posts);
     await page.fill("#fix-intent", typed); }
 
-  // the AI key box (Options > AI help) takes typed keys too; Enter in it sends nothing
+  // the AI key box (Options > AI help > Use your own Google key, AH-228 P-10) takes typed keys too; Enter in it sends nothing
   await page.click("#settings summary");
+  await page.click("#own-key summary");
   posts.length = 0;
   await page.click("#ai-key");
   await page.keyboard.type("AIzaTypedKey_123");
@@ -1353,6 +1379,7 @@ if (mode === "ai") { // engine started with a Claude key pointed at stub_claude.
   await page.waitForTimeout(300);
   ok((await page.inputValue("#ai-key")) === "AIzaTypedKey_123" && posts.length === 0, "the AI key box takes typed keys; Enter there sends nothing - " + posts);
   await page.fill("#ai-key", "");
+  await page.click("#own-key summary");
   await page.click("#settings summary");
 
   // Check words with AI: only the text columns' distinct words go; the AI's answer is shown as text, never as markup,
@@ -1428,7 +1455,9 @@ if (mode === "nokey") { // engine started with no key: John's free AI through th
   await find();
   await openRow(11);
   // AH-151: a fresh pane with no key has the free AI on, says so in AI help, and Ask AI works with nothing secret sent
-  const FREE = "AI help is on, using a free shared AI with a few requests a day for each internet connection. For more, paste your own free Google key below.";
+  // AH-228 P-10 (was "AI help is on, using a free shared AI with a few requests a day for each internet connection. For
+  // more, paste your own free Google key below."): one line, the steps for a key of one's own folded, closed
+  const FREE = "AI help works now, free, with a daily limit. For more answers, use your own free Google key.";
   const free = JSON.parse(await page.evaluate(() => fetch("/health").then((r) => r.text())));
   ok(free.ai_available && free.ai_provider === "free" && (await page.isVisible("#ai-fold")) && !(await page.isVisible("#ai-off"))
     && (await text("#ai-state")) === FREE && !(await page.isDisabled("#fix-ask")),
@@ -1440,6 +1469,10 @@ if (mode === "nokey") { // engine started with no key: John's free AI through th
   ok(relayed.path === "/fix" && relayed.auth === false && (await text("#fix-changes")).startsWith("C11: -5 → =AVERAGEIFS("),
     "Ask AI with no key: the free AI's fix, through the relay's /fix with no Authorization header - " + JSON.stringify({ path: relayed.path, auth: relayed.auth }));
   await page.click("#settings summary");
+  { const m = await page.evaluate(() => ({ open: document.getElementById("own-key").open, key: document.getElementById("ai-key").checkVisibility(),
+      summary: document.querySelector("#own-key > summary").textContent, words: document.getElementById("settings").innerText.replace(document.getElementById("own-key").innerText, "").split(/\s+/).length }));
+    ok(!m.open && !m.key && m.summary === "Use your own Google key" && m.words < 110, "AH-228 P-10: AI help says it works with no key; the steps and the key box wait, closed, under Use your own Google key - " + JSON.stringify(m)); }
+  await page.click("#own-key summary");
   // AH-157: Save key says at once that the key is being tested (the line kept "AI help is on" for up to 15 s)
   await page.route("**/key", async (r) => { await new Promise((go) => setTimeout(go, 800)); await r.continue(); }, { times: 1 });
   await page.fill("#ai-key", "<script>"); await page.click("#save-key");
@@ -1809,6 +1842,48 @@ if (mode === "flow2") {
   }
 }
 
+// AH-228 B: the footer's version, the tab in front, Stop, and Arcas stopped mid-scan
+if (mode === "flow2") {
+  await page.evaluate(() => __activate("Sales")); await find();
+  // P-31: the footer says the version in plain words ("Engine dev 843936a (2026-11-25)" was a developer's line)
+  ok(/^(Test version|Version \d[\d.]*)( \(\d{1,2} [A-Z][a-z]{2} \d{4}\))?$/.test(await text("#engine-version")), "AH-228 P-31: the footer's version in plain words - " + (await text("#engine-version")));
+  // P-15: the header names the tab in front as it changes, and a list made on another tab says so
+  await page.evaluate(() => { __load("Budget", [["Item", "Cost"], ["Pen", 2], ["Ink", 3]]); __activate("Budget"); });
+  await page.waitForFunction(() => document.getElementById("sheet-name").textContent === "Budget", null, { timeout: 3000 }).catch(() => {});
+  const away = { name: await text("#sheet-name"), notice: await text("#notice") };
+  await page.evaluate(() => __activate("Sales"));
+  await page.waitForFunction(() => document.getElementById("sheet-name").textContent === "Sales", null, { timeout: 3000 }).catch(() => {});
+  const home = { name: await text("#sheet-name"), notice: await text("#notice") };
+  ok(away.name === "Budget" && away.notice === "This list is for Sales. Find problems checks Budget." && home.name === "Sales" && home.notice === "",
+    "AH-228 P-15: the header follows the tab in front, and says when the list is another tab's - " + JSON.stringify({ away, home }));
+  // P-28: Stop on the progress line ends a slow scan: the list stays as it was, and it says nothing was changed
+  const listed = await text("#flagged-list"), cells = await page.evaluate(() => JSON.stringify(["C11", "C22"].map((a) => __cell("Sales", a))));
+  await failing(/ERR_ABORTED|aborted/i, async () => {
+    await page.route("**/scan", async (r) => { await new Promise((go) => setTimeout(go, 3000)); await r.continue().catch(() => {}); }, { times: 1 });
+    await page.click("#scan");
+    await page.waitForSelector("#stop-scan", { state: "visible", timeout: 5000 }).catch(() => {});
+    const tall = await page.evaluate(() => document.getElementById("stop-scan").getBoundingClientRect().height);
+    await page.click("#stop-scan"); await idle();
+    ok(tall >= 44 && (await text("#notice")) === "Stopped. Nothing was changed." && (await text("#flagged-list")) === listed && (await page.isVisible("#results"))
+      && !(await page.isVisible("#stop-scan")) && cells === await page.evaluate(() => JSON.stringify(["C11", "C22"].map((a) => __cell("Sales", a)))),
+      "AH-228 P-28: Stop ends the scan, the list stays as it was, nothing written - " + JSON.stringify({ tall, notice: await text("#notice") }));
+    await page.waitForTimeout(3200); // the held answer arrives and is dropped
+  });
+  // P-24: Arcas gone in the middle of a scan is said the one way, #server-down, which tries again by itself
+  await failing(DROPPED, async () => {
+    const refuse = (r) => r.abort("connectionrefused");
+    await page.route("**/health", refuse); await page.route("**/scan", dropMidway, { times: 1 });
+    await page.click("#scan");
+    await page.waitForSelector("#server-down", { state: "visible", timeout: 12000 }).catch(() => {});
+    const down = { shown: await page.isVisible("#server-down"), main: await page.isVisible("#main-ui"), retrying: await page.isVisible("#retrying") };
+    ok(down.shown && !down.main && down.retrying && (await text("#server-down")).includes("Arcas is trying again by itself."),
+      "AH-228 P-24: Arcas stopped mid-scan shows Arcas has stopped, trying again by itself - " + JSON.stringify(down));
+    await page.unroute("**/health", refuse);
+    await page.waitForSelector("#main-ui", { state: "visible", timeout: 9000 }).catch(() => {});
+  });
+  ok(await page.isVisible("#main-ui") && (await text("#notice")) === "", "AH-228 P-24: back by itself, with no stale words - " + (await text("#notice")));
+}
+
 if (mode === "live") { // AH-180, AH-181
   // three tabs of one experiment, each a time axis and a series; the third holds its own series until the paste below
   const wave = (k) => Array.from({ length: 40 }, (_, i) => Math.round(100 * Math.sin(i * 1.3 + k)) / 10 + 50);
@@ -1826,10 +1901,12 @@ if (mode === "live") { // AH-180, AH-181
   const scanAt = await page.evaluate(() => document.getElementById("scan").getBoundingClientRect().top);
   // a wild value typed into a tab that is not the one shown
   await page.evaluate(() => __edit("Sales", "C30", 77777));
-  const ms = await waitNote('Sheet "Sales", cell C30:');
+  const ms = await waitNote("You changed C30 on Sales.");
   const said = await note();
-  ok(said.includes('Sheet "Sales", cell C30: ') && said.includes("Units is 77777") && ms < 3500, `AH-181: a wild value typed on a tab not shown is said with its cell in ${ms} ms - ${said}`);
+  // AH-228 P-13 (was 'Sheet "Sales", cell C30: Very likely wrong.'): the cell changed, then the one that looks wrong
+  ok(said.startsWith("You changed C30 on Sales. It looks wrong: Units is 77777") && ms < 3500, `AH-181: a wild value typed on a tab not shown is said with its cell in ${ms} ms - ${said}`);
   ok(await chimes() === 1, `AH-181: and one chime - ${await chimes()}`);
+  ok((await text("#live-more")) === "Check the whole sheet", "AH-228 P-14: with no list of this sheet, the note offers to check the whole sheet - " + (await text("#live-more")));
   { const m = await page.evaluate(() => ({ scan: document.getElementById("scan").getBoundingClientRect().top, crest: document.querySelector("#live-note img").alt,
       buttons: [...document.querySelectorAll("#live-note button")].map((b) => b.getBoundingClientRect().height), pos: getComputedStyle(document.getElementById("live-note")).position }));
     ok(m.scan === scanAt && m.pos === "fixed" && m.crest === "" && m.buttons.every((h) => h >= 44), "AH-181: the note lies over the pane's foot, with the crest, moving nothing, its buttons 44 px tall - " + JSON.stringify({ ...m, scanAt })); }
@@ -1843,7 +1920,7 @@ if (mode === "live") { // AH-180, AH-181
   // the same cell retyped and still wrong is said again: every change gets an answer (John, 2026-11-17)
   await page.evaluate(() => __edit("Sales", "C30", 66666));
   await waitNote("Units is 66666");
-  ok((await note()).includes('Sheet "Sales", cell C30: ') && await chimes() === 2, "AH-181: a flagged cell retyped and still wrong is said again, with a chime - " + (await note()));
+  ok((await note()).startsWith("You changed C30 on Sales.") && await chimes() === 2, "AH-181: a flagged cell retyped and still wrong is said again, with a chime - " + (await note()));
   await page.click("#live-close");
   // an ordinary value: said quietly in the notice that the cell was checked, with no note and no chime
   await page.evaluate(() => __edit("Sales", "B45", "Central"));
@@ -1864,7 +1941,9 @@ if (mode === "live") { // AH-180, AH-181
   await page.evaluate(() => __edit("Sales", "C40", 88888));
   await page.waitForTimeout(3000);
   ok(!(await note()) && await page.evaluate(() => localStorage.getItem("anomalyHunterLive")) === "0", "AH-181: with Check the cells I change off, an edit raises no note");
+  const soundOff = await page.isDisabled("#live-sound");
   await page.click("#live");
+  ok(soundOff && !(await page.isDisabled("#live-sound")) && await page.isChecked("#live-sound"), "AH-228 P-29: Play a sound is off while Check the cells I change is, and back with it");
   // AH-180: series 2's numbers pasted on tab 3, under its own header
   await page.evaluate((col) => __paste("Series 3", "B2", col.map((v) => [v])), wave(2));
   const pms = await waitNote('"Series 3" holds the same 40 numbers as "Series 2"');
@@ -1943,8 +2022,8 @@ if (mode === "live") { // AH-180, AH-181
   // another row and only said checked
   { await page.evaluate(() => __activate("Sales"));
     await page.evaluate(() => __edit("Sales", "B50", "Cnetral"));
-    await waitNote('cell B50');
-    ok((await note()).includes('Sheet "Sales", cell B50: '), "AH-205: Cnetral typed is said as you work - " + (await note()));
+    await waitNote("You changed B50");
+    ok((await note()).startsWith("You changed B50 on Sales."), "AH-205: Cnetral typed is said as you work - " + (await note()));
     await page.click("#live-close");
     await find(); await openRow(50);
     await page.click("#fix-dismiss"); await idle();
@@ -1965,8 +2044,8 @@ if (mode === "live") { // AH-180, AH-181
     ok(replies.length > k && !typing.note && !typing.notice.startsWith("Checked C12"), "AH-218: a blank left on the row still being typed is not said yet - " + JSON.stringify(typing));
     const t0 = Date.now();
     await page.evaluate(() => __userSelect("Sales", "C13"));
-    await waitNote('cell C12');
-    ok((await note()).startsWith('Sheet "Sales", cell C12: ') && Date.now() - t0 < 1000 && await chimes() === typing.chimes + 1,
+    await waitNote("You changed C12");
+    ok((await note()).startsWith("You changed C12 on Sales.") && Date.now() - t0 < 1000 && await chimes() === typing.chimes + 1,
       `AH-218: it is said the moment the selection leaves the row (${Date.now() - t0} ms), with its chime - ` + (await note()));
     await page.click("#live-close");
     k = replies.length;
@@ -1975,9 +2054,26 @@ if (mode === "live") { // AH-180, AH-181
     await page.evaluate(() => __userSelect("Sales", "C14"));
     const t1 = Date.now();
     await page.evaluate(() => __edit("Sales", "B14", "Cental"));
-    const ms = await waitNote('cell B14');
-    ok((await note()).startsWith('Sheet "Sales", cell B14: ') && ms < 3500, `AH-218: a spelling slip on the row the selection is on is said at once (${Date.now() - t1} ms) - ` + (await note()));
+    const ms = await waitNote("You changed B14");
+    ok((await note()).startsWith("You changed B14 on Sales.") && ms < 3500, `AH-218: a spelling slip on the row the selection is on is said at once (${Date.now() - t1} ms) - ` + (await note()));
     await page.click("#live-close"); }
+  // AH-228 P-14: past Show me, the note's next step: Check the whole sheet runs Find problems, and once the list holds the
+  // row, Open its card opens that row's card as the list does
+  { await page.evaluate(() => { __activate("Sales"); __edit("Sales", "C33", 77770); });
+    await waitNote("You changed C33 on Sales.");
+    const first = await text("#live-more"), k = scans.length;
+    await page.click("#live-more"); await idle();
+    await page.waitForSelector("#results", { state: "visible", timeout: 5000 }).catch(() => {});
+    const scanned = scans.length > k && !!(await page.$('#flagged-list button:has-text("Row 33 ")'));
+    // Find problems selected row 33's cell: an edit there that breaks only its row's sum waits till the row is left (AH-218)
+    await page.evaluate(() => { __userSelect("Sales", "A2"); __edit("Sales", "C33", 77771); });
+    await waitNote("You changed C33 on Sales.");
+    const then = await text("#live-more");
+    await page.click("#live-more");
+    await page.waitForFunction(() => /^Row 33\b/.test(document.getElementById("fix-title").textContent) && !document.getElementById("fix-view").hidden, null, { timeout: 5000 }).catch(() => {});
+    ok(first === "Check the whole sheet" && scanned && then === "Open its card" && /^Row 33\b/.test(await text("#fix-title")) && !(await note()),
+      "AH-228 P-14: Check the whole sheet runs Find problems, then Open its card opens the row's card - " + JSON.stringify({ first, scanned, then, title: await text("#fix-title") }));
+    await back(); }
 }
 
 // AH-217 (John, 2026-11-21: "AI proposes, the no-AI engine verifies, then enforces locally for free"), pass 1 and pass 2:
@@ -2000,6 +2096,7 @@ if (mode === "live") {
   await find();
   ok((await tagOn(11)) === null && (await tagOn(21)) === null, "AH-217: before Check subject rules, the scan's own checks flag neither row 11 nor row 21");
   const k0 = calls.length;
+  await page.$eval("#ai-checks", (d) => (d.open = true)); // AH-228 P-18: under More checks with AI
   await page.click("#rules-check"); await idle();
   const lines = await page.$$eval("#rules-list li", (lis) => lis.map((li) => li.textContent));
   ok(since(k0) === "/rules" && lines[0] === "Arcas keeps the 2 rules that held in this workbook and checks them in every scan of this sheet, with no AI.",
@@ -2030,7 +2127,7 @@ if (mode === "live") {
   await page.evaluate((r) => __paste("Ledger", "A42", [r]), typed[0]);
   await page.waitForFunction(() => document.getElementById("live-note").checkVisibility(), null, { timeout: 8000 }).catch(() => {});
   const said = await note();
-  ok(said.startsWith('Sheet "Ledger", cell E42: Probably wrong. Paid 61.5 is above Amount 46.5: ' + RULE),
+  ok(said.startsWith("You changed E42. F42 on Ledger looks wrong: Paid 61.5 is above Amount 46.5: " + RULE),
     "AH-217: after a reload with no AI, a new row against the kept rule is said as you work - " + said);
   if (said) await page.click("#live-close");
   await page.evaluate((r) => __paste("Ledger", "A43", [r]), typed[1]);
@@ -2057,16 +2154,16 @@ if (mode === "live") {
   const note = () => page.evaluate(() => { const n = document.getElementById("live-note"); return n.checkVisibility() ? n.textContent.replace(/\s+/g, " ").trim() : ""; });
   const waitNote = (has) => page.waitForFunction((has) => document.getElementById("live-note").textContent.includes(has) && !document.getElementById("live-note").hidden, has, { timeout: 8000 }).catch(() => {});
   const pane = () => page.evaluate(() => ({ shown: __shown, open: __open }));
-  const typed = async (cell, v) => { await page.evaluate(([c, v]) => __edit("Sales", c, v), [cell, v]); await waitNote(`cell ${cell}:`); };
+  const typed = async (cell, v) => { await page.evaluate(([c, v]) => __edit("Sales", c, v), [cell, v]); await waitNote(`You changed ${cell}`); };
   if (await note()) await page.click("#live-close");
   await page.$eval("#live-box", (d) => (d.open = true));
   ok((await text("#live-hint")).includes(" It keeps checking after you close this pane, and opens the pane again to tell you. "), "AH-220: the fold says Check as you work goes on with the pane closed - " + (await text("#live-hint")));
   await typed("C201", 88881);
-  ok((await note()).includes("cell C201:") && JSON.stringify(await pane()) === '{"shown":0,"open":true}', "AH-220: with the pane open, a finding is said and the pane is not asked to open - " + JSON.stringify(await pane()));
+  ok((await note()).startsWith("You changed C201 on Sales.") && JSON.stringify(await pane()) === '{"shown":0,"open":true}', "AH-220: with the pane open, a finding is said and the pane is not asked to open - " + JSON.stringify(await pane()));
   await page.click("#live-close");
   await page.evaluate(() => __pane(false));
   await typed("C202", 88882);
-  ok((await note()).includes('Sheet "Sales", cell C202: ') && JSON.stringify(await pane()) === '{"shown":1,"open":true}', "AH-220: with the pane closed, a finding opens it once, its note showing - " + JSON.stringify({ ...await pane(), note: await note() }));
+  ok((await note()).startsWith("You changed C202 on Sales.") && JSON.stringify(await pane()) === '{"shown":1,"open":true}', "AH-220: with the pane closed, a finding opens it once, its note showing - " + JSON.stringify({ ...await pane(), note: await note() }));
   await page.click("#live-close");
   await page.evaluate(() => __pane(false)); // closed again at once: left alone
   await typed("C203", 88883);
@@ -2082,10 +2179,10 @@ if (mode === "live") {
   ok(!(await note()) && JSON.stringify(await pane()) === '{"shown":1,"open":false}', "AH-220: with Check the cells I change off, an edit never opens the pane - " + JSON.stringify(await pane()));
   await page.click("#live");
   await typed("C206", 88886);
-  ok((await note()).includes("cell C206:") && JSON.stringify(await pane()) === '{"shown":2,"open":true}', "AH-220: after the person opened the pane themselves, a finding opens it again - " + JSON.stringify(await pane()));
+  ok((await note()).startsWith("You changed C206 on Sales.") && JSON.stringify(await pane()) === '{"shown":2,"open":true}', "AH-220: after the person opened the pane themselves, a finding opens it again - " + JSON.stringify(await pane()));
   await page.click("#live-close");
   await typed("C208", 88889); // a new burst, the pane still open from that
-  ok((await note()).includes("cell C208:") && JSON.stringify(await pane()) === '{"shown":2,"open":true}', "AH-220: once Arcas has opened the pane, the next finding is said in it with no new ask - " + JSON.stringify(await pane()));
+  ok((await note()).startsWith("You changed C208 on Sales.") && JSON.stringify(await pane()) === '{"shown":2,"open":true}', "AH-220: once Arcas has opened the pane, the next finding is said in it with no new ask - " + JSON.stringify(await pane()));
   await page.click("#live-close");
   // an Excel without SharedRuntime 1.1: the pane's code stops with the pane, as before AH-220, and the fold says so once
   await page.evaluate(() => sessionStorage.setItem("__noShared", "1"));

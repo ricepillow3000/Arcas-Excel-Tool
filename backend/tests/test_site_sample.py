@@ -123,7 +123,10 @@ def plain_reason(reason):  # frontend/features/scan.js plainReason, with its def
     s = re.sub(r"(\S[^;]*?) weird limit is ([^;\s]+); this is ([^;\s]+)",
                lambda m: f"{m[1]} is {m[3]}, {'below' if float(m[3]) < float(m[2]) else 'above'} its usual limit of {m[2]}", s)
     s = re.sub(r"Unusual combination of values, mainly (.+?)(?=;|$)", r"Unusual mix of values, mostly in \1", s)
-    return s.replace(" is unusual relative to its local trend near", " breaks its usual pattern near").replace(" 00:00:00", "").replace("; ", "\n")
+    lines = s.replace(" is unusual relative to its local trend near", " breaks its usual pattern near").replace(" 00:00:00", "").split("; ")
+    # AH-228 P-11: a jump said in both words keeps only "jumped sharply"
+    return "\n".join(x for x in lines if not ((m := re.search(r" breaks its usual pattern near (.+)$", x))
+                                              and f"{x[:m.start()]} jumped sharply near {m[1]}" in lines))
 
 
 def add_ups(reason):  # frontend/features/fix.js addUps
@@ -505,7 +508,7 @@ def test_the_checks_table_says_what_the_sample_shows_or_that_it_has_none():
         other.append([f"A{1000 + k}", 1 + k % 12, ["East", "West", "Central"][k % 3], u, round(u * 2.5 + (k * 13) % 7, 2)])
     other[9][3], other[20], other[30][1], other[40][4] = "#N/A", list(other[19]), 13, 99999
     said = {i + 2: r["reason"] for i, r in enumerate(APP.post("/scan", json={"columns": cols, "rows": other, "strength": 5}).get_json()["rows"]) if r["severity"]}
-    for n, words in ((11, "Excel error #N/A in Units"), (22, "Duplicate of row 21"), (32, "Month 13 is outside what Month can be"), (42, "Total 99999 looks like a code")):
+    for n, words in ((11, "Excel error #N/A in Units"), (22, "Duplicate of row 21"), (32, "Month 13 is outside what Month can be"), (42, "Total 99999 is all 9s")):
         assert words in said.get(n, ""), f"row {n}: {said.get(n)}"
 
 

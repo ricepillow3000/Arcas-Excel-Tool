@@ -4,6 +4,7 @@ import { n } from "../utils/text.js";
 import { busy, notice } from "../components/progress.js";
 import { A1, colLetter, spots } from "../utils/sheet.js";
 import { place } from "../utils/layout.js";
+import { $ } from "../utils/dom.js";
 
 const ours = (color) => Object.values(COLOR).includes(String(color).toUpperCase());
 
@@ -60,6 +61,7 @@ export async function paint(rows, s, skip = {}) { // skip: rows fixed or dismiss
     });
   } finally {
     keep(p);
+    $("clear-highlights").textContent = highlightWord(true);
   }
 }
 
@@ -83,6 +85,7 @@ async function unpaint() {
   });
   state.painted = null;
   keep(null);
+  $("clear-highlights").textContent = highlightWord(false);
 }
 
 // A cell's remembered fill back: its own color, or none
@@ -106,7 +109,13 @@ export async function fillRow(i, on) {
   });
 }
 
-export async function clearHighlights() {
+// AH-228 P-38: the button takes the colour off, then puts the last scan's back (rows fixed or dismissed since stay plain)
+export const highlightWord = (painted) => (painted ? "Remove highlights" : "Show highlights again");
+export async function toggleHighlights() {
+  if (!state.painted && state.lastRows && state.lastScan) {
+    await paint(state.lastRows, state.lastScan, state.decided);
+    return notice("Highlights are back. Your data was not changed.");
+  }
   await unpaint();
   notice("Highlights removed. Your data was not changed.");
 }

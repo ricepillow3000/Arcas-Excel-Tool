@@ -42,6 +42,8 @@
 /* a 16 px box inside a label a finger's height: the label is the target (WCAG 2.5.8, AH-115; 44 px since AH-149) */
 label.check { display: flex; align-items: center; min-height: 44px; gap: var(--s2); font-size: 13px; margin-bottom: var(--s2); color: var(--ink); }
 input[type="checkbox"] { width: 16px; height: 16px; margin: 0; accent-color: var(--wine); }
+label.check:has(input:disabled) { color: var(--muted); } /* AH-228 P-29: off while the switch above it is (T23, AA on paper) */
+#live-note .row-buttons > #live-more { grid-column: 1 / -1; }
 
 /* AH-149: the progress line and the notice take turns in one line of fixed height above the results: the progress went
    when the list had landed and "Done in 2 seconds." came in after the highlights, so the list jumped twice. The space
@@ -59,9 +61,10 @@ input[type="checkbox"] { width: 16px; height: 16px; margin: 0; accent-color: var
    open (Back brings them), and the progress line and the notice are said in a bar at the pane's foot, out of the flow:
    held over the card so "Opening row…" never moved it (AH-149), they left a 77 px band above it (John, at 360 px) */
 #main-ui:has(#fix-view:not([hidden])) :is(.pane-hero, #undo-auto) { display: none; }
-#main-ui:has(#fix-view:not([hidden])) #status { position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; margin: 0; min-height: 0; background: var(--paper); }
-#main-ui:has(#fix-view:not([hidden])) #status:has(#busy:not([hidden]), #notice:not(:empty)) { padding: var(--s2) var(--margin); border-top: 1px solid var(--rule); }
-#main-ui:has(#fix-view:not([hidden])) #status::before { top: -1px; } /* over the bar's own hairline */
+/* AH-228 P-32: so are they from the moment a scan's list is drawn (data-foot, features/scan.js) until the next scan starts */
+#main-ui:is(:has(#fix-view:not([hidden])), [data-foot]) #status { position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; margin: 0; min-height: 0; background: var(--paper); }
+#main-ui:is(:has(#fix-view:not([hidden])), [data-foot]) #status:has(#busy:not([hidden]), #notice:not(:empty)) { padding: var(--s2) var(--margin); border-top: 1px solid var(--rule); }
+#main-ui:is(:has(#fix-view:not([hidden])), [data-foot]) #status::before { top: -1px; } /* over the bar's own hairline */
 #status > * { grid-area: 1 / 1; }
 #busy:not([hidden]) + #notice { visibility: hidden; }
 /* progress: a real fraction while reading/highlighting, a moving sliver while the engine checks */
@@ -74,6 +77,9 @@ input[type="checkbox"] { width: 16px; height: 16px; margin: 0; accent-color: var
 @keyframes slide { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
 @media (prefers-reduced-motion: reduce) { #busy-bar.unknown { animation: none; width: 100%; opacity: 0.5; } }
 #busy-line { margin: var(--s2) 0 0; font: 600 13px/1.5 var(--sans); font-variant-numeric: tabular-nums; color: var(--navy); }
+/* AH-228 P-28: Stop sits at the line's end, a finger tall, inside the space #status holds while a scan runs */
+#busy-line:has(#stop-scan:not([hidden])) { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); margin-top: 0; }
+#stop-scan { flex: none; padding: 0; }
 /* a hairline box and the flagged cell's square before the first word, where a wine stripe ran down its left (AH-98) */
 #notice { margin: 0; padding: var(--s2) var(--s3); border: 1px solid var(--rule); background: var(--field); font-size: 13px; color: var(--ink); text-wrap: pretty; }
 #notice::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: var(--s2); vertical-align: -1px; background: var(--wine); }

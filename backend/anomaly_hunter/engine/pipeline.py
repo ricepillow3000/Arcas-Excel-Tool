@@ -160,7 +160,7 @@ def duplicates(df, errors_log=(), column_types=None, skip=None):
         whole = t == "id" or t == "text" or (t == "number" and pd.to_numeric(v, errors="coerce").dropna().mod(1).eq(0).all())
         return whole and len(v) >= MANY and v.notna().all() and v.is_unique
     if len(spread) >= max(MANY, SHARE * n) and len({i * 5 // n for i in spread}) == 5 and not any(map(ident, cols)):
-        notes[spread[0]].append(Why(f"{len(spread)} of {n} rows repeat an earlier row exactly, all through the sheet - "
+        notes[spread[0]].append(Why(f"{len(spread)} of {n} rows repeat an earlier row exactly, all through the sheet: "
                                     f"the first is this one, a copy of row {first[spread[0]] + 2}", *cols))
         copies = set(copies) - set(spread)
     copies = set(copies)
@@ -831,7 +831,7 @@ def whole_numbers(df, column_types, skip):
                 f"the other {col} values are whole or end in {ends}" if slip.sum() == 1 else \
                 f"only {int(slip.sum())} {col} values are neither whole nor end in {ends}"
             for i in x.index[slip]:
-                out[i].append(Why(f"{col} {say(x[i])} is not a whole number - {rest}", col))
+                out[i].append(Why(f"{col} {say(x[i])} is not a whole number: {rest}", col))
     return out
 
 
@@ -2166,7 +2166,7 @@ def fractions(df, column_types, skip):
         if len(x) < 20 or inside.all() or inside.mean() < 0.98 or (x[inside] == x[inside].round()).mean() > 0.5:
             continue
         for i in x.index[x > 1]:
-            out[i].append(Why(f"{col} {say(x[i])} is above 100% - the rest of the column stays between 0 and 1", col))
+            out[i].append(Why(f"{col} {say(x[i])} is above 100%: the rest of the column stays between 0 and 1", col))
     return out
 
 
@@ -2189,7 +2189,7 @@ def codes(df, column_types, skip):
                                      f"too big to record", col))
             continue
         for i in hit:
-            out[i].append(Why(f"{col} {say(top[1])} looks like a code, not a real value (all 9s, over twice the next "
+            out[i].append(Why(f"{col} {say(top[1])} is all 9s: often a stand-in for no value (over twice the next "
                               f"highest, {say(top[0])})", col))
     return out, notes
 

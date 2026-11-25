@@ -33,6 +33,7 @@ export const asStrength = (v) => (Number.isInteger(v) && v >= 0 && v <= 10 ? v :
 // Pure: pointer x on a track [left, left + width] -> the nearest level 0-10
 export const levelAt = (x, left, width) => Math.round(Math.min(1, Math.max(0, (x - left) / width)) * 10);
 
+export const KEY_WAIT = 600;
 let level = 5;
 export const strength = () => level;
 
@@ -68,7 +69,11 @@ export function initStrength(rescan) {
       running = false;
     }
   }
+  // AH-228 P-27: keys move the level at once and check the sheet KEY_WAIT ms after the last one: three arrow presses were
+  // three checks (5 to 8 checked 6, 7 and 8). A drag checks when it is let go, as before
+  let keyed = 0;
   function commit() {
+    clearTimeout(keyed);
     Office.context.document.settings.set(STRENGTH_KEY, level);
     Office.context.document.settings.saveAsync();
     if (state.lastScan) recheck();
@@ -103,6 +108,9 @@ export function initStrength(rescan) {
     const to = e.key === "Home" ? 0 : e.key === "End" ? 10 : step === undefined ? null : Math.min(10, Math.max(0, level + step));
     if (to === null) return;
     e.preventDefault();
-    if (to !== level) (show(to), commit());
+    if (to === level) return;
+    show(to);
+    clearTimeout(keyed);
+    keyed = setTimeout(commit, KEY_WAIT);
   });
 }
