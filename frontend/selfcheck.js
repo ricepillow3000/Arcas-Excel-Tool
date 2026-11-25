@@ -602,6 +602,11 @@ assert.equal(versionSaid("1.0.10 (2026-11-25)"), "Version 1.0.10 (25 Nov 2026)")
 assert.equal(versionSaid("dev 843936a (2026-11-25)"), "Test version (25 Nov 2026)");
 assert.equal(versionSaid("dev"), "Test version");
 assert.equal(versionSaid(undefined), "An old version: update Arcas");
+// AH-228 P-11: the series check gives both words for one jump; said twice it read as two problems. Only the plainer one
+assert.equal(plainReason("Units is unusual relative to its local trend near 2026-01-26 00:00:00; Units jumped sharply near 2026-01-26 00:00:00; Units weird limit is 105; this is 9999"),
+  "Units jumped sharply near 2026-01-26\nUnits is 9999, above its usual limit of 105");
+assert.equal(plainReason("Units is unusual relative to its local trend near 2026-01-26; Price jumped sharply near 2026-01-26"),
+  "Units breaks its usual pattern near 2026-01-26\nPrice jumped sharply near 2026-01-26", "another column's jump keeps both");
 assert.equal(esc('x" autofocus onfocus="alert(1)'), "x&quot; autofocus onfocus=&quot;alert(1)", "a sheet header can't break out of an attribute");
 assert.equal(esc("<b>'&"), "&lt;b&gt;&#39;&amp;");
 assert.equal(plainReason("Flagged by 3 of 3: Units weird limit is 105; this is 9999; Units jumped sharply near 2026-01-26 00:00:00"),
