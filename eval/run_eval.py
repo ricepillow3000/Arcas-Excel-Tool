@@ -1,6 +1,7 @@
 """Scans every .xlsx in eval/ with the engine, as the pane sends a sheet (values, plus each cell's formula in R1C1),
 and grades the flagged cells against ground_truth.json. A cell counts as flagged when a row's severity is set (not
-"Noted") and its reasons name that cell. Usage: python eval/run_eval.py"""
+"Noted") and its reasons name that cell; the Medium+ line leaves out Low ("worth a check").
+Usage: python eval/run_eval.py"""
 import json
 import re
 import sys
@@ -32,21 +33,26 @@ def flagged(path):
     formulas = [[r1c1(c.value, c.row, c.column) if c.data_type == "f" else None for c in r]
                 for r in forms.iter_rows(min_row=2)]
     out = scan(head, rows, formulas=formulas, fair=False)[1]
-    return {f"{get_column_letter(head.index(c) + 1)}{i + 2}"
+    return {f"{get_column_letter(head.index(c) + 1)}{i + 2}": r["severity"]
             for i, r in enumerate(out) if r["severity"] not in (None, "Noted") for c in r["cells"]}
 
 
 def main():
     truth = json.loads((HERE / "ground_truth.json").read_text())
-    tp = fp = fn = 0
+    tp = fp = fn = loud_tp = loud_fp = 0
     for path in sorted(HERE.glob("*.xlsx")):
         want, quirks, got = set(truth[path.name]["errors"]), set(truth[path.name]["quirks"]), flagged(path)
+        loud = {c for c, s in got.items() if s in ("Medium", "High")}
+        got = set(got)
         tp, fp, fn = tp + len(want & got), fp + len(got - want), fn + len(want - got)
+        loud_tp, loud_fp = loud_tp + len(want & loud), loud_fp + len(loud - want)
         print(f"{path.name}: caught {len(want & got)}/{len(want)}"
               f"  missed {sorted(want - got)}  false alarms {sorted(got - want)}"
               f"  quirks flagged {sorted(quirks & got)}")
     print(f"Precision {tp / (tp + fp) if tp + fp else 0:.2f}  Recall {tp / (tp + fn) if tp + fn else 0:.2f}"
           f"  ({tp} caught, {fn} missed, {fp} false alarms)")
+    print(f"Medium+ only: Precision {loud_tp / (loud_tp + loud_fp) if loud_tp + loud_fp else 0:.2f}"
+          f"  ({loud_tp} caught, {loud_fp} false alarms; Low is \"worth a check\")")
 
 
 if __name__ == "__main__":
