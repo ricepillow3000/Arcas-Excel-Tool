@@ -1,0 +1,62 @@
+{
+  "saas.xlsx": {
+    "errors": [
+      "E13",
+      "C25",
+      "F39"
+    ],
+    "quirks": [
+      "C7",
+      "D21",
+      "C46"
+    ]
+  },
+  "inventory.xlsx": {
+    "errors": [
+      "F10",
+      "G32",
+      "D49"
+    ],
+    "quirks": [
+      "D16",
+      "D24",
+      "E42"
+    ]
+  },
+  "crm.xlsx": {
+    "errors": [
+      "F18",
+      "C30",
+      "D51"
+    ],
+    "quirks": [
+      "D5",
+      "F35",
+      "D54"
+    ]
+  },
+  "payroll.xlsx": {
+    "errors": [
+      "G11",
+      "C27",
+      "B43"
+    ],
+    "quirks": [
+      "D15",
+      "C32",
+      "C54"
+    ]
+  },
+  "lab.xlsx": {
+    "errors": [
+      "D12",
+      "D22",
+      "D32"
+    ],
+    "quirks": [
+      "D13",
+      "D16",
+      "D37"
+    ]
+  }
+}
