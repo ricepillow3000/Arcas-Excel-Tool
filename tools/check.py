@@ -29,7 +29,7 @@ LAYERS = [
     ("engine tests + fuzzing", [PY, "-m", "pytest", "-q", "backend/tests"]),
     ("industry bench", [PY, "backend/bench/score.py", "."]),
     ("blind 14-domain bench", [PY, "backend/bench/score.py", ".", "--blind"]),
-    # AH-215: the benches grade every planted slip together, so a small group's misses hid among the big group's catches
+    # AH-223: the benches grade every planted slip together, so a small group's misses hid among the big group's catches
     ("group scorecard", [PY, "backend/bench/groups.py", "."]),
     ("known-vulnerable dependencies", [PY, "-m", "pip_audit", "--skip-editable"]),
     # every pin too, not only what this PC installed: setuptools (the build tool) and the Windows-only pins are never

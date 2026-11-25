@@ -33,7 +33,7 @@ def profile(columns, rows):
              "dates": [c for c, t in types.items() if t == "date"], "ids": [c for c, t in types.items() if t == "id"],
              "no_value": {c: w for c, (_, w) in df.attrs["no_value"].items()},
              "codes": {c: int(code) for c, (_, code) in df.attrs["codes"].items()},
-             # AH-215 ("show why"): a column whose groups each keep their own normal, and the column that names them
+             # AH-223 ("show why"): a column whose groups each keep their own normal, and the column that names them
              "by_group": {c: g for c, (g, _, _) in scale_groups(df, types, summary_rows(df)).items()}}
     kind = ("a survey of people" if about["people"] and about["survey"] else "a survey" if about["survey"]
             else "a list of people" if about["people"] else f"a time series by {by}" if about["series"]

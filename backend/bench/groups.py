@@ -1,4 +1,4 @@
-"""Group scorecard (AH-215, the ML engineer's advice, John 2026-11-25: "keep a small set of data where you planted known
+"""Group scorecard (AH-223, the ML engineer's advice, John 2026-11-25: "keep a small set of data where you planted known
 errors, and check precision and recall on it, broken down by group, every time you change the model"). The industry
 and blind benches grade every planted mistake together, so a small group's misses hid among the big group's catches:
 a product line priced 3x the big one had its decimal slips caught 0 times in 20 while the totals read 51 of 51.

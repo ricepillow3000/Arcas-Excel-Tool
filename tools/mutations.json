@@ -2777,7 +2777,7 @@
  },
  {
   "id": "group-span-tighten",
-  "guard": "A small group's slip is judged among its own group's values where groups differ 2x+ (AH-215)",
+  "guard": "A small group's slip is judged among its own group's values where groups differ 2x+ (AH-223)",
   "file": "backend/anomaly_hunter/engine/pipeline.py",
   "old": "SCALE_SPAN = 2\n",
   "new": "SCALE_SPAN = 10\n",
@@ -2788,7 +2788,7 @@
  },
  {
   "id": "group-normal-tighten",
-  "guard": "A cell inside its own group's usual limits is no breach of the whole column's limits or cross-column score (AH-215)",
+  "guard": "A cell inside its own group's usual limits is no breach of the whole column's limits or cross-column score (AH-223)",
   "file": "backend/anomaly_hunter/engine/pipeline.py",
   "old": "or kind in GROUP_NORMAL and (i, _about(r)) in normal)]",
   "new": "or False)]",
@@ -2799,7 +2799,7 @@
  },
  {
   "id": "group-normal-loosen",
-  "guard": "A cell inside its own group's usual limits is no breach of the whole column's limits or cross-column score (AH-215)",
+  "guard": "A cell inside its own group's usual limits is no breach of the whole column's limits or cross-column score (AH-223)",
   "file": "backend/anomaly_hunter/engine/pipeline.py",
   "old": "if (usual := _crossed(y, b_lo, b_hi)) is None:\n                    normal.add((i, c))",
   "new": "if (usual := _crossed(y, b_lo, b_hi)) is None or True:\n                    normal.add((i, c))",
@@ -2811,7 +2811,7 @@
  },
  {
   "id": "region-normal-tighten",
-  "guard": "A location sets its own normal; a person's own group never does (AH-215, John 2026-11-25)",
+  "guard": "A location sets its own normal; a person's own group never does (AH-223, John 2026-11-25)",
   "file": "backend/anomaly_hunter/engine/pipeline.py",
   "old": "prot = {c for c, why in fairness.protected(column_types).items() if why != fairness.PROXY}",
   "new": "prot = set(fairness.protected(column_types))",
@@ -2822,7 +2822,7 @@
  },
  {
   "id": "region-normal-loosen",
-  "guard": "A location sets its own normal; a person's own group never does (AH-215, John 2026-11-25)",
+  "guard": "A location sets its own normal; a person's own group never does (AH-223, John 2026-11-25)",
   "file": "backend/anomaly_hunter/engine/pipeline.py",
   "old": "if why != fairness.PROXY}",
   "new": "if False}",
@@ -2833,7 +2833,7 @@
  },
  {
   "id": "group-usual-tighten",
-  "guard": "A group's slip past its usual limit, with a slip of zeros or the decimal point behind it, votes (AH-215)",
+  "guard": "A group's slip past its usual limit, with a slip of zeros or the decimal point behind it, votes (AH-223)",
   "file": "backend/anomaly_hunter/engine/pipeline.py",
   "old": "lim, said = usual, \"usual limit\"",
   "new": "lim, said = None, \"usual limit\"",
@@ -2845,7 +2845,7 @@
  },
  {
   "id": "group-held-loosen",
-  "guard": "A group's own normal never names a cell its row's arithmetic or its record's balance confirms (AH-215)",
+  "guard": "A group's own normal never names a cell its row's arithmetic or its record's balance confirms (AH-223)",
   "file": "backend/anomaly_hunter/engine/pipeline.py",
   "old": "                named[i].add(c)\n",
   "new": "                pass\n",
@@ -2856,7 +2856,7 @@
  },
  {
   "id": "learned-value-loosen",
-  "guard": "A Dismiss teaches only its exact value in its column: a user who dismisses every flag still sees new slips (AH-215)",
+  "guard": "A Dismiss teaches only its exact value in its column: a user who dismisses every flag still sees new slips (AH-223)",
   "file": "backend/anomaly_hunter/engine/pipeline.py",
   "old": "kind in ONE_CELL and (i, _about(r)) in accepted",
   "new": "kind in ONE_CELL and _about(r) in {c for _, c in accepted}",
@@ -2867,7 +2867,7 @@
  },
  {
   "id": "learned-scale-tighten",
-  "guard": "A Dismiss teaches a value a group's own normal judged (AH-205 for AH-215's groups)",
+  "guard": "A Dismiss teaches a value a group's own normal judged (AH-205 for AH-223's groups)",
   "file": "backend/anomaly_hunter/engine/pipeline.py",
   "old": "\"shifted\", \"validation\", \"scale\"))",
   "new": "\"shifted\", \"validation\"))",
@@ -2878,7 +2878,7 @@
  },
  {
   "id": "profile-by-group-tighten",
-  "guard": "Before you scan names a column judged within each group (AH-215)",
+  "guard": "Before you scan names a column judged within each group (AH-223)",
   "file": "backend/anomaly_hunter/engine/profile.py",
   "old": "for g in dict.fromkeys(about[\"by_group\"].values()))]",
   "new": "for g in ())]",

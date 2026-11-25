@@ -134,7 +134,7 @@ def test_an_answer_with_a_few_na_cells_is_named_as_an_outcome_as_the_scans_repor
 
 
 def test_before_you_scan_names_a_column_judged_within_each_group():
-    # AH-215 (the ML engineer: "show why each cell was flagged"): a South region's salaries keep their own normal, and
+    # AH-223 (the ML engineer: "show why each cell was flagged"): a South region's salaries keep their own normal, and
     # the pane says so before the scan, in the line that says what the sheet is
     import random
     r = random.Random(0)

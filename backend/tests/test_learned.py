@@ -119,7 +119,7 @@ def test_a_row_the_user_dismissed_keeps_its_own_reasons_and_what_it_taught_is_fo
 
 
 def test_a_user_who_dismisses_every_flag_still_has_new_mistakes_caught():
-    # AH-215 (the ML engineer, John 2026-11-25: "if people dismiss flags they don't want to deal with, the tool learns to
+    # AH-223 (the ML engineer, John 2026-11-25: "if people dismiss flags they don't want to deal with, the tool learns to
     # stop flagging real errors"): a Dismiss teaches only the exact value in its column, and never a sum, an order, a
     # record, a formula, a duplicate or a blank (ONE_CELL), so a user who dismisses every flag on the sheet still sees
     # the next slip of each kind

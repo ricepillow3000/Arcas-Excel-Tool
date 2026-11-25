@@ -2021,14 +2021,14 @@ def coded_spellings(df, column_types, skip, maybe):
 SCALE_FIT = 0.5  # share of a column's spread (of its log sizes) its category explains before the category sets its scale
 # ...and the categories' usual sizes this many times apart: potassium near 4 beside a CRP near 50. It was 10: a small
 # product line priced 3x the big one (40 of 440 rows) had its decimal slips (300 -> 30) caught 0 times in 20, the big
-# line's 18: the slip sat inside the big line's prices (AH-215, "judge normal within each group"). Benches unmoved
+# line's 18: the slip sat inside the big line's prices (AH-223, "judge normal within each group"). Benches unmoved
 SCALE_SPAN = 2
 
 
 def scale_groups(df, column_types, skip, computed=()):
     """{number column: (the label column that sets its scale, its values, every label column read)}, see by_scale. Before
-    you scan names these too (AH-215: "show why"), from the same reading."""
-    # AH-215 (John, 2026-11-25): a location sets its own normal (a South region's salaries); a person's own group never
+    you scan names these too (AH-223: "show why"), from the same reading."""
+    # AH-223 (John, 2026-11-25): a location sets its own normal (a South region's salaries); a person's own group never
     prot = {c for c, why in fairness.protected(column_types).items() if why != fairness.PROXY}
     labels = {g: df[g].astype(str).str.strip().where(~skip & ~_blank(df[g])) for g, t in list(column_types.items())[:64]
               if t == "text" and g not in prot}  # the first 64 columns, then 16 label columns at most below
@@ -2059,8 +2059,8 @@ def by_scale(df, column_types, skip, k, computed=(), voted=()):
     """AH-198: a long sheet keeps many quantities in one column, a text column saying which (a lab's Result by Test, a
     freight amount by its currency, a weight by the shipment's mode). Judged as a whole, potassium 44 (for 4.4) sat among
     sodium near 140, and a courier parcel of 1700 kg among containers. Where one text column of 2-50 labels, 10+ rows a
-    label on average and never a person's own group (a location may: AH-215), explains SCALE_FIT of the column's log sizes and its labels' usual sizes
-    are SCALE_SPAN apart, each label's 20+ values get their own limits, and a value past them (its usual limit, AH-215)
+    label on average and never a person's own group (a location may: AH-223), explains SCALE_FIT of the column's log sizes and its labels' usual sizes
+    are SCALE_SPAN apart, each label's 20+ values get their own limits, and a value past them (its usual limit, AH-223)
     votes only with a slip of zeros or the decimal point behind it (detectors.likely_value): a real critical potassium of 6.8 has none. Never a
     fix: a gram typed for a kilo looks like 100 or 1000 the same. Never a formula's cell, nor one the limits named.
     In sheet order: 16 label columns of the first 64, the first 50 number columns."""
@@ -2079,7 +2079,7 @@ def by_scale(df, column_types, skip, k, computed=(), voted=()):
                 if (usual := _crossed(y, b_lo, b_hi)) is None:
                     normal.add((i, c))
                 # ...and past its usual limit, as limits_detector's lone slip: a small group's spread is wide, so its
-                # weird limit took a dropped decimal point (271.4 -> 27.14, weird low 20) as its own (AH-215)
+                # weird limit took a dropped decimal point (271.4 -> 27.14, weird low 20) as its own (AH-223)
                 lim, said = (_crossed(y, w_lo, w_hi), "weird limit")
                 if lim is None:
                     lim, said = usual, "usual limit"
@@ -2684,7 +2684,7 @@ KINDS = ("duplicate", "type", "blank", "placeholder", "code", "far_date", "sum",
 ONE_CELL = frozenset(("limits", "spelling", "type", "code", "far_date", "date_form", "lost_zero", "placeholder",
                       "gene_date", "fraction", "whole_number", "named_bound", "shifted", "validation", "scale"))
 DETECTOR_KINDS = {"limits": "limits", "sequence": "series", "ecod": "combination"}
-GROUP_NORMAL = frozenset(("limits", "combination"))  # the whole column's judgments a group's own normal answers (AH-215)
+GROUP_NORMAL = frozenset(("limits", "combination"))  # the whole column's judgments a group's own normal answers (AH-223)
 
 
 def _about(reason):
@@ -2762,7 +2762,7 @@ def score(df, column_types, errors_log, limits, order_by, strength=5, saved=(), 
     same = same_in_record(df, column_types, skip, records, computed)
     owed, owed_fix = balances(df, column_types, skip, records, computed)
     # ...never a cell the limits named, nor one its row's arithmetic or its record's balance confirms (`held`): a real
-    # entry 100x its account's usual size, its debits equal to its credits, was "a slip of zeros" (AH-215)
+    # entry 100x its account's usual size, its debits equal to its credits, was "a slip of zeros" (AH-223)
     named = [{c for r in said for c in r.cols} for said in lim["reasons"]]
     for c, rules in held.items():
         for m, _ in rules:
@@ -2810,7 +2810,7 @@ def score(df, column_types, errors_log, limits, order_by, strength=5, saved=(), 
     if s >= ALONE:
         notes.append(("limits", lim["alone_reasons"]))
     touched = set()  # rows a learned rule took a reason from: their fixes are kept only for the cells still named
-    # AH-215: a cell inside its own group's usual limits (by_scale's label sets the column's scale) is no breach of the
+    # AH-223: a cell inside its own group's usual limits (by_scale's label sets the column's scale) is no breach of the
     # whole column's: at strength 8 a product line priced 3x the big one had 2.25% of its honest rows flagged, the big
     # line 0.24%, by the column's limits and the cross-column score, both of which the big line sets
     if learned or normal:
