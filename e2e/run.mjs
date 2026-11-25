@@ -1731,6 +1731,69 @@ if (mode === "flow2") {
     ok((await items()).length === 0 && await his.isVisible("#history-empty"), "AH-218: opened again, the list says it holds nothing");
     await his.close();
   }
+
+  // AH-219 (John, 2026-11-25: "promote repeated manual fixes"): a fix accepted once is offered first on the card of a
+  // later identical slip (same column, kind and old value), with a line that says so, and written only by Accept; once
+  // both are undone, a fresh scan's card no longer offers it. A page of its own: its own browser storage, empty
+  {
+    const mem = await browser.newPage({ ignoreHTTPSErrors: true, viewport: { width: 360, height: 900 } });
+    const slipped = [], posts = [];
+    mem.on("pageerror", (e) => slipped.push(e.message));
+    mem.on("request", (r) => r.method() === "POST" && posts.push(new URL(r.url()).pathname));
+    await mem.addInitScript(() => { localStorage.setItem("anomalyHunterLive", "0"); window.__shift = 0;
+      new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) window.__shift += e.value; }).observe({ type: "layout-shift", buffered: true }); });
+    await mem.route("https://appsforoffice.microsoft.com/**", (r) => r.fulfill({ contentType: "text/javascript", body: fs.readFileSync(DIR + "fake-office.js", "utf8") }));
+    await mem.goto("https://127.0.0.1:5055/taskpane.html");
+    await mem.waitForSelector("#main-ui", { state: "visible" });
+    const ready = () => mem.waitForFunction(() => !__state.working && !document.getElementById("scan").disabled);
+    const twice = rows.map((r) => [...r]);
+    // row 40: the same slip as row 22, its Total left blank, so its own numbers prove no value; row 60: the same slip,
+    // whose own numbers say another value than row 22's
+    twice[39][2] = 7777; twice[39][4] = ""; twice[59][2] = 7777;
+    await mem.evaluate((rows) => __load("Sales", rows, [0]), twice);
+    await mem.click("#scan"); await ready();
+    // the card as it lands, every layout shift from the press until it has, as CLS counts them, and where the
+    // Accept/Dismiss row sits in the page's layout (the turn's transform left out) as the card starts to open (its still
+    // bars hold the fix area) and once its fix has landed (fix round 1: the line beside the engine's advice dropped it 12 px here)
+    const open = async (r) => {
+      await mem.evaluate(() => { window.__shift = 0; window.__ys = [];
+        const y = (e) => { let t = 0; for (; e; e = e.offsetParent) t += e.offsetTop; return t; }, v = document.getElementById("fix-view");
+        window.__yo?.disconnect();
+        (window.__yo = new MutationObserver(() => __ys.push(y(document.querySelector(".fix-result .row-buttons"))))).observe(v, { attributes: true, attributeFilter: ["data-opening"] }); });
+      await mem.click(`#flagged-list button:has-text("Row ${r} ")`);
+      await mem.waitForFunction(() => !__state.working && !document.getElementById("fix-view").hasAttribute("data-opening") && document.getElementById("fix-explanation").textContent);
+      await mem.waitForFunction(() => document.getAnimations().every((a) => a.playState !== "running"), null, { timeout: 5000 }).catch(() => {});
+      return mem.evaluate(() => ({ label: document.getElementById("fix-label").textContent, why: document.getElementById("fix-explanation").textContent,
+        first: document.querySelector("#fix-changes li")?.innerText.replace(/\s+/g, " ").trim(), shift: window.__shift, accept: document.getElementById("fix-apply").checkVisibility(), ys: window.__ys }));
+    };
+    const press = async (id, until) => { await mem.click(id); await mem.waitForFunction((u) => !__state.working && document.getElementById(u).checkVisibility(), until); };
+    const back = async () => { await mem.click("#fix-back"); await mem.waitForSelector("#results", { state: "visible" }); };
+    const first = await open(22);
+    await press("#fix-apply", "fix-undo");
+    const fixed = await mem.evaluate(() => __cell("Sales", "C22").v);
+    await back();
+    const other = await open(60);
+    ok(other.label === "Suggested fix" && !other.why.includes("You fixed this") && other.first !== `C60: 7777 → ${fixed}`,
+      "AH-219: where the row's own numbers say another value, the engine's fix stays and the past one is not shown - " + JSON.stringify(other));
+    await back();
+    const k = posts.length;
+    const again = await open(40);
+    ok(fixed !== 7777 && again.label === "Your earlier fix: check it before you accept" && again.first === `C40: 7777 → ${fixed}`
+      && again.why === `You fixed this the same way before: Units 7777 became ${fixed}.` && again.accept && !posts.slice(k).includes("/suggest"),
+      "AH-219: a later identical slip's card offers the fix accepted before, first, and says so - " + JSON.stringify({ first, again, fixed, posts: posts.slice(k) }));
+    ok(again.shift === 0 && first.shift === 0 && again.ys.length === 2 && again.ys[0] === again.ys[1],
+      "AH-219: nothing moves while the card opens with the line: Accept and Dismiss stay where the held fix area put them - " + JSON.stringify([first.shift, again.shift, again.ys]));
+    const before = await mem.evaluate(() => __cell("Sales", "C40").v);
+    await press("#fix-apply", "fix-undo");
+    ok(before === 7777 && (await mem.evaluate(() => __cell("Sales", "C40").v)) === fixed, "AH-219: written only when Accept is pressed - " + JSON.stringify(before));
+    await press("#fix-undo", "fix-apply"); await back(); // both fixes undone: what the AI learned of them goes too
+    await open(22); await press("#fix-undo", "fix-apply"); await back();
+    await mem.click("#scan"); await ready();
+    const gone = await open(40), kept = await mem.evaluate(() => JSON.parse(localStorage.getItem("anomalyHunterAiMemory") || "[]").length);
+    ok(!gone.why.includes("You fixed this the same way before") && gone.label !== "Your earlier fix: check it before you accept" && kept === 0 && slipped.length === 0,
+      "AH-219: once undone, a fresh scan's card no longer offers it - " + JSON.stringify({ gone, kept, slipped }));
+    await mem.close();
+  }
 }
 
 if (mode === "live") { // AH-180, AH-181
