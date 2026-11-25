@@ -131,3 +131,15 @@ def test_an_answer_with_a_few_na_cells_is_named_as_an_outcome_as_the_scans_repor
     for k in range(0, len(rows), 10):
         rows[k][2] = "NA"
     assert "Do you own a car?" in profile(cols, rows)["about"]["outcomes"]
+
+
+def test_before_you_scan_names_a_column_judged_within_each_group():
+    # AH-215 (the ML engineer: "show why each cell was flagged"): a South region's salaries keep their own normal, and
+    # the pane says so before the scan, in the line that says what the sheet is
+    import random
+    r = random.Random(0)
+    rows = [[f"E{i}", "North", round(r.gauss(52000, 6500), 2)] for i in range(400)]
+    rows += [[f"F{i}", "South", round(r.gauss(130000, 16000), 2)] for i in range(40)]
+    out = create_app().test_client().post("/profile", json={"columns": ["Employee", "Region", "Salary"], "rows": rows}).get_json()
+    assert out["lines"][0] == "This sheet looks like a list of people. Salary judged within each Region."
+    assert out["about"]["by_group"] == {"Salary": "Region"}
