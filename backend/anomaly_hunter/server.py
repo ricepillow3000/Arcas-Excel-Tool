@@ -266,7 +266,8 @@ def create_app(scan_csv=None):
                              f"headers it names, each at most {rules.HEADER} characters"}, 400
         # Agent 1, one scan, no stop. A bug in the engine is json_error's 500: our words, the traceback to server.log
         df, out, suggested, used, status, fair = scan_agent.scan(cols, rows, limits, order_by, _strength(body), formulas=formulas,
-                                                                 learned=learned, decisions=decisions, invalid=invalid, kept=kept)
+                                                                 learned=learned, decisions=decisions, invalid=invalid, kept=kept,
+                                                                 start_row=start_row)
         saved = None  # Power BI copy: None = off, True = written, False = it failed (the pane says so)
         if scan_csv and body.get("power_bi") is not True:  # opt-in (2026-10-16): no plain-text copy of the sheet unasked
             with _CSV_LOCK:

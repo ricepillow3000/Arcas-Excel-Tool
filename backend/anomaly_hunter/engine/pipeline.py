@@ -45,6 +45,46 @@ def summary_rows(df):
     return mask
 
 
+# AH-222: a cell read by its fixed row number (R5C, R6C4, R4C[1]) in the pane's R1C1 text: never on another sheet ('Cash
+# Flow'!R5C), never an end of a range (R5C9:R910C9), never inside a relative reference (R[-1]C) or a name
+FIXED = re.compile(r"(?<![\w\]!:.$'\"])R(\d+)C(?:\d+|\[-?\d+\])?(?![\w\[:(])")
+PARAM_ROWS = 3  # other rows whose formulas read a row by its fixed number before that row is the table's parameters
+JUMPS = (10, 100, 1000)  # a parameter read across: a value this many times both its neighbours, a decimal point or zeros
+NEIGHBOURS = 2  # ...where the two neighbours agree within this factor
+
+
+def parameter_rows(df, column_types, grid, start_row):
+    """AH-222: a row PARAM_ROWS+ other rows' formulas read by its fixed row number is the table's parameters (a
+    cash flow's S-curve weights read by =ROUND(RC2*R5C,0), a marks book's weights by =RC4*R6C4+..., a summary's From/To
+    dates by ">="&R4C), never a record: each column's checks judged a weight among amounts (66 Medium cells on one cash
+    flow, 7 and a trap on a marks book, 2 on a summary: complex bench). Data row i sits on sheet row start_row + 2 + i.
+    -> (the parameter rows, reasons per row): read across instead, a number JUMPS times both the numbers beside it, which
+    agree within NEIGHBOURS, is a slip of its decimal point or zeros (a weight 0.184 between 0.0172 and 0.0195)."""
+    n = len(df)
+    out, read = [[] for _ in range(n)], collections.defaultdict(set)
+    if not grid or start_row is None:
+        return np.zeros(n, bool), out
+    for i, row in enumerate(grid):
+        for f in row:
+            for k in FIXED.findall(f or ""):
+                if 0 <= (r := int(k) - start_row - 2) < n and r != i:
+                    read[r].add(i)
+    params = np.zeros(n, bool)
+    params[[r for r, by in read.items() if len(by) >= PARAM_ROWS]] = True
+    nums = [c for c in df.columns if column_types.get(c) == "number"]
+    for r in np.flatnonzero(params):
+        cells = [(c, float(df[c].iat[r])) for c in nums if pd.notna(df[c].iat[r])]
+        for (a, x), (c, v), (b, y) in zip(cells, cells[1:], cells[2:]):
+            lo, hi = sorted((x, y))
+            if lo <= 0 or hi > NEIGHBOURS * lo or v <= 0:
+                continue
+            k = next((k for k in JUMPS for w in (v / k, v * k) if lo * (1 - 1e-9) <= w <= hi * (1 + 1e-9)), None)
+            if k:
+                out[r].append(Why(f"{c} {say(v)} is {k} times the values beside it in this row the table's formulas read "
+                                  f"({a} {say(x)}, {b} {say(y)})", c))
+    return params, out
+
+
 PASTED = 5  # copies of this many consecutive rows in a row: a range pasted again
 
 
@@ -598,6 +638,12 @@ def blanks(df, column_types, skip, errors_log, threshold=0.80, computed=None):
                 f"{col} is blank in {at.sum()} of {n} rows, half of them or more among the latest by {a}: an end not reached "
                 "yet (an item still out, a case still open)", col))
             blank[:, j] &= ~at
+    for run, rows in _grids(cols, column_types, blank):  # AH-222: a grid's blanks are how it is filled in, one note
+        k = int(blank[np.ix_(rows, run)].sum())
+        notes[df.index[rows[blank[np.ix_(rows, run)].any(axis=1)][0]]].append(Why(
+            f"{cols[run[0]]} to {cols[run[-1]]} are blank in {k} of their {n * len(run)} cells, spread through the sheet: "
+            "how this grid is filled in", *[cols[j] for j in run]))
+        blank[np.ix_(rows, run)] = False
     # blanks per label per column, counted for every column at once: grouping each label column against each column
     # took 168 s on a crafted 64 x 1,500-column sheet (AH-16 build, 2026-10-22)
     groups = {}
@@ -713,6 +759,33 @@ def blanks(df, column_types, skip, errors_log, threshold=0.80, computed=None):
             for i in df.index[pos]:
                 out[i].append(Why(say_it(i), cols[j]))
     return out, notes
+
+
+GRID = 5  # columns side by side, of one kind, each with a blank: a grid (a timetable's periods), never one column
+GRID_SHARE = 0.05  # ...whose blanks are this share of its cells: a thin scatter (deletions) is still each a slip
+GRID_ROW = 0.8  # a row blank in this share of the run is a record left unfinished, never the grid's scatter
+
+
+def _grids(cols, column_types, blank):
+    """AH-222: runs of GRID+ columns side by side, of one kind, each with a blank, whose blanks together are MANY+,
+    GRID_SHARE of their cells and spread through the sheet (`_spread`): a timetable's free periods, each period column
+    70-97% filled, were 97 Medium cells, every one "otherwise filled" (complex bench, B episode 9). As one column's many
+    spread blanks (MANY), they are how the grid is filled in; a few, a block or a thin scatter are still each a slip.
+    A row blank in GRID_ROW of the run or more is no grid's scatter but a record left unfinished (a survey's dropouts,
+    blank in every question they left): counted apart, left to the unfinished-record note; a part-timer's row of free
+    periods, 17 of 30 blank, is the grid's. -> [(column positions, the other rows)]."""
+    out, run = [], []
+    for j, c in enumerate([*cols, None]):
+        if c is not None and blank[:, j].any() and (not run or column_types[c] == column_types[cols[run[-1]]]):
+            run.append(j)
+            continue
+        if len(run) >= GRID:
+            rows = np.flatnonzero(blank[:, run].sum(axis=1) < GRID_ROW * len(run))
+            pos = rows[np.nonzero(blank[np.ix_(rows, run)])[0]]
+            if len(pos) >= max(MANY, GRID_SHARE * len(blank) * len(run)) and _spread(pos, len(blank)):
+                out.append((run, rows))
+        run = [j] if c is not None and blank[:, j].any() else []
+    return out
 
 
 def _unanswered(df, col, kind, pos, n, survey, notes):
@@ -919,10 +992,13 @@ def date_forms(df, column_types, skip):
     return out, notes
 
 
-def far_dates(df, column_types, skip):
+def far_dates(df, column_types, skip, computed=None):
     """Date more than the column's whole span away from it (a 2018 sheet with 2084 in it; detectors.far_off, whose span
-    leaves at least one date past each end). Birthdates spread over decades widen the span themselves. ponytail: misses a near miss like 2019 in a 2018 sheet - no rule knows that."""
+    leaves at least one date past each end). Birthdates spread over decades widen the span themselves. ponytail: misses a near miss like 2019 in a 2018 sheet - no rule knows that.
+    AH-222: a formula's cell is never named, as the limits never judge one: its date is its inputs' (a Period worked out
+    from a Date typed 2035 coloured a second cell for one slip on 3 ledgers of the complex bench)."""
     out = [[] for _ in range(len(df))]
+    computed = computed or {}
     for col, t in column_types.items():
         d = df[col][~skip].dropna() if t == "date" else ()
         if t == "text":
@@ -944,18 +1020,27 @@ def far_dates(df, column_types, skip):
         if len(d) < 30:
             continue
         far, lo, hi = far_off(d)
-        for i in d.index[far]:
+        for i in d.index[far & ~computed.get(col, np.zeros(len(df), bool))[d.index]]:
             out[i].append(Why(f"{col} {d[i]:%Y-%m-%d} is far outside the column's dates ({lo:%Y-%m-%d} to {hi:%Y-%m-%d})", col))
     return out
 
 
-def sums(df, column_types, skip, held=None):
+def _across(grid, order, cols):
+    """AH-222: the rows that write one formula in every one of these columns, from the pane's R1C1 text: a ratio row
+    (Gross margin % =IFERROR(R[-1]C/R[-6]C,0) in each month and in FY2025) is that formula in its total too, never the
+    sum of its parts ("FY2025 0.535 does not add up" coloured 13 honest cells of a P&L, complex bench episode 1)."""
+    js = [order.index(c) for c in cols]
+    return {i for i, row in enumerate(grid or ()) if row[js[0]] is not None and all(row[j] == row[js[0]] for j in js)}
+
+
+def sums(df, column_types, skip, held=None, grid=None):
     """A column that is the sum of others in >= 95% of rows (Total = Fare + Tip + Tax): the other rows don't add up.
     Least squares finds the parts; kept only when every weight is 0 or 1 (a plain sum, found once, from the total's
-    side). ponytail: plain sums only - a weighted rule (tax 8.25%) or a difference written as a sum of +1s only."""
+    side). ponytail: plain sums only - a weighted rule (tax 8.25%) or a difference written as a sum of +1s only.
+    A row that writes one formula across the total and its parts is never judged by the sum (`_across`)."""
     out = [[] for _ in range(len(df))]
     cols = numbers(column_types)
-    done = _totals(df, cols, skip, out, held)
+    done = _totals(df, cols, skip, out, held, grid)
     x = df[cols][~skip]
     x = x.fillna({c: 0 for c in cols if x[c].isna().mean() >= SPARSE}).dropna()  # as _totals: a part blank on 95%+ of rows
     if len(cols) < 3 or len(x) < 20 * len(cols):  # few rows: least squares "fits" anything
@@ -984,7 +1069,7 @@ def sums(df, column_types, skip, held=None):
         if bad.mean() > 0.05:
             continue
         part = [c for c, o in zip(np.delete(np.array(cols, dtype=object), t), ones) if o]
-        bad &= ~_left_out(a, y - got, [t, *(cols.index(c) for c in part)])
+        bad &= ~_left_out(a, y - got, [t, *(cols.index(c) for c in part)]) & ~x.index.isin(list(_across(grid, list(df.columns), [col, *part])))
         for i, v, g in zip(x.index[bad], y[bad], got[bad]):  # the total and every part: any one of them may be the slip
             out[i].append(Why(f"{col} {say(v)} does not add up: {' + '.join(part)} = {g:.10g}", col, *part))
     return out
@@ -1002,7 +1087,7 @@ def named_totals(cols):
     return [c for c in cols if len(h := " ".join(re.sub(r"[_.]+", " ", str(c)).split()).lower()) <= 200 and TOTAL_HEAD.search(h)]
 
 
-def _totals(df, cols, skip, out, held=None):
+def _totals(df, cols, skip, out, held=None, grid=None):
     """A column headed Total, Sum or All that is, to the cent, the other number columns added up, or the 3+ number
     columns beside it, on 95% of rows: the other rows don't add up. Round 37 missed Male + Female + Intersex = Total on 48
     rows and 8 age groups = Total on 200: least squares needs 20 rows a column, and an extra Year or Area column bends
@@ -1090,7 +1175,10 @@ def _totals(df, cols, skip, out, held=None):
                 break
         if best:
             done.add(col)
+            across = _across(grid, order, [col, *best[1]])
             for i, v, g in zip(*best[3:]):
+                if i in across:
+                    continue
                 out[i].append(Why(f"{col} {say(v)} does not add up: {' + '.join(best[1])} = {g:.10g}", col, *best[1]))
             if held is not None:  # a sum: changing any one of its cells breaks it
                 confirm(held, len(df), best[2], f"{col} = {' + '.join(best[1])}", [col, *best[1]])
@@ -2585,16 +2673,20 @@ def _about(reason):
     return (getattr(reason, "cols", ()) or (None,))[0]
 
 
-def score(df, column_types, errors_log, limits, order_by, strength=5, saved=(), grid=None, learned=None, invalid=None, ruled=None):
+def score(df, column_types, errors_log, limits, order_by, strength=5, saved=(), grid=None, learned=None, invalid=None, ruled=None,
+          start_row=None):
     """-> (rows, status). Severity = votes: 1 Low, 2 Medium, 3+ High. Weird limit or hygiene hit = at least Medium.
     Totals/summary rows are left out of every check (their numbers would distort the rest) and say so.
     learned (AH-205): (accepted, ignored, dismissed): the cells {(row, column)} holding a value the user dismissed in that
     column, the [kind, column] pairs the user stopped, and the rows left as they are (dismissed). A reason they mute is
     dropped before severity is decided. invalid (AH-213): [row, column] of each cell Excel says breaks its drop-down list.
-    ruled (AH-217): the reasons per row of the subject rules the sheet kept (rules.kept), Medium as a sum's or an order's."""
+    ruled (AH-217): the reasons per row of the subject rules the sheet kept (rules.kept), Medium as a sum's or an order's.
+    start_row (AH-222): the header's 0-based sheet row, so a row the formulas read by its fixed number is found."""
     n, skip = len(df), summary_rows(df)
     empty = df[[c for c in df.columns if c != "source_file"]].apply(_blank).all(axis=1).to_numpy()  # before totals are blanked
     tot = subtotals(df, skip, grid)  # AH-213: the totals rows themselves, judged by their formulas, before they are blanked
+    params, jumps = parameter_rows(df, column_types, grid, start_row)  # AH-222: left out of every column check, as a total
+    skip = skip | params
     df = df.copy()
     if nums := [c for c, t in column_types.items() if t in ("number", "id")]:  # (pandas 3 fails on an empty column list)
         df.loc[skip, nums] = np.nan
@@ -2604,7 +2696,7 @@ def score(df, column_types, errors_log, limits, order_by, strength=5, saved=(), 
     # the limits vote on or offer a typo for (AH-74, see confirm)
     held = {}
     paired, solved, fits = pairs(df, column_types, skip, limits, held, grid)
-    add = [list(dict.fromkeys(s + m)) for s, m in zip(sums(df, column_types, skip, held), paired, strict=True)]
+    add = [list(dict.fromkeys(s + m)) for s, m in zip(sums(df, column_types, skip, held, grid), paired, strict=True)]
     # a formula's value is worked out from its inputs: its odd value is theirs, so the limits never judge or name it (Net
     # =Debit-Credit said every big debit twice), and a column of formulas adds nothing to a mix of values (AH-198)
     computed = {c: np.array([row[j] is not None for row in grid]) for j, c in enumerate(df.columns)
@@ -2644,7 +2736,7 @@ def score(df, column_types, errors_log, limits, order_by, strength=5, saved=(), 
     # DBSCAN cut 2026-10-07: 90s/100k rows, 81% false alarms, bench same without it
     ran = [d for d in dets.values() if d["ran"]]
     (dup, repeats), (typ, typ_coded), (blank, spread) = duplicates(df, errors_log, column_types, skip), type_errors(df, errors_log, column_types), blanks(df, column_types, skip, errors_log, computed=computed)
-    (hole, coded), far = placeholders(df, column_types, skip), far_dates(df, column_types, skip)
+    (hole, coded), far = placeholders(df, column_types, skip), far_dates(df, column_types, skip, computed)
     zeros = lost_zeros(df, column_types, skip)
     above = order(df, column_types, skip)  # AH-178: a 10th percentile above its 90th, a Low above its High
     before = date_order(df, column_types, skip, far, records)  # AH-198: delivered before it shipped
@@ -2679,7 +2771,8 @@ def score(df, column_types, errors_log, limits, order_by, strength=5, saved=(), 
            ("sum", add), ("spelling", spell), ("lost_zero", zeros), ("date_form", forms), ("formula", calc), ("order", above),
            ("gene_date", genes), ("date_order", before), ("record", same), ("balance", owed), ("scale", scaled),
            ("spelling", proven), ("key", keyed), ("own_scale", own), ("blank", gaps), ("subtotal", tot),
-           ("validation", outside_list(df, skip, errors_log, invalid)), ("group", wrong_group(df, column_types, skip))] + (
+           ("validation", outside_list(df, skip, errors_log, invalid)), ("group", wrong_group(df, column_types, skip)),
+           ("series", jumps)] + (
               [("rule", ruled)] if ruled else [])
     # all "worth a check" (Low): a lone top value (AH-29), one its row's arithmetic confirms (AH-74), a placeholder code
     # (AH-45), many repeats (AH-48), a date column of many forms (AH-76), a column pasted twice (AH-182)
@@ -2744,11 +2837,11 @@ def score(df, column_types, errors_log, limits, order_by, strength=5, saved=(), 
         return bool(limits.get(col)) and unexplained(float(df[col].iat[i]), *limits[col][:4],
                                                      middle=tuple(np.nanquantile(df[col].to_numpy(dtype=float), [0.1, 0.9])))
 
-    tot, fml = dict(hyg)["subtotal"], dict(hyg)["formula"]  # as learned left them
+    tot, fml, jump = dict(hyg)["subtotal"], dict(hyg)["formula"], dict(hyg)["series"]  # as learned left them
     for i in range(n):
-        if skip[i] and not tot[i] and not fml[i]:  # a totals row is said only where its own formula is wrong (AH-213, AH-214)
-            rows.append({"severity": None, "bucket": None, "reason": "" if empty[i] else "Totals/summary row - not checked",
-                         "magnitude": 0.0})
+        if skip[i] and not tot[i] and not fml[i] and not jump[i]:  # a totals row is said only where its own formula is wrong (AH-213, AH-214)
+            rows.append({"severity": None, "bucket": None, "magnitude": 0.0, "reason": "" if empty[i] else
+                         "Parameter row (the table's formulas read it) - not checked" if params[i] else "Totals/summary row - not checked"})
             continue
         voted = [d for d in ran if d["votes"][i] and not skip[i]]
         hygiene = [r for _, lists in hyg for r in lists[i]]

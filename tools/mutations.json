@@ -6325,5 +6325,236 @@
   "tests": [
    "backend/tests/test_server.py::test_the_manifest_keeps_the_panes_page_running_for_the_life_of_the_workbook_and_asks_no_excel_for_it"
   ]
+ },
+ {
+  "id": "param-rows-loosen",
+  "guard": "A row PARAM_ROWS (3)+ other rows' formulas read by its fixed row number is the table's parameters, left out of the column checks (AH-222)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "PARAM_ROWS = 3  #",
+  "new": "PARAM_ROWS = 2  #",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_parameter_rows.py::test_a_row_only_two_formulas_read_is_still_a_record_and_three_make_it_parameters"
+  ]
+ },
+ {
+  "id": "param-rows-tighten",
+  "guard": "A row PARAM_ROWS (3)+ other rows' formulas read by its fixed row number is the table's parameters, left out of the column checks (AH-222)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "PARAM_ROWS = 3  #",
+  "new": "PARAM_ROWS = 4  #",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_parameter_rows.py::test_a_row_only_two_formulas_read_is_still_a_record_and_three_make_it_parameters"
+  ]
+ },
+ {
+  "id": "param-sheet-loosen",
+  "guard": "A fixed-row reference is the pane's R1C1 R5C / R6C4 alone: never on another sheet, never an end of a range (AH-222)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "FIXED = re.compile(r\"(?<![\\w\\]!:.$'\\\"])R(\\d+)C(?:\\d+|\\[-?\\d+\\])?(?![\\w\\[:(])\")",
+  "new": "FIXED = re.compile(r\"(?<![\\w\\]:.$'\\\"])R(\\d+)C(?:\\d+|\\[-?\\d+\\])?(?![\\w\\[:(])\")",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_parameter_rows.py::test_a_reference_to_another_sheet_or_a_range_never_makes_a_parameter_row"
+  ]
+ },
+ {
+  "id": "param-range-loosen",
+  "guard": "A fixed-row reference is the pane's R1C1 R5C / R6C4 alone: never on another sheet, never an end of a range (AH-222)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "FIXED = re.compile(r\"(?<![\\w\\]!:.$'\\\"])R(\\d+)C(?:\\d+|\\[-?\\d+\\])?(?![\\w\\[:(])\")",
+  "new": "FIXED = re.compile(r\"(?<![\\w\\]!:.$'\\\"])R(\\d+)C(?:\\d+|\\[-?\\d+\\])?(?![\\w\\[(])\")",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_parameter_rows.py::test_a_reference_to_another_sheet_or_a_range_never_makes_a_parameter_row"
+  ]
+ },
+ {
+  "id": "param-ref-tighten",
+  "guard": "A fixed-row reference is the pane's R1C1 R5C / R6C4 alone: never on another sheet, never an end of a range (AH-222)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "FIXED = re.compile(r\"(?<![\\w\\]!:.$'\\\"])R(\\d+)C(?:\\d+|\\[-?\\d+\\])?(?![\\w\\[:(])\")",
+  "new": "FIXED = re.compile(r\"(?<![\\w\\]!:.$'\\\"])R(\\d+)C\\d+(?![\\w\\[:(])\")",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_parameter_rows.py::test_a_cash_flows_s_curve_weights_say_nothing"
+  ]
+ },
+ {
+  "id": "param-jump-loosen",
+  "guard": "A parameter row read across: a number 10, 100 or 1000 times both its neighbours, which agree within NEIGHBOURS (2), is a slip; twice is none (AH-222)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "JUMPS = (10, 100, 1000)  #",
+  "new": "JUMPS = (2, 10, 100, 1000)  #",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_parameter_rows.py::test_a_weight_twice_its_neighbours_is_left_alone"
+  ]
+ },
+ {
+  "id": "param-jump-tighten",
+  "guard": "A parameter row read across: a number 10, 100 or 1000 times both its neighbours, which agree within NEIGHBOURS (2), is a slip; twice is none (AH-222)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "JUMPS = (10, 100, 1000)  #",
+  "new": "JUMPS = (100, 1000)  #",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_parameter_rows.py::test_a_weight_ten_times_both_its_neighbours_is_flagged_on_its_cell_alone"
+  ]
+ },
+ {
+  "id": "param-neighbours-loosen",
+  "guard": "A parameter row read across: a number 10, 100 or 1000 times both its neighbours, which agree within NEIGHBOURS (2), is a slip; twice is none (AH-222)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "NEIGHBOURS = 2  #",
+  "new": "NEIGHBOURS = 3  #",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_parameter_rows.py::test_a_jump_is_read_only_between_neighbours_that_agree_within_twice"
+  ]
+ },
+ {
+  "id": "param-neighbours-tighten",
+  "guard": "A parameter row read across: a number 10, 100 or 1000 times both its neighbours, which agree within NEIGHBOURS (2), is a slip; twice is none (AH-222)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "NEIGHBOURS = 2  #",
+  "new": "NEIGHBOURS = 1.9  #",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_parameter_rows.py::test_a_jump_is_read_only_between_neighbours_that_agree_within_twice"
+  ]
+ },
+ {
+  "id": "ratio-row-loosen",
+  "guard": "A row that writes one formula across its total and every part is never judged as a sum (AH-222)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "row[js[0]] is not None and all(row[j] == row[js[0]] for j in js)",
+  "new": "row[js[0]] is not None",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_ratio_rows.py::test_a_ratio_row_whose_total_is_another_formula_is_still_judged_as_a_sum"
+  ]
+ },
+ {
+  "id": "ratio-row-tighten",
+  "guard": "A row that writes one formula across its total and every part is never judged as a sum (AH-222)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "row[js[0]] is not None and all(row[j] == row[js[0]] for j in js)",
+  "new": "False and all(row[j] == row[js[0]] for j in js)",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_ratio_rows.py::test_a_ratio_row_written_as_one_formula_across_the_total_too_is_never_a_sum"
+  ]
+ },
+ {
+  "id": "grid-cols-loosen",
+  "guard": "GRID (5)+ columns side by side, of one kind, each with a blank, whose blanks are MANY+, GRID_SHARE (5%) of their cells and spread, are one note (AH-222)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "GRID = 5  #",
+  "new": "GRID = 4  #",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_blank_grids.py::test_four_columns_side_by_side_are_no_grid_and_five_are"
+  ]
+ },
+ {
+  "id": "grid-cols-tighten",
+  "guard": "GRID (5)+ columns side by side, of one kind, each with a blank, whose blanks are MANY+, GRID_SHARE (5%) of their cells and spread, are one note (AH-222)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "GRID = 5  #",
+  "new": "GRID = 6  #",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_blank_grids.py::test_four_columns_side_by_side_are_no_grid_and_five_are"
+  ]
+ },
+ {
+  "id": "grid-share-loosen",
+  "guard": "GRID (5)+ columns side by side, of one kind, each with a blank, whose blanks are MANY+, GRID_SHARE (5%) of their cells and spread, are one note (AH-222)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "GRID_SHARE = 0.05  #",
+  "new": "GRID_SHARE = 0.045  #",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_blank_grids.py::test_a_thin_scatter_of_blanks_in_a_big_grid_is_still_each_a_slip_and_a_twentieth_of_it_is_the_grid"
+  ]
+ },
+ {
+  "id": "grid-share-tighten",
+  "guard": "GRID (5)+ columns side by side, of one kind, each with a blank, whose blanks are MANY+, GRID_SHARE (5%) of their cells and spread, are one note (AH-222)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "GRID_SHARE = 0.05  #",
+  "new": "GRID_SHARE = 0.055  #",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_blank_grids.py::test_a_thin_scatter_of_blanks_in_a_big_grid_is_still_each_a_slip_and_a_twentieth_of_it_is_the_grid"
+  ]
+ },
+ {
+  "id": "grid-spread-loosen",
+  "guard": "GRID (5)+ columns side by side, of one kind, each with a blank, whose blanks are MANY+, GRID_SHARE (5%) of their cells and spread, are one note (AH-222)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if len(pos) >= max(MANY, GRID_SHARE * len(blank) * len(run)) and _spread(pos, len(blank)):",
+  "new": "if len(pos) >= max(MANY, GRID_SHARE * len(blank) * len(run)):",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_blank_grids.py::test_blanks_in_a_block_of_the_grid_are_still_each_a_slip"
+  ]
+ },
+ {
+  "id": "grid-blank-each-loosen",
+  "guard": "GRID (5)+ columns side by side, of one kind, each with a blank, whose blanks are MANY+, GRID_SHARE (5%) of their cells and spread, are one note (AH-222)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if c is not None and blank[:, j].any() and (not run or column_types[c] == column_types[cols[run[-1]]]):",
+  "new": "if c is not None and (not run or column_types[c] == column_types[cols[run[-1]]]):",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_blank_grids.py::test_four_columns_side_by_side_are_no_grid_and_five_are"
+  ]
+ },
+ {
+  "id": "far-computed-loosen",
+  "guard": "A far date never names a formula's cell; a date typed over the column's formula still is (AH-222)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "far & ~computed.get(col, np.zeros(len(df), bool))[d.index]",
+  "new": "far",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_far_formula_dates.py::test_a_far_date_names_the_typed_cell_never_the_formula_worked_out_from_it"
+  ]
+ },
+ {
+  "id": "far-computed-tighten",
+  "guard": "A far date never names a formula's cell; a date typed over the column's formula still is (AH-222)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "far & ~computed.get(col, np.zeros(len(df), bool))[d.index]",
+  "new": "far & (col not in computed)",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_far_formula_dates.py::test_a_far_date_typed_over_the_columns_formula_is_still_named"
+  ]
+ },
+ {
+  "id": "grid-row-loosen",
+  "guard": "A row blank in GRID_ROW (80%) of a grid's run or more is a record left unfinished, never the grid's scatter; 7 of 10 is the grid's (AH-222)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "GRID_ROW = 0.8  #",
+  "new": "GRID_ROW = 0.9  #",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_blank_grids.py::test_a_row_blank_across_four_fifths_of_the_grid_is_a_record_left_unfinished_never_the_grids"
+  ]
+ },
+ {
+  "id": "grid-row-tighten",
+  "guard": "A row blank in GRID_ROW (80%) of a grid's run or more is a record left unfinished, never the grid's scatter; 7 of 10 is the grid's (AH-222)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "GRID_ROW = 0.8  #",
+  "new": "GRID_ROW = 0.7  #",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_blank_grids.py::test_a_row_blank_across_four_fifths_of_the_grid_is_a_record_left_unfinished_never_the_grids"
+  ]
  }
 ]

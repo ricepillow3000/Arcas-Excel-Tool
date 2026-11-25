@@ -43,16 +43,16 @@ def learn(columns, rows, learned, decisions=None):
 
 
 def scan(columns, rows, limits=None, order_by=None, strength=5, fair=True, formulas=None, learned=None, decisions=None,
-         invalid=None, kept=None):
+         invalid=None, kept=None, start_row=None):
     """-> (DataFrame, verdict per row, suggested limits, limits used, detector status, fairness report).
     strength 0-10, see knobs(). The fairness report tests protected subgroups on this scan's own flags (engine/fairness).
     learned (AH-205): what the user dismissed and the checks they stopped on this sheet, see learn(). invalid (AH-213): the
     [row, column] cells Excel says break their drop-down list. kept (AH-217): the subject rules this sheet kept, judged
-    here again with no AI (rules.kept)."""
+    here again with no AI (rules.kept). start_row (AH-222): where the header sits, for the rows the formulas read by number."""
     df, types, errors = load_from_records(columns, rows)
     suggested = suggest_limits_dict(df, numbers(types), knobs(strength)[1])
     used = {**suggested, **(limits or {})}
     out, status = score(df, types, errors, used, order_by, strength, saved=list(limits or {}), grid=formulas,
-                        learned=learn(list(df.columns), rows, learned, decisions), invalid=invalid,
+                        learned=learn(list(df.columns), rows, learned, decisions), invalid=invalid, start_row=start_row,
                         ruled=rules.kept(df, types, columns, kept) if kept else None)
     return df, out, suggested, used, status, fairness.report(df, types, out) if fair else None
