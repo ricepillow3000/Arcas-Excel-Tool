@@ -12,7 +12,7 @@ import { doneOf, plainReason, shareOf } from "./scan.js";
 import { codeAt, rowHash, saveDecisions } from "./decisions.js";
 import { isOurs, plainError } from "../utils/errors.js";
 import { forgetUndo, saveUndo } from "./undo-store.js";
-import { forget, remember } from "./memory.js";
+import { forget, pastFix, remember } from "./memory.js";
 
 // Fix one row: the instant suggested fix (no AI), and Apply / Undo.
 // Pure: a reason -> its parts ("Units weird limit is 0; this is -5" stays ONE part)
@@ -44,6 +44,7 @@ export function recommendFix(columns, rows, i, limits, reason, startRow, startCo
   const row = startRow + 2 + i;
   const changes = [], typos = [], slips = [], calcCells = [], seen = new Set(); // seen: columns already explained
   let guessed = false; // a misspelling's fix is a guess too
+  const unsure = []; // the cells whose value is a guess
   reason = reason || "";
   const sums = addUps(reason), solved = new Set(); // solved: columns the row's own arithmetic fixed
   columns.forEach((c, j) => {
@@ -78,7 +79,7 @@ export function recommendFix(columns, rows, i, limits, reason, startRow, startCo
     }
     if (miss) {
       changes.push({ cell, new: maybe[c] });
-      guessed = true;
+      guessed = true, unsure.push(cell); // unsure: a past fix of this cell goes ahead of it (AH-219)
       const said = reason.includes(`"${v}" looks like a short form of`) ? `probably a short form of "${maybe[c]}"`
         : reason.includes(`"${v}" is lowercase where`) ? `lowercase where the column's other labels are capitalised ("${maybe[c]}")`
           : `probably a misspelling of "${maybe[c]}", one letter off`;
@@ -86,7 +87,7 @@ export function recommendFix(columns, rows, i, limits, reason, startRow, startCo
     }
     if (weak) {
       changes.push({ cell, new: String(maybe[c]) });
-      guessed = true;
+      guessed = true, unsure.push(cell);
       return void typos.push(`${c} is ${v}; it may be a typo for ${maybe[c]} (${typoKind(v, maybe[c])}), but a real value can look the same`);
     }
     const typo = likely && likely[c];
@@ -148,7 +149,7 @@ export function recommendFix(columns, rows, i, limits, reason, startRow, startCo
     }
   if (!notes.length)
     notes.push("Nothing here is clearly broken, but the values are unusual together. Check them against the source; if they're right, leave them.");
-  return { explanation: notes.join(" "), changes, guess: guessed }; // guess = a misspelling's fix, or a typo the numbers cannot prove
+  return { explanation: notes.join(" "), changes, guess: guessed, unsure }; // guess = a misspelling's fix, or a typo the numbers cannot prove
 }
 
 // a far-off date got "Nothing here is clearly broken" (12 of 12 on 40 real sheets, 2026-10-16)
@@ -261,6 +262,29 @@ export async function suggestTypo(f, r, rec) {
       `${s.value} (${s.kind}): with ${s.value} the whole row looks normal again. If ${v} is right, click Dismiss.` };
 }
 
+// AH-219 (John, 2026-11-25: "promote repeated manual fixes to high-confidence 1-click fixes", never applied by itself):
+// a fix the user accepted before for this same slip (memory.pastFix: its column, its kind, its old value) is offered
+// first on the card, with a line that says so, and written only by Accept, as any card's fix. A value the engine proves
+// for that cell (the column's formula, the row's own arithmetic, a typo the numbers prove, the usual capitals) keeps the
+// engine's card as it is; a guess (a misspelling, a "maybe") gives way to it, and so does Agent 3's, which is never asked
+// once a fix is on the card. The line stands in for the engine's advice (the reasons above still name every cell), so
+// the card fits the fix area it holds while it opens: with both, Accept dropped 48 px at 320 px (fix round 1). Only a
+// fix of another cell keeps the engine's words, which say why. kinds: the row's [kind, column]; calc: its formulas
+export function withPast(rec, columns, row, kinds, calc, rowNum, startCol) {
+  const past = [];
+  for (const [kind, col] of Array.isArray(kinds) ? kinds : []) {
+    const j = columns.indexOf(col), cell = `${colLetter(startCol + j)}${rowNum}`;
+    if (j < 0 || String(calc?.[j] ?? "").startsWith("=") || past.some((p) => p.cell === cell)) continue;
+    const e = pastFix(col, kind, row[j]), now = rec.changes.find((c) => c.cell === cell);
+    if (e && (!now || rec.unsure?.includes(cell))) past.push({ cell, col, old: e.o, new: e.n });
+  }
+  if (!past.length) return rec;
+  const cells = new Set(past.map((p) => p.cell)), others = rec.changes.filter((c) => !cells.has(c.cell));
+  const said = `You fixed this the same way before: ${past.map((p) => `${p.col} ${p.old} became ${p.new}`).join(", ")}.`;
+  return { ...rec, past: true, changes: [...past.map((p) => ({ cell: p.cell, new: p.new })), ...others],
+    explanation: others.length ? `${said} ${rec.explanation}` : said };
+}
+
 export const typed = (v) => (typeof v === "string" && v.trim() !== "" && Number.isFinite(+v) ? +v : v); // "90" lands in Excel as 90
 
 // Pure: a row as it should look after a fix: the scanned row with the fix's cells (those in sheet row rowNum) typed in.
@@ -326,8 +350,9 @@ export async function applyFix(f, changes, sheet) { // the fix, its changes and 
       row: state.lastScan.rows[f.i], verdict: state.lastRows[f.i], was: state.decided[f.i], code, before: state.codes[f.i] }; // dismissed: stays so
     saveUndo(state.undos[f.i]); // kept in the workbook too: a reload no longer loses the old values (AH-118)
     const parts = issuesOf(state.lastRows[f.i]?.reason).map((p) => p.text);
+    const kinds = state.lastRows[f.i]?.kinds || []; // AH-219: the check each cell's fix answered, so the same slip finds it
     for (const [h, old, nw] of remembered(state.undos[f.i], columns, startCol))
-      remember(h, parts.find((t) => t.includes(String(h))) || "fix", old, nw);
+      remember(h, parts.find((t) => t.includes(String(h))) || "fix", old, nw, kinds.find(([, c]) => c === h)?.[0]);
     state.decided[f.i] = "fixed";
     saveDecisions(sheet, [[state.codes[f.i], null], [code, "fixed"]]); // an Accept after a Dismiss replaces it
     if (state.fix === f) setApplied(true);

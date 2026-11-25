@@ -2,7 +2,7 @@
 import assert from "node:assert";
 import { esc, asNumber } from "./utils/text.js";
 import { cutNote, r1c1ToA1, tableFromGrid, isDateFormat, excelDate, rowFromAddress, colLetter, cellAt, sameRow, readAs, spots } from "./utils/sheet.js";
-import { issuesOf, recommendFix, typoKind, afterFix, unusualColumn } from "./features/fix.js";
+import { issuesOf, recommendFix, typoKind, afterFix, unusualColumn, withPast } from "./features/fix.js";
 import { plainReason, summaryOf, legendOf, flaggedRows, fairnessNote, fairnessTests, listOrder, levelChange, asLastScan, lastScanSaid, doneOf, shareOf } from "./features/scan.js";
 import { MEASURED, COLOR, OLD_COLOR } from "./constants/index.js";
 import { oddLines, rulesLines } from "./features/ai.js";
@@ -15,7 +15,7 @@ import { hash, rowHash, codes, codeAt, asBook, decide, PER_SHEET, SHEETS } from 
 import { WORKBOOK_KEYS } from "./features/forget.js";
 import { asHighlights, KEPT } from "./features/highlight.js";
 import * as K from "./constants/index.js";
-import { remember, forget, recall, clearAll, MAX_KEPT, OFFERED } from "./features/memory.js";
+import { remember, forget, recall, clearAll, pastFix, SAME_SLIP, MAX_KEPT, OFFERED } from "./features/memory.js";
 import { historyOf, cellsSaid } from "./features/history.js";
 import { measures, copiedTabs, copiedSaid, lastRowSaid } from "./features/tabs.js";
 import { tablesFromGrid, sentOf, unreadSaid, errorsSaid, formatRows, asSheet, place, local, biggest, rowAt, areaOf, invalidIn, INVALID } from "./utils/layout.js";
@@ -1270,5 +1270,66 @@ for (const reason of ["Q2 is worked out differently from the 3 other cells of it
   assert.ok(rec.explanation.includes("is the usual cause") && !rec.explanation.includes("Nothing here") && !rec.changes.length, rec.explanation);
 }
 assert.ok(KIND_WORDS.group && !ONE_CELL.has("group"), "AH-214: a row's group is judged against its neighbours, never one cell");
+
+// AH-219 (John, 2026-11-25: "promote repeated manual fixes"): a fix the user accepted before for this same slip (its
+// column, its kind of one-cell check, its old value exactly, as text) is offered first on the card, with a line that
+// says so; a value the engine proves for that cell stays; Undo and Forget take it back out
+{
+  const box = new Map();
+  globalThis.localStorage = { getItem: (k) => box.get(k) ?? null, setItem: (k, v) => box.set(k, String(v)), removeItem: (k) => box.delete(k) };
+  const cols = ["Region", "Units", "Total"], row = ["East", 7777, 170.43], kinds = [["limits", "Units"]];
+  const advice = { explanation: "Units is 7777, past its limit of 90. Check it against the source; if it's right, leave it.", changes: [], guess: false };
+  const offer = (rec = advice, ks = kinds, r = row, calc = null, c = cols) => withPast(rec, c, r, ks, calc, 22, 0);
+  assert.equal(offer(), advice, "AH-219: nothing accepted before, nothing offered");
+  remember("Units", "Units weird limit is 90; this is 7777", 7777, "42", "limits");
+  let got = offer();
+  assert.deepEqual(got.changes, [{ cell: "B22", new: "42" }], "AH-219: the same column, kind and old value: the fix accepted before");
+  assert.equal(got.explanation, "You fixed this the same way before: Units 7777 became 42.",
+    "AH-219: the line stands in for the advice, so the card fits the fix area it holds (fix round 1: Accept dropped 48 px at 320 px)");
+  assert.ok(got.past, "AH-219: and the card is labelled the user's own fix");
+  assert.deepEqual(offer(advice, [["limits", " units "]], row, null, ["Region", " units ", "Total"]).changes, [{ cell: "B22", new: "42" }],
+    "AH-219: a header matches case and space blind, as Ask AI's memory reads it");
+  assert.equal(offer(advice, [["limits", "Qty"]], row, null, ["Region", "Qty", "Total"]), advice, "AH-219: never another column's");
+  assert.equal(offer(advice, [["whole_number", "Units"]]), advice, "AH-219: never another kind's");
+  for (const v of [7778, 777, "7777 ", "77770"]) assert.equal(offer(advice, kinds, ["East", v, 170.43]), advice, `AH-219: never another old value's (${JSON.stringify(v)})`);
+  assert.equal(offer(advice, kinds, row, ["East", "=C21*2", "=B22*2"]), advice, "AH-219: never over a formula");
+  // the engine's own value for the cell: a proven one keeps the engine's card as it is, whatever it says; a guess gives way
+  const proven = { ...advice, changes: [{ cell: "B22", new: "77.77" }] };
+  assert.equal(offer(proven), proven, "AH-219: the row's own arithmetic or a proven typo that says otherwise wins");
+  const agrees = { ...advice, changes: [{ cell: "B22", new: "42" }] };
+  assert.equal(offer(agrees), agrees, "AH-219: the engine proves the same value: its own card, unchanged");
+  const guessed = { ...advice, explanation: "A22 says east.", guess: true, unsure: ["B22"], changes: [{ cell: "B22", new: "77" }, { cell: "A22", new: "East" }] };
+  got = offer(guessed);
+  assert.deepEqual(got.changes, [{ cell: "B22", new: "42" }, { cell: "A22", new: "East" }], "AH-219: a guess gives way, first; another cell's fix stays after it");
+  assert.equal(got.explanation, "You fixed this the same way before: Units 7777 became 42. A22 says east.", "AH-219: and the engine's words, which say why it changes");
+  assert.deepEqual(offer({ ...guessed, changes: guessed.changes.slice(0, 1) }).changes, [{ cell: "B22", new: "42" }], "AH-219: a guess of that cell alone gives way");
+  // stand-ins, sums and blanks are never the same slip twice; a kind left out of the record never matches
+  assert.ok(SAME_SLIP.has("limits") && SAME_SLIP.has("spelling") && !["placeholder", "code", "shifted", "sum", "blank", "duplicate"].some((k) => SAME_SLIP.has(k)));
+  remember("Units", "fix", "N/A", "40", "placeholder");
+  assert.equal(pastFix("Units", "placeholder", "N/A"), null, "AH-219: a stand-in for no value hides that row's own value");
+  remember("Units", "fix", "#N/A", "40", "type");
+  assert.equal(pastFix("Units", "type", "#N/A"), null, "AH-219: nor an Excel error");
+  remember("Units", "fix", "", "50", "limits");
+  assert.ok(!pastFix("Units", "limits", "") && !pastFix("Units", "limits", " "), "AH-219: never a blank: its value is that row's own");
+  remember("Units", "fix", 5000, "50");
+  assert.equal(pastFix("Units", "limits", 5000), null, "AH-219: a fix kept with no kind (before AH-219) is never offered");
+  // never a value Excel reads as a formula, nor one memory may have cut (30 characters), at its very limit
+  remember("Units", "fix", 6000, "=WEBSERVICE(A1)", "limits");
+  assert.equal(pastFix("Units", "limits", 6000), null, "AH-219: never a formula, whatever another page wrote");
+  remember("Units", "fix", 6001, "-60", "limits");
+  assert.equal(pastFix("Units", "limits", 6001).n, "-60", "AH-219: a minus number is a number");
+  remember("Region", "fix", "Q".repeat(29), "R".repeat(29), "spelling");
+  assert.equal(pastFix("Region", "spelling", "Q".repeat(29)).n, "R".repeat(29), "AH-219: 29 characters, whole");
+  remember("Region", "fix", "S", "T".repeat(30), "spelling");
+  remember("Region", "fix", "U".repeat(30), "V", "spelling");
+  assert.ok(!pastFix("Region", "spelling", "S") && !pastFix("Region", "spelling", "U".repeat(30)), "AH-219: 30 characters may be cut: never offered");
+  // Undo takes it back out, and so does Forget what the AI learned
+  forget("Units", 7777, "42");
+  assert.equal(offer(), advice, "AH-219: Undo of the fix takes the offer out");
+  remember("Units", "fix", 7777, "42", "limits");
+  clearAll();
+  assert.equal(offer(), advice, "AH-219: Forget what the AI learned takes it out");
+  delete globalThis.localStorage;
+}
 
 console.log("panel self-check passed");
