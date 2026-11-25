@@ -56,6 +56,7 @@ jobs:
         run: |
           python backend/bench/score.py .
           python backend/bench/score.py . --blind
+          python backend/bench/groups.py .
       - name: Security lint (Bandit rules)
         run: ruff check --select S --ignore S101 backend/anomaly_hunter tools
       - name: Dependencies with known vulnerabilities

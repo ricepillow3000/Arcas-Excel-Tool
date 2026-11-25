@@ -14,7 +14,7 @@ export const TEXT = 200; // ...each column and value at most this long (server.L
 // the engine's checks of one cell's own value (pipeline.ONE_CELL): a value dismissed there is fine in that column. Never
 // a sum, an order, a duplicate, a blank or a formula: the same value is wrong in the next row
 export const ONE_CELL = new Set(["limits", "spelling", "type", "code", "far_date", "date_form", "lost_zero", "placeholder",
-  "gene_date", "fraction", "whole_number", "named_bound", "shifted", "validation"]);
+  "gene_date", "fraction", "whole_number", "named_bound", "shifted", "validation", "scale"]);
 // each kind the engine names (pipeline.KINDS), in the words "Stop checking ... in Units" says it
 export const KIND_WORDS = { duplicate: "duplicates", type: "text in numbers", blank: "blanks", placeholder: "placeholders",
   code: "codes for no value", far_date: "dates far off", sum: "totals", spelling: "spelling", lost_zero: "leading zeros",

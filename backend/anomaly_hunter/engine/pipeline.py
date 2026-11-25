@@ -1937,23 +1937,15 @@ SCALE_FIT = 0.5  # share of a column's spread (of its log sizes) its category ex
 SCALE_SPAN = 2
 
 
-def by_scale(df, column_types, skip, k, computed=(), voted=()):
-    """AH-198: a long sheet keeps many quantities in one column, a text column saying which (a lab's Result by Test, a
-    freight amount by its currency, a weight by the shipment's mode). Judged as a whole, potassium 44 (for 4.4) sat among
-    sodium near 140, and a courier parcel of 1700 kg among containers. Where one text column of 2-50 labels, 10+ rows a
-    label on average and never a protected one, explains SCALE_FIT of the column's log sizes and its labels' usual sizes
-    are SCALE_SPAN apart, each label's 20+ values get their own limits, and a value past them votes only with a slip of
-    zeros or the decimal point behind it (detectors.likely_value): a real critical potassium of 6.8 has none. Never a
-    fix: a gram typed for a kilo looks like 100 or 1000 the same. Never a formula's cell, nor one the limits named.
-    In sheet order: 16 label columns of the first 64, the first 50 number columns."""
-    from anomaly_hunter.engine.detectors import _crossed, _signed, column_stats, likely_value
-    from anomaly_hunter.engine.limits import _limits  # limits imports this module: here, never at the top
-
-    out, normal = [[] for _ in range(len(df))], set()
-    prot = set(fairness.protected(column_types))
+def scale_groups(df, column_types, skip, computed=()):
+    """{number column: (the label column that sets its scale, its values, every label column read)}, see by_scale. Before
+    you scan names these too (AH-215: "show why"), from the same reading."""
+    # AH-215 (John, 2026-11-25): a location sets its own normal (a South region's salaries); a person's own group never
+    prot = {c for c, why in fairness.protected(column_types).items() if why != fairness.PROXY}
     labels = {g: df[g].astype(str).str.strip().where(~skip & ~_blank(df[g])) for g, t in list(column_types.items())[:64]
               if t == "text" and g not in prot}  # the first 64 columns, then 16 label columns at most below
     labels = dict(list({g: lab for g, lab in labels.items() if 2 <= lab.nunique() <= 50 and lab.count() >= 10 * lab.nunique()}.items())[:16])
+    out = {}
     for c in [c for c, t in column_types.items() if t == "number" and c not in computed][:50]:
         x = pd.to_numeric(df[c], errors="coerce").where(~skip)
         ok = x.notna() & (x != 0)
@@ -1970,9 +1962,25 @@ def by_scale(df, column_types, skip, k, computed=(), voted=()):
             med = x[have].abs().groupby(lab[have]).median()
             if fit >= SCALE_FIT and med.max() >= SCALE_SPAN * med.min() and (best is None or fit > best[0]):
                 best = (fit, g)
-        if best is None:
-            continue
-        g = best[1]
+        if best is not None:
+            out[c] = (best[1], x, labels)
+    return out
+
+
+def by_scale(df, column_types, skip, k, computed=(), voted=()):
+    """AH-198: a long sheet keeps many quantities in one column, a text column saying which (a lab's Result by Test, a
+    freight amount by its currency, a weight by the shipment's mode). Judged as a whole, potassium 44 (for 4.4) sat among
+    sodium near 140, and a courier parcel of 1700 kg among containers. Where one text column of 2-50 labels, 10+ rows a
+    label on average and never a person's own group (a location may: AH-215), explains SCALE_FIT of the column's log sizes and its labels' usual sizes
+    are SCALE_SPAN apart, each label's 20+ values get their own limits, and a value past them (its usual limit, AH-215)
+    votes only with a slip of zeros or the decimal point behind it (detectors.likely_value): a real critical potassium of 6.8 has none. Never a
+    fix: a gram typed for a kilo looks like 100 or 1000 the same. Never a formula's cell, nor one the limits named.
+    In sheet order: 16 label columns of the first 64, the first 50 number columns."""
+    from anomaly_hunter.engine.detectors import _crossed, _signed, column_stats, likely_value
+    from anomaly_hunter.engine.limits import _limits  # limits imports this module: here, never at the top
+
+    out, normal = [[] for _ in range(len(df))], set()
+    for c, (g, x, labels) in scale_groups(df, column_types, skip, computed).items():
         for name, idx in x.groupby(labels[g]).groups.items():
             v = x[idx].dropna()
             if len(v) < 20:
@@ -1980,13 +1988,18 @@ def by_scale(df, column_types, skip, k, computed=(), voted=()):
             b_lo, b_hi, w_lo, w_hi = _limits(v, k, _signed(c, df.columns))
             st = column_stats(v.to_numpy(dtype=float))
             for i, y in v.items():
-                if _crossed(y, b_lo, b_hi) is None:
+                if (usual := _crossed(y, b_lo, b_hi)) is None:
                     normal.add((i, c))
-                if (lim := _crossed(y, w_lo, w_hi)) is None or c in voted[i]:
+                # ...and past its usual limit, as limits_detector's lone slip: a small group's spread is wide, so its
+                # weird limit took a dropped decimal point (271.4 -> 27.14, weird low 20) as its own (AH-215)
+                lim, said = (_crossed(y, w_lo, w_hi), "weird limit")
+                if lim is None:
+                    lim, said = usual, "usual limit"
+                if lim is None or c in voted[i]:
                     continue
                 fix = likely_value(y, st, b_lo, b_hi)
                 if fix is not None and fix != -y:
-                    out[i].append(Why(f"{c} {say(y)} is far outside the other {c} values for {g} {_short(name)} (weird limit "
+                    out[i].append(Why(f"{c} {say(y)} is far outside the other {c} values for {g} {_short(name)} ({said} "
                                       f"{lim:g}), {max(abs(y / fix), abs(fix / y)):.0f} times {'a usual one' if abs(y) > abs(fix) else 'smaller than a usual one'}: "
                                       "a slip of zeros or the decimal point", c))
     return out, normal
@@ -2581,7 +2594,7 @@ KINDS = ("duplicate", "type", "blank", "placeholder", "code", "far_date", "sum",
          "fraction", "whole_number", "named_bound", "repeated_column", "limits", "series", "combination", "subtotal",
          "validation", "group")
 ONE_CELL = frozenset(("limits", "spelling", "type", "code", "far_date", "date_form", "lost_zero", "placeholder",
-                      "gene_date", "fraction", "whole_number", "named_bound", "shifted", "validation"))
+                      "gene_date", "fraction", "whole_number", "named_bound", "shifted", "validation", "scale"))
 DETECTOR_KINDS = {"limits": "limits", "sequence": "series", "ecod": "combination"}
 GROUP_NORMAL = frozenset(("limits", "combination"))  # the whole column's judgments a group's own normal answers (AH-215)
 
@@ -2655,7 +2668,14 @@ def score(df, column_types, errors_log, limits, order_by, strength=5, saved=(), 
     before = date_order(df, column_types, skip, far, records)  # AH-198: delivered before it shipped
     same = same_in_record(df, column_types, skip, records, computed)
     owed, owed_fix = balances(df, column_types, skip, records, computed)
-    scaled, normal = by_scale(df, column_types, skip, k, computed, [{c for r in said for c in r.cols} for said in lim["reasons"]])
+    # ...never a cell the limits named, nor one its row's arithmetic or its record's balance confirms (`held`): a real
+    # entry 100x its account's usual size, its debits equal to its credits, was "a slip of zeros" (AH-215)
+    named = [{c for r in said for c in r.cols} for said in lim["reasons"]]
+    for c, rules in held.items():
+        for m, _ in rules:
+            for i in np.flatnonzero(m):
+                named[i].add(c)
+    scaled, normal = by_scale(df, column_types, skip, k, computed, named)
     calc, calc_fix = formulas(df, column_types, skip, grid)  # AH-152: a typed value or another formula among a column's formulas
     # AH-214: ...and a formula that breaks its row's or column's siblings, a totals row's too (the grand total that adds
     # its "of which" rows), each cell said once
