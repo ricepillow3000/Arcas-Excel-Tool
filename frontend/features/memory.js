@@ -19,10 +19,11 @@ export function remember(header, kind, old, nw) {
 }
 
 // Undo: the newest entry of this column with these values goes (the kind is not compared: after a reload the pane no
-// longer has the reason the fix was accepted for)
+// longer has the reason the fix was accepted for). header null: of any column (AH-218: an Undo from "Changes Arcas made"
+// knows the cell, not its header)
 export function forget(header, old, nw) {
   const e = entry(header, "", old, nw), list = kept();
-  const k = list.map((x) => x.h === e.h && x.o === e.o && x.n === e.n).lastIndexOf(true);
+  const k = list.map((x) => (header === null || x.h === e.h) && x.o === e.o && x.n === e.n).lastIndexOf(true);
   if (k < 0) return;
   list.splice(k, 1);
   save(list);

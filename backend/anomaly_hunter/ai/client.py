@@ -156,7 +156,7 @@ def unsafe_call(text):
             starts.append(m.end())
         elif tok in ")}":
             if len(frames) == 1:
-                continue
+                return True  # AH-218: a bracket closed that never opened (=A1)): no formula Excel would take as written
             frames.pop()
             args = [s[a:b - 1].strip() for a, b in zip(starts, starts[1:] + [m.end()])]
             # LET(name, value, ..., result) and LAMBDA(name, ..., body): a name counts from where it is given on
@@ -170,7 +170,7 @@ def unsafe_call(text):
                     s[after:after + 1] != "(" and CELLS.fullmatch(called)):
                 continue  # a SAFE function, a table or sheet, a cell or range
             unknown.append((called, len(starts) - 1))
-    return any(unknown for _, _, unknown in frames)
+    return len(frames) > 1 or any(unknown for _, _, unknown in frames)  # AH-218: one left open (=SUM(A1) too
 
 
 def refers_to_itself(cell, text):

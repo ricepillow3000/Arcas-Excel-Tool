@@ -49,6 +49,29 @@ paths:
                       nullable: true
                       maxItems: 1000
                       items: {type: array, minItems: 2, maxItems: 2, items: {type: integer, minimum: 0}}
+                    # AH-217: the subject rules this sheet kept from Check subject rules (their kind and the headers
+                    # they name, never a cell), judged again here with no AI; a row against one is kind "rule"
+                    rules:
+                      type: array
+                      nullable: true
+                      maxItems: 20
+                      items:
+                        type: object
+                        required: [kind]
+                        additionalProperties: false
+                        properties:
+                          kind: {type: string, enum: [sum, product, order, zero_after, rollup]}
+                          target: {type: string, maxLength: 100, nullable: true}
+                          first: {type: string, maxLength: 100, nullable: true}
+                          then: {type: string, maxLength: 100, nullable: true}
+                          value: {type: string, maxLength: 100, nullable: true}
+                          when: {type: string, maxLength: 100, nullable: true}
+                          after: {type: string, maxLength: 100, nullable: true}
+                          id: {type: string, maxLength: 100, nullable: true}
+                          parent: {type: string, maxLength: 100, nullable: true}
+                          plus: {type: array, maxItems: 200, items: {type: string, maxLength: 100}}
+                          minus: {type: array, maxItems: 200, items: {type: string, maxLength: 100}}
+                          factors: {type: array, maxItems: 200, items: {type: string, maxLength: 100}}
       responses: {"200": {$ref: "#/components/responses/Json"}, "400": {$ref: "#/components/responses/Error"}}
   /profile:  # AH-169: what the sheet looks like and what a scan will check, before it; the pane sends its first 500 rows
     post:
