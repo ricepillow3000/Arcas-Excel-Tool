@@ -68,7 +68,7 @@ export async function readSheet(onSlice, most = Infinity, sheetKey = null, fits 
     }
     // last: the sheet's last used row, 1-based (AH-180: one on Excel's last row was likely cut off when it opened)
     return read.tables.length ? asSheet(read.tables, { sheet: sheet.name, cut: total < used.rowCount && [r0 + total, r0 + used.rowCount],
-      last: r0 + used.rowCount, unread: read.unread,
+      last: r0 + used.rowCount, unread: read.unread, errors: read.errors,
       invalid: broken && !broken.isNullObject ? String(broken.address).split(",").map(areaOf).filter(Boolean) : [] }) : null;
   });
 }
@@ -135,10 +135,13 @@ export async function readRows(sheetName, spans) {
 
 // Writes as if typed: "=..." becomes a formula, "42" a number. Old contents kept for Undo. A write with a `format`
 // puts that number format back too (typing "12%" makes a cell a percent; Undo must undo that as well). A write with
-// `r1c1` is a column's own formula (AH-152): Excel turns it into this cell's A1 form itself.
+// `r1c1` is a column's own formula (AH-152): Excel turns it into this cell's A1 form itself. AH-218: a write of several
+// cells holds Excel's recalculation until the one sync, once, so a sheet of formulas recalculates once, not once a cell
+// (ExcelApi 1.6; an older Excel writes them as before)
 export async function writeCells(sheetName, writes) {
   await Excel.run(async (ctx) => {
     const sheet = ctx.workbook.worksheets.getItem(sheetName);
+    if (writes.length > 1 && Office.context.requirements?.isSetSupported?.("ExcelApi", "1.6")) ctx.application.suspendApiCalculationUntilNextSync();
     writes.forEach((w) => {
       const r = sheet.getRange(w.cell);
       if (w.r1c1) r.formulasR1C1 = [[w.r1c1]];

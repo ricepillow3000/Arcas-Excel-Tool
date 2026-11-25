@@ -1,3 +1,4 @@
+import { EXCEL_ERRORS } from "../constants/index.js";
 import { colLetter, excelDate, headerAt, isDateFormat, rowFromAddress, tableAt, tableFromGrid } from "./sheet.js";
 
 // AH-212: a power user's sheet is seldom one table. tableFromGrid read the used range as one, so a two-row header's
@@ -51,7 +52,8 @@ const NOTE = /^\s*(?:notes?\b|source\b|n\.\s?b\.|\*)/i;
 // (r0, c0, 0-based) and its merged areas (A1 strings) -> {tables, unread}. Each table is tableFromGrid's shape, at its own
 // sheet row and column, with `fills` ([i, j, value]: a label merged down its rows, for the scan only, never written back)
 // and `layout` (its data rows that are subtotals or notes, sent blank: the engine's own summary_rows skips a blank row).
-// unread: the A1 blocks that hold numbers or formulas but no table. A sheet of one block reads as tableFromGrid reads it.
+// unread: the A1 blocks that hold numbers or formulas but no table. errors (AH-218): [A1, error] of each cell no table
+// holds that shows an Excel error (#REF!...), in sheet order. A sheet of one block reads as tableFromGrid reads it.
 export function tablesFromGrid(values, formats, r0, c0, formulas, { merged = [] } = {}) {
   const H = values.length, W = H ? values[0].length : 0;
   const fx = (r, c) => formulas?.[r]?.[c] || null;
@@ -165,10 +167,16 @@ export function tablesFromGrid(values, formats, r0, c0, formulas, { merged = [] 
     return table;
   });
   const unread = taken.filter((x) => !x.read).map((x) => x.b).filter((b) => {
-    for (let r = b.r1; r <= b.r2; r++) for (let c = b.c1; c <= b.c2; c++) if (typeof values[r][c] === "number" || fx(r, c)) return true;
+    // AH-218: a formula showing an Excel error is said as that error below, once
+    for (let r = b.r1; r <= b.r2; r++) for (let c = b.c1; c <= b.c2; c++) if (typeof values[r][c] === "number" || (fx(r, c) && !Object.hasOwn(EXCEL_ERRORS, values[r][c]))) return true;
     return false;
   }).map((b) => a1Of({ r1: b.r1 + r0, r2: b.r2 + r0, c1: b.c1 + c0, c2: b.c2 + c0 }));
-  return { tables: out, unread };
+  // AH-218: an Excel error outside every table: a #REF! on a summary block was only "not checked", or, alone on its row,
+  // not said at all. One inside a table is the scan's to say
+  const errors = [];
+  for (let r = 0; r < H; r++) for (let c = 0; c < W; c++)
+    if (Object.hasOwn(EXCEL_ERRORS, values[r][c]) && !tables.some((t) => t.r1 <= r && r <= t.r2 && t.c1 <= c && c <= t.c2)) errors.push([a1Of({ r1: r + r0, r2: r + r0, c1: c + c0, c2: c + c0 }), values[r][c]]);
+  return { tables: out, unread, errors };
 }
 
 // Pure: a table as the engine reads it: each merged label filled down, each subtotal or notes row blank -> {rows, calc}
@@ -201,6 +209,15 @@ export function unreadSaid(unread) {
   const list = more ? `${named.join(", ")} and ${more} more` : named.length > 1 ? `${named.slice(0, -1).join(", ")} and ${named.at(-1)}` : named[0];
   return cell ? `Cell ${list} on this sheet was not checked: it holds no table Arcas can read.`
     : `Cells ${list} on this sheet were not checked: they hold no table Arcas can read.`;
+}
+
+// Pure: AH-218: the Excel errors no table holds ([A1, error]), said once, at most 3 named
+export function errorsSaid(errors) {
+  if (!errors?.length) return "";
+  if (errors.length === 1) return `Cell ${errors[0][0]} on this sheet shows ${errors[0][1]}, outside any table Arcas checks: ${EXCEL_ERRORS[errors[0][1]]}.`;
+  const named = errors.slice(0, 3).map(([a, e]) => `${a} (${e})`), more = errors.length - named.length;
+  const list = more ? `${named.join(", ")} and ${more} more` : `${named.slice(0, -1).join(", ")} and ${named.at(-1)}`;
+  return `Cells ${list} on this sheet show Excel errors, outside any table Arcas checks.`;
 }
 
 // Pure: the rows (0-based in the used range, [first, count]) whose number formats a table needs that were not read: its

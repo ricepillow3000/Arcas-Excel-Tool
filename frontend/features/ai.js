@@ -9,6 +9,7 @@ import { colLetter } from "../utils/sheet.js";
 import { biggest, local, place } from "../utils/layout.js";
 import { isOurs, plainError } from "../utils/errors.js";
 import { recall } from "./memory.js";
+import { heldOf, keepRules } from "./rules.js";
 import { CAP } from "../constants/index.js";
 import { n } from "../utils/text.js";
 
@@ -166,14 +167,18 @@ export function oddLines(odd, columns, startRow, startCol) {
 }
 
 // AH-202: Check subject rules with AI. The engine sends the AI only the sheet's headers and each column's kind, never a
-// cell; the AI names rules its subject makes true (Net = Debit − Credit) and the engine checks each on every row
+// cell; the AI names rules its subject makes true (Net = Debit − Credit) and the engine checks each on every row. AH-217:
+// the ones that held are kept in the workbook in place of the sheet's last ones, and every scan checks them, with no AI
 export async function checkRules() {
   const { columns, rows, startRow, startCol } = biggest(state.lastScan); // a sheet of several tables: its biggest (AH-212)
+  const sheet = state.lastScan.sheet;
   const item = (text) => Object.assign(document.createElement("li"), { textContent: text }); // AI text is never HTML
   busy("Asking the AI about your headers…");
   counting();
   try {
-    $("rules-list").replaceChildren(...rulesLines(await post("/rules", { columns, rows }, 300), columns, startRow, startCol).map(item));
+    const out = await post("/rules", { columns, rows }, 300);
+    keepRules(sheet, heldOf(out));
+    $("rules-list").replaceChildren(...rulesLines(out, columns, startRow, startCol).map(item));
   } catch (e) {
     $("rules-list").replaceChildren(Object.assign(item(plainError(e, "AI could not check")), { className: "notice" }));
   }
@@ -186,6 +191,8 @@ export function rulesLines(out, columns, startRow, startCol) {
   const col = (j) => `${colLetter(startCol + j)}${String(columns[j] ?? "").trim() ? ` (${columns[j]})` : ""}`;
   const cells = (js) => (js.length === 1 ? `column ${col(js[0])}` : `columns ${js.slice(0, -1).map(col).join(", ")} and ${col(js.at(-1))}`);
   const lines = out.sent < out.headers ? [`Only the first ${n(out.sent)} of ${n(out.headers)} column headers were sent.`] : [];
+  const kept = heldOf(out).length; // AH-217: said before the rules, so CAP never cuts it
+  if (kept) lines.push(`Arcas keeps the ${kept === 1 ? "rule" : `${n(kept)} rules`} that held in this workbook and checks ${kept === 1 ? "it" : "them"} in every scan of this sheet, with no AI.`);
   out.rules.forEach((r, k) => {
     const why = ` The AI says: ${r.why}`;
     if (r.total < 10) lines.push(`Too few rows to check: ${r.said} (${n(r.total)} rows).${why}`);

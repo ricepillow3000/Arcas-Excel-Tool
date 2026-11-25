@@ -16,10 +16,12 @@ import { WORKBOOK_KEYS } from "./features/forget.js";
 import { asHighlights, KEPT } from "./features/highlight.js";
 import * as K from "./constants/index.js";
 import { remember, forget, recall, clearAll, MAX_KEPT, OFFERED } from "./features/memory.js";
+import { historyOf, cellsSaid } from "./features/history.js";
 import { measures, copiedTabs, copiedSaid, lastRowSaid } from "./features/tabs.js";
-import { tablesFromGrid, sentOf, unreadSaid, formatRows, asSheet, place, local, biggest, rowAt, areaOf, invalidIn, INVALID } from "./utils/layout.js";
-import { findingsAt, inRange, ignored, liveable, liveOn, soundOn, noteSaid, checkedSaid, LIVE_ROWS } from "./features/live.js";
+import { tablesFromGrid, sentOf, unreadSaid, errorsSaid, formatRows, asSheet, place, local, biggest, rowAt, areaOf, invalidIn, INVALID } from "./utils/layout.js";
+import { findingsAt, inRange, ignored, liveable, liveOn, soundOn, noteSaid, checkedSaid, LIVE_ROWS, onRow, heldBack, ROW_KINDS, HOLD } from "./features/live.js";
 import { asLearned, learnIn, taught, learnedOf, stoppable, KIND_WORDS, ONE_CELL, PER_SHEET as LEARN_CAP, SENT, TEXT } from "./features/learned.js";
+import { ruleOf, heldOf, asRules, keepIn, MAX as RULES_MAX, SHEETS as RULE_SHEETS, HEADER } from "./features/rules.js";
 
 // Fixed / Dismissed are kept in the workbook under a code per row, so they outlive the pane (2026-10-20: a dismissed
 // row came back flagged after a reload, an accepted fix vanished). Same values = same code, on any PC, every time.
@@ -78,6 +80,10 @@ assert.deepEqual(listOrder([{ severity: null }, { severity: "Low", magnitude: 1 
   assert.deepEqual(recall("Price"), [], "no fix of this column: nothing");
   forget("Units", 524, 50);
   assert.equal(recall("Units")[0].o, "523", "Undo takes its own fix back out");
+  forget("Region", 523, 50);
+  assert.equal(recall("Units")[0].o, "523", "never another column's");
+  forget(null, 523, 50);
+  assert.equal(recall("Units")[0].o, "522", "AH-218: an Undo from Changes Arcas made, which knows no header, takes the newest fix of those values");
   remember("x".repeat(99), "y".repeat(999), "z".repeat(999), "\n".repeat(9) + "w".repeat(999));
   assert.ok(Object.values(recall("x".repeat(99))[0]).every((v) => v.length <= 60), "a long value is cut to what the engine takes");
   for (let k = 0; k < MAX_KEPT + 5; k++) remember("Units", "fix", k, k);
@@ -913,7 +919,27 @@ for (const f of readdirSync(new URL(".", import.meta.url)).filter((f) => f.endsW
   assert.equal(checkedSaid("Series 3", ["B12"]), 'Checked B12 on "Series 3": nothing unusual.');
   assert.equal(checkedSaid("Series 3", ["B2:B500"]), 'Checked B2:B500 on "Series 3": nothing unusual.');
   assert.equal(checkedSaid("S", ["A1", "B2", "A1", "C3", "D4", "E5"]), 'Checked A1, B2, C3 and 2 more on "S": nothing unusual.', "each address once, 3 named");
-  assert.equal(noteSaid("Sales", findingsAt(rows, s, {}, ["B3"])[0], 3, {}), 'Sheet "Sales", cell B3: Probably wrong. Units is 900, above its usual limit of 90 (likely 90). And 3 more in what you changed.');
+  // AH-218: a finding about the row still being typed (a blank not filled yet, a total whose parts are coming) waits while
+  // the selected cell is on that row of that sheet; a slip in one cell's own value never waits. Nothing is dropped: it is
+  // said when the selection leaves the row, or after HOLD
+  for (const [a, row, on] of [["C12", 12, true], ["$B$12:$D$12", 12, true], ["B11:D13", 12, true], ["C13", 12, false], ["12:12", 12, true],
+    ["Series 3!$C$12", 12, true], ["C:C", 12, false], ["A1:B2, D12", 12, true], [undefined, 12, false]]) assert.equal(onRow(a, row), on, `onRow ${a} ${row}`);
+  const blankAt = { cell: "C12", kinds: [["blank", "Units"]] }, sumAt = { cell: "E12", kinds: [["sum", "Total"], ["blank", "Units"]] };
+  const typo = { cell: "B12", kinds: [["spelling", "Region"]] }, mixed = { cell: "C12", kinds: [["blank", "Units"], ["limits", "Total"]] };
+  assert.ok(heldBack([blankAt], { id: "Sales", address: "D12" }, "Sales"), "AH-218: a blank on the row being typed waits");
+  assert.ok(heldBack([blankAt, sumAt], { id: "Sales", address: "F12" }, "Sales"), "AH-218: and a total on it whose parts are coming");
+  assert.ok(!heldBack([blankAt], { id: "Sales", address: "C13" }, "Sales"), "AH-218: said once the selection left the row");
+  assert.ok(!heldBack([blankAt], { id: "Other", address: "C12" }, "Sales"), "AH-218: or is on another sheet");
+  assert.ok(!heldBack([blankAt], null, "Sales"), "AH-218: no selection heard yet: said at once");
+  assert.ok(!heldBack([typo], { id: "Sales", address: "C12" }, "Sales"), "AH-218: a spelling slip on the row being typed is said at once");
+  assert.ok(!heldBack([mixed], { id: "Sales", address: "C12" }, "Sales"), "AH-218: a row with any check of one cell's value is said at once");
+  assert.ok(!heldBack([blankAt, { cell: "C30", kinds: [["blank", "Units"]] }], { id: "Sales", address: "C12" }, "Sales"), "AH-218: one on another row is said at once");
+  assert.ok(!heldBack([{ cell: "C12" }], { id: "Sales", address: "C12" }, "Sales") && !heldBack([], { id: "Sales", address: "C12" }, "Sales"), "AH-218: no kinds, or nothing found: never held");
+  assert.deepEqual([...ROW_KINDS].sort(), ["balance", "blank", "duplicate", "group", "record", "rule", "subtotal", "sum"], "AH-218: the checks about a row's whole, never one cell's value");
+  assert.ok(heldBack([{ cell: "E12", kinds: [["rule", "Net"]] }], { id: "Sales", address: "B12" }, "Sales"), "AH-218: a row against a subject rule the sheet kept (AH-217) waits while it is typed");
+  assert.ok(!heldBack([{ cell: "E12", kinds: [["rule", "Net"], ["spelling", "Region"]] }], { id: "Sales", address: "B12" }, "Sales"), "AH-218: beside a spelling slip, said at once");
+  assert.ok([...ROW_KINDS].every((k) => !ONE_CELL.has(k)), "AH-218: no check of one cell's own value waits");
+  assert.equal(HOLD, 20000, "AH-218: said after 20 s at most, so it is never lost");
 }
 
 
@@ -949,6 +975,43 @@ for (const f of readdirSync(new URL(".", import.meta.url)).filter((f) => f.endsW
   const junk = asLearned({ __proto__: [["A", "abc"]], S: [["A", "abc"], ["A", 7], [1, "x"], "x", ["A", "b", "c"]], T: "x" }, (x) => typeof x === "string", (c) => typeof c === "string");
   assert.deepEqual(Object.keys(junk), ["S"]);
   assert.deepEqual(junk.S, [["A", "abc"]]);
+}
+
+// AH-217: a subject rule that held is kept as its kind and the headers it names, never a cell, the AI's words or a count;
+// one that did not hold or had too few rows is never kept; at most MAX a sheet and SHEETS sheets; a crafted workbook's
+// junk dropped; the card of a row against a kept rule writes nothing and says why
+{
+  const answer = (kind, holds, named) => ({ kind, why: "<b>x</b>", said: "s", held: 29, total: 30, holds, target: null, first: null, then: null,
+    value: null, when: null, after: null, id: null, parent: null, plus: [], minus: [], factors: [], ...named });
+  const net = answer("sum", true, { target: "Net", plus: ["Debit"], minus: ["Credit"] });
+  const out = { rules: [net, answer("order", false, { first: "A", then: "B" }), { ...answer("product", false, { target: "C", factors: ["A", "B"] }), total: 6 },
+    answer("order", true, { first: "Ship", then: "Arrive" }), answer("nonsense", true, { target: "Net" })] };
+  assert.deepEqual(heldOf(out), [{ kind: "sum", target: "Net", plus: ["Debit"], minus: ["Credit"] }, { kind: "order", first: "Ship", then: "Arrive" }],
+    "only the rules that held, as their kind and headers: never the AI's words, a count, a rule that did not hold or an unknown kind");
+  assert.deepEqual(heldOf({}), []);
+  assert.equal(heldOf({ rules: Array.from({ length: RULES_MAX + 1 }, () => net) }).length, RULES_MAX, "at most MAX a sheet");
+  assert.equal(heldOf({ rules: Array.from({ length: RULES_MAX }, () => net) }).length, RULES_MAX, "exactly MAX kept");
+  assert.ok(ruleOf({ kind: "order", first: "x".repeat(HEADER), then: "B" }), "a header at its very limit is kept");
+  assert.equal(ruleOf({ kind: "order", first: "x".repeat(HEADER + 1), then: "B" }), null, "a longer one never: the AI was never sent it");
+  assert.equal(ruleOf({ kind: "sum", target: "N", plus: ["A", 7] }), null, "a header that is not text");
+  const book = asRules({ __proto__: [net], S: [net, { kind: "x" }, "x", null], T: "x", U: [] });
+  assert.deepEqual(Object.keys(book), ["S"]);
+  assert.deepEqual(book.S, [{ kind: "sum", target: "Net", plus: ["Debit"], minus: ["Credit"] }], "a crafted workbook's junk is dropped");
+  let kept = keepIn(book, "S", [{ kind: "order", first: "A", then: "B" }]);
+  assert.deepEqual(kept.S, [{ kind: "order", first: "A", then: "B" }], "a new press replaces the sheet's rules");
+  kept = keepIn(kept, "S", []);
+  assert.ok(!("S" in kept), "a press where none held keeps none");
+  for (let k = 0; k <= RULE_SHEETS; k++) kept = keepIn(kept, `S${k}`, [net]);
+  assert.equal(Object.keys(kept).length, RULE_SHEETS, "at most SHEETS sheets, the oldest dropped");
+  assert.ok(!("S0" in kept) && `S${RULE_SHEETS}` in kept);
+  const lines = rulesLines({ sent: 3, headers: 3, rules: [net, answer("order", true, { first: "Ship", then: "Arrive" })], rows: [] }, ["Debit", "Credit", "Net"], 0, 0);
+  assert.equal(lines[0], "Arcas keeps the 2 rules that held in this workbook and checks them in every scan of this sheet, with no AI.");
+  assert.equal(rulesLines({ sent: 3, headers: 3, rules: [net], rows: [] }, ["A"], 0, 0)[0], "Arcas keeps the rule that held in this workbook and checks it in every scan of this sheet, with no AI.");
+  assert.equal(KIND_WORDS.rule, "subject rules");
+  const reason = "Net 201.17 is not Debit − Credit (151.17): a rule the AI read from your headers, true on 29 of 30 rows.";
+  const fix = recommendFix(["Debit", "Credit", "Net"], [[null, 50, 201.17]], 0, {}, reason, 0, 0, {}, null, {}, {});
+  assert.deepEqual(fix.changes, [], "which cell is wrong is unknown: nothing written");
+  assert.ok(fix.explanation.startsWith("Net 201.17 is not Debit − Credit (151.17): a rule the AI read from your headers, true on 29 of 30 rows: one mistyped cell"), fix.explanation);
 }
 
 // AH-203: the 16 and 32 px icons (ribbon, favicon, the exe's) are the mark's coin, read pixel by pixel: round (its corners
@@ -1158,6 +1221,46 @@ for (const f of readdirSync(new URL(".", import.meta.url)).filter((f) => f.endsW
   assert.equal(invalidIn(big, [areaOf("A2:A1002")]).length, INVALID, "AH-213: past it, the first INVALID");
   assert.ok(KIND_WORDS.subtotal && KIND_WORDS.validation && ONE_CELL.has("validation") && !ONE_CELL.has("subtotal"),
     "AH-213: a value outside its list is a check of one cell, a subtotal never");
+}
+// AH-218: an Excel error in a cell no table holds was only "not checked" (when it sat beside a number) or not said at all
+// (alone on its row): each is named with what it means, inside a table never (the scan says those), at most 3 named
+{
+  const g = [["Note", "", "", "", ""], ["Item", "Units", "Total", "", "#REF!"], ["a", 1, 2, "", ""], ["b", "#DIV/0!", 4, "", ""],
+    ["", "", "", "", ""], ["#N/A", "", "", "", ""], ["", "", "", "", ""], ["Ratio", "#VALUE!", "", "", ""], ["", "", "", "", "#SPILL!"]];
+  const calc = g.map((r) => r.map(() => null));
+  calc[7][1] = "=RC[-1]/0";
+  const { tables, errors, unread } = tablesFromGrid(g, null, 0, 0, calc);
+  assert.equal(tables.length, 1);
+  assert.deepEqual(unread, [], "AH-218: a block whose only formula shows an error is said as that error, never also as not checked");
+  assert.deepEqual(tablesFromGrid(g.map((r, k) => (k === 7 ? ["Ratio", "x", "", "", ""] : r)), null, 0, 0, calc).unread, ["A8:B8"],
+    "AH-218: a formula showing anything else is still not checked");
+  assert.deepEqual(errors, [["E2", "#REF!"], ["A6", "#N/A"], ["B8", "#VALUE!"], ["E9", "#SPILL!"]],
+    "AH-218: every Excel error no table holds, typed or a formula's, in sheet order; B4 inside the table never");
+  assert.deepEqual(tablesFromGrid([["Item", "Units"], ["a", "#REF!"], ["b", 2]], null, 0, 0, null).errors, [], "AH-218: a plain sheet's errors are the scan's");
+  assert.deepEqual(tablesFromGrid([["Item", "Units", "", "Ref"], ["a", 1, "", "#NAME? "], ["b", 2, "", "#REF"]], null, 3, 2, null).errors, [],
+    "AH-218: only Excel's own error, exactly as Excel shows it");
+  assert.deepEqual(tablesFromGrid([["Item", "Units", "", ""], ["a", 1, "", ""], ["b", 2, "", ""], ["", "", "", ""], ["Ratio", 5, "", "#NULL!"]], null, 3, 2, null).errors,
+    [["F8", "#NULL!"]], "AH-218: at its sheet address");
+  assert.deepEqual(tablesFromGrid([["Item", "Units", "", ""], ["a", 1, "", "#NULL!"], ["b", 2, "", ""]], null, 3, 2, null).errors, [],
+    "AH-218: a plain sheet is one table its whole width, read by the scan: none said twice");
+  assert.equal(errorsSaid([]), "");
+  assert.equal(errorsSaid([["C40", "#REF!"]]), "Cell C40 on this sheet shows #REF!, outside any table Arcas checks: it points at a cell or sheet that was deleted.");
+  assert.equal(errorsSaid([["C40", "#REF!"], ["D2", "#DIV/0!"]]),
+    "Cells C40 (#REF!) and D2 (#DIV/0!) on this sheet show Excel errors, outside any table Arcas checks.");
+  assert.equal(errorsSaid([["A1", "#N/A"], ["A2", "#N/A"], ["A3", "#NUM!"], ["A4", "#CALC!"], ["A5", "#NAME?"]]),
+    "Cells A1 (#N/A), A2 (#N/A), A3 (#NUM!) and 2 more on this sheet show Excel errors, outside any table Arcas checks.");
+}
+// AH-218: "Changes Arcas made" lists the Undo records the workbook keeps, newest first, each value cut to 40 characters
+{
+  const rec = (sheet, code, cells) => ({ sheet, code, before: code, was: null, cells });
+  const list = historyOf([rec("Sales", "a1.0", [["C11", -5, "General", "5", 5]]), rec("Sales", "b2.0", [["B81", "east ", "General", "East", "East"], ["C81", "", "General", "4", 4]]),
+    rec("Q1 2026", "c3.0", [["D2", "x".repeat(50), "@", "y", "y"]])]);
+  assert.deepEqual(list.map((h) => h.code), ["c3.0", "b2.0", "a1.0"], "AH-218: newest first");
+  assert.deepEqual(list[2].cells, [["C11", "-5", "5"]], "AH-218: the cell, its old value and the new one as typed");
+  assert.equal(list[0].cells[0][1], `${"x".repeat(39)}…`, "AH-218: a long value cut, never the whole cell");
+  assert.equal(cellsSaid(list[1]), "B81 and C81 on Sales");
+  assert.equal(cellsSaid(list[2]), "C11 on Sales");
+  assert.deepEqual(historyOf([]), []);
 }
 // AH-214: a formula that breaks its siblings and a row under the wrong group say what to look for, and write nothing
 for (const reason of ["Q2 is worked out differently from the 3 other cells of its row that share one formula (Q1, Q3, Q4)",

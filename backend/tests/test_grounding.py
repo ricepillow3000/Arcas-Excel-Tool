@@ -196,3 +196,17 @@ def test_a_formula_from_the_ai_that_calls_anything_else_is_refused(formula):
                                      "=SUM(Table1[it''s])", "=Table1[[#This Row],[a']b]]"])
 def test_a_formula_from_the_ai_may_name_cells_tables_sheets_and_its_own_let_and_lambda_names(formula):
     assert not client.unsafe_call(formula)
+
+
+# AH-218: a stray ")" was skipped, so =A1) and =(A1)) passed as safe; a bracket left open (=SUM(A1) too. Excel reads
+# neither as written. Brackets inside a string, a sheet name or a table column are text, never counted
+@pytest.mark.parametrize("formula", ["=SUM(A1", "=A1)", "=(A1))", "=((A1)", "=SUM(A1))+1", "=IF(C2>0,(1,0)", "={1,2", "=1}",
+                                     '=SUM(A1)&")"&(B1'])
+def test_a_formula_from_the_ai_whose_brackets_do_not_balance_is_refused(formula):
+    assert client.unsafe_call(formula)
+
+
+@pytest.mark.parametrize("formula", ['="(x"', '=")"&A1', "='a(b'!A1+'c)'!B2", "=T[(x]+1", '=IF(C2="(",1,0)', "=((A1))",
+                                     "=SUM((A1),(B1))", "={1,2}"])
+def test_a_formula_from_the_ai_with_brackets_only_in_text_or_balanced_is_let_in(formula):
+    assert not client.unsafe_call(formula)

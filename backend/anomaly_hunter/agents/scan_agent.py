@@ -1,7 +1,7 @@
 """Agent 1: find the problems. Table in -> a verdict per row. Limits are suggested from the data; limits the user
 saved win, column by column. ponytail: no parallel helpers - every check needs whole-column statistics, so splitting
 a big sheet would change the answers. 100k rows x 17 columns take ~8 s; add helpers when a real sheet is too slow."""
-from anomaly_hunter.engine import fairness
+from anomaly_hunter.engine import fairness, rules
 from anomaly_hunter.engine.limits import suggest_limits_dict
 from anomaly_hunter.engine.load import load_from_records, numbers
 from anomaly_hunter.engine.pipeline import knobs, score
@@ -43,14 +43,16 @@ def learn(columns, rows, learned, decisions=None):
 
 
 def scan(columns, rows, limits=None, order_by=None, strength=5, fair=True, formulas=None, learned=None, decisions=None,
-         invalid=None):
+         invalid=None, kept=None):
     """-> (DataFrame, verdict per row, suggested limits, limits used, detector status, fairness report).
     strength 0-10, see knobs(). The fairness report tests protected subgroups on this scan's own flags (engine/fairness).
     learned (AH-205): what the user dismissed and the checks they stopped on this sheet, see learn(). invalid (AH-213): the
-    [row, column] cells Excel says break their drop-down list."""
+    [row, column] cells Excel says break their drop-down list. kept (AH-217): the subject rules this sheet kept, judged
+    here again with no AI (rules.kept)."""
     df, types, errors = load_from_records(columns, rows)
     suggested = suggest_limits_dict(df, numbers(types), knobs(strength)[1])
     used = {**suggested, **(limits or {})}
     out, status = score(df, types, errors, used, order_by, strength, saved=list(limits or {}), grid=formulas,
-                        learned=learn(list(df.columns), rows, learned, decisions), invalid=invalid)
+                        learned=learn(list(df.columns), rows, learned, decisions), invalid=invalid,
+                        ruled=rules.kept(df, types, columns, kept) if kept else None)
     return df, out, suggested, used, status, fairness.report(df, types, out) if fair else None

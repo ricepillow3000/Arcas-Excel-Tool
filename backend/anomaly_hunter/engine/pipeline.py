@@ -2592,7 +2592,7 @@ ALONE = 7  # from this level, a value past its usual limit that few others pass 
 KINDS = ("duplicate", "type", "blank", "placeholder", "code", "far_date", "sum", "spelling", "lost_zero", "date_form",
          "formula", "order", "gene_date", "date_order", "record", "balance", "scale", "key", "own_scale", "shifted",
          "fraction", "whole_number", "named_bound", "repeated_column", "limits", "series", "combination", "subtotal",
-         "validation", "group")
+         "validation", "group", "rule")
 ONE_CELL = frozenset(("limits", "spelling", "type", "code", "far_date", "date_form", "lost_zero", "placeholder",
                       "gene_date", "fraction", "whole_number", "named_bound", "shifted", "validation", "scale"))
 DETECTOR_KINDS = {"limits": "limits", "sequence": "series", "ecod": "combination"}
@@ -2604,12 +2604,13 @@ def _about(reason):
     return (getattr(reason, "cols", ()) or (None,))[0]
 
 
-def score(df, column_types, errors_log, limits, order_by, strength=5, saved=(), grid=None, learned=None, invalid=None):
+def score(df, column_types, errors_log, limits, order_by, strength=5, saved=(), grid=None, learned=None, invalid=None, ruled=None):
     """-> (rows, status). Severity = votes: 1 Low, 2 Medium, 3+ High. Weird limit or hygiene hit = at least Medium.
     Totals/summary rows are left out of every check (their numbers would distort the rest) and say so.
     learned (AH-205): (accepted, ignored, dismissed): the cells {(row, column)} holding a value the user dismissed in that
     column, the [kind, column] pairs the user stopped, and the rows left as they are (dismissed). A reason they mute is
-    dropped before severity is decided. invalid (AH-213): [row, column] of each cell Excel says breaks its drop-down list."""
+    dropped before severity is decided. invalid (AH-213): [row, column] of each cell Excel says breaks its drop-down list.
+    ruled (AH-217): the reasons per row of the subject rules the sheet kept (rules.kept), Medium as a sum's or an order's."""
     n, skip = len(df), summary_rows(df)
     empty = df[[c for c in df.columns if c != "source_file"]].apply(_blank).all(axis=1).to_numpy()  # before totals are blanked
     tot = subtotals(df, skip, grid)  # AH-213: the totals rows themselves, judged by their formulas, before they are blanked
@@ -2704,7 +2705,8 @@ def score(df, column_types, errors_log, limits, order_by, strength=5, saved=(), 
            ("sum", add), ("spelling", spell), ("lost_zero", zeros), ("date_form", forms), ("formula", calc), ("order", above),
            ("gene_date", genes), ("date_order", before), ("record", same), ("balance", owed), ("scale", scaled),
            ("spelling", proven), ("key", keyed), ("own_scale", own), ("blank", gaps), ("subtotal", tot),
-           ("validation", outside_list(df, skip, errors_log, invalid)), ("group", wrong_group(df, column_types, skip))]
+           ("validation", outside_list(df, skip, errors_log, invalid)), ("group", wrong_group(df, column_types, skip))] + (
+              [("rule", ruled)] if ruled else [])
     # all "worth a check" (Low): a lone top value (AH-29), one its row's arithmetic confirms (AH-74), a placeholder code
     # (AH-45), many repeats (AH-48), a date column of many forms (AH-76), a column pasted twice (AH-182)
     notes = [("spelling", missed), ("shifted", shifted(df, column_types, skip)), ("fraction", fractions(df, column_types, skip)),

@@ -297,3 +297,14 @@ details.more[open] summary { margin-bottom: var(--s3); }
   .flagged-list button::before { display: none; }
   #status::before { forced-color-adjust: none; background: CanvasText; }
 }
+
+/* AH-218: Changes Arcas made: each fix on its own line beside its Undo, a hairline between, wrapping under it when narrow */
+#history-list { list-style: none; margin: 0; padding: 0; }
+#history-list li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s1) var(--s3); padding: var(--s2) 0; border-top: 1px solid var(--rule); }
+#history-list .what { flex: 1 1 12ch; min-width: 0; overflow-wrap: anywhere; }
+#history-list .what > span { display: block; }
+#history-list .where { color: var(--muted); font-size: var(--fs--1); }
+#history-list .old { color: var(--muted); text-decoration: line-through; }
+#history-list .new { color: var(--navy); font-weight: 800; }
+#history-list .secondary { flex: none; width: auto; margin: 0; }
+#history-state { min-height: 4.5em; margin: var(--s2) 0 0; } /* three lines held: what an Undo did never moves the list's foot */
