@@ -6222,5 +6222,220 @@
    "e2e"
   ],
   "modes": "flow2"
+ },
+ {
+  "id": "live-reopen-shared-loosen",
+  "guard": "Check as you work brings a closed pane back only for a finding, with a shared runtime, the pane closed, Check as you work on, not left alone, once an edit burst (AH-220)",
+  "file": "frontend/features/live.js",
+  "old": "(p) => p.shared && p.hidden",
+  "new": "(p) => p.hidden",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "live-reopen-hidden-loosen",
+  "guard": "Check as you work brings a closed pane back only for a finding, with a shared runtime, the pane closed, Check as you work on, not left alone, once an edit burst (AH-220)",
+  "file": "frontend/features/live.js",
+  "old": "(p) => p.shared && p.hidden && p.on",
+  "new": "(p) => p.shared && p.on",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "live-reopen-on-loosen",
+  "guard": "Check as you work brings a closed pane back only for a finding, with a shared runtime, the pane closed, Check as you work on, not left alone, once an edit burst (AH-220)",
+  "file": "frontend/features/live.js",
+  "old": "p.hidden && p.on && p.ring",
+  "new": "p.hidden && p.ring",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "live-reopen-ring-loosen",
+  "guard": "Check as you work brings a closed pane back only for a finding, with a shared runtime, the pane closed, Check as you work on, not left alone, once an edit burst (AH-220)",
+  "file": "frontend/features/live.js",
+  "old": "p.on && p.ring && !p.alone",
+  "new": "p.on && !p.alone",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "live-reopen-alone-loosen",
+  "guard": "Check as you work brings a closed pane back only for a finding, with a shared runtime, the pane closed, Check as you work on, not left alone, once an edit burst (AH-220)",
+  "file": "frontend/features/live.js",
+  "old": "p.ring && !p.alone && p.burst",
+  "new": "p.ring && p.burst",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "live-reopen-burst-loosen",
+  "guard": "Check as you work brings a closed pane back only for a finding, with a shared runtime, the pane closed, Check as you work on, not left alone, once an edit burst (AH-220)",
+  "file": "frontend/features/live.js",
+  "old": "&& p.burst !== p.last;",
+  "new": ";",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "live-reopen-burst-tighten",
+  "guard": "Check as you work brings a closed pane back only for a finding, with a shared runtime, the pane closed, Check as you work on, not left alone, once an edit burst (AH-220)",
+  "file": "frontend/features/live.js",
+  "old": "p.burst !== p.last;",
+  "new": "p.last < 0;",
+  "kind": "tighten",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "live-alone-time-loosen",
+  "guard": "a pane closed within a minute of Arcas opening it is left alone until the person opens it (AH-220)",
+  "file": "frontend/features/live.js",
+  "old": "closedAt - shownAt < NOT_AGAIN;",
+  "new": "closedAt - shownAt < NOT_AGAIN - 1;",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "live-alone-time-tighten",
+  "guard": "a pane closed within a minute of Arcas opening it is left alone until the person opens it (AH-220)",
+  "file": "frontend/features/live.js",
+  "old": "closedAt - shownAt < NOT_AGAIN;",
+  "new": "closedAt - shownAt <= NOT_AGAIN;",
+  "kind": "tighten",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "live-alone-person-tighten",
+  "guard": "a pane closed within a minute of Arcas opening it is left alone until the person opens it (AH-220)",
+  "file": "frontend/features/live.js",
+  "old": "shownAt > 0 && closedAt",
+  "new": "shownAt >= 0 && closedAt",
+  "kind": "tighten",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "live-reopen-said-tighten",
+  "guard": "a finding said with the pane closed brings it back (AH-220)",
+  "file": "frontend/features/live.js",
+  "old": "  if (reopens({ shared, hidden, on: liveOn(), ring, alone, burst: b, last: lastBurst })) bringBack(b);\n",
+  "new": "",
+  "kind": "tighten",
+  "tests": [
+   "e2e"
+  ],
+  "modes": "live"
+ },
+ {
+  "id": "live-pane-hidden-loosen",
+  "guard": "Arcas asks the pane to open only while Office says it is closed (AH-220)",
+  "file": "frontend/features/live.js",
+  "old": "hidden = e.visibilityMode === \"Hidden\";",
+  "new": "hidden = true;",
+  "kind": "loosen",
+  "tests": [
+   "e2e"
+  ],
+  "modes": "live"
+ },
+ {
+  "id": "live-pane-hidden-tighten",
+  "guard": "Arcas asks the pane to open only while Office says it is closed (AH-220)",
+  "file": "frontend/features/live.js",
+  "old": "hidden = e.visibilityMode === \"Hidden\";",
+  "new": "hidden = false;",
+  "kind": "tighten",
+  "tests": [
+   "e2e"
+  ],
+  "modes": "live"
+ },
+ {
+  "id": "live-alone-wired-loosen",
+  "guard": "a pane closed within a minute of Arcas opening it is left alone until the person opens it (AH-220)",
+  "file": "frontend/features/live.js",
+  "old": "if (hidden) alone = leftAlone(shownAt, Date.now()), shownAt = 0;",
+  "new": "if (hidden) alone = false, shownAt = 0;",
+  "kind": "loosen",
+  "tests": [
+   "e2e"
+  ],
+  "modes": "live"
+ },
+ {
+  "id": "live-shared-loosen",
+  "guard": "only an Excel with SharedRuntime 1.1 is asked to open the pane; without it the fold says checks run only while Arcas is open (AH-220)",
+  "file": "frontend/features/live.js",
+  "old": "shared = Office.context.requirements?.isSetSupported?.(\"SharedRuntime\", \"1.1\") === true;",
+  "new": "shared = true;",
+  "kind": "loosen",
+  "tests": [
+   "e2e"
+  ],
+  "modes": "live"
+ },
+ {
+  "id": "live-shared-said-loosen",
+  "guard": "only an Excel with SharedRuntime 1.1 is asked to open the pane; without it the fold says checks run only while Arcas is open (AH-220)",
+  "file": "frontend/features/live.js",
+  "old": "  else $(\"live-closed\").textContent = \"This Excel checks your edits only while Arcas is open.\";\n",
+  "new": "",
+  "kind": "loosen",
+  "tests": [
+   "e2e"
+  ],
+  "modes": "live"
+ },
+ {
+  "id": "live-startup-loosen",
+  "guard": "Arcas never asks Office to start it with a workbook, so a workbook that never ran Arcas never opens its pane (AH-220)",
+  "file": "frontend/features/live.js",
+  "old": "export function initLive() {\n",
+  "new": "export function initLive() {\n  Office.addin?.setStartupBehavior?.(Office.StartupBehavior?.load);\n",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "manifest-runtime-loosen",
+  "guard": "the pane's page is one shared runtime kept for the life of the workbook (AH-220)",
+  "file": "frontend/manifest.xml",
+  "old": "lifetime=\"long\"",
+  "new": "lifetime=\"short\"",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_server.py::test_the_manifest_keeps_the_panes_page_running_for_the_life_of_the_workbook_and_asks_no_excel_for_it"
+  ]
+ },
+ {
+  "id": "manifest-runtime-tighten",
+  "guard": "an Excel without SharedRuntime 1.1 still installs Arcas (AH-220)",
+  "file": "frontend/manifest.xml",
+  "old": "  <Permissions>ReadWriteDocument</Permissions>",
+  "new": "  <Requirements><Sets><Set Name=\"SharedRuntime\" MinVersion=\"1.1\"/></Sets></Requirements>\n  <Permissions>ReadWriteDocument</Permissions>",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_server.py::test_the_manifest_keeps_the_panes_page_running_for_the_life_of_the_workbook_and_asks_no_excel_for_it"
+  ]
  }
 ]

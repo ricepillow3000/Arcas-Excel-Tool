@@ -17,7 +17,8 @@ A scan runs on your PC and sends nothing to the internet. Your sheet's data leav
 - Find problems also reads the first 5,000 rows of every tab (up to 20) on your PC, to say when two tabs hold the same
   numbers; it sends nothing to the internet and saves nothing.
 - Check as you work reads the sheet you change on your PC, a moment after you change it, to say when a cell you changed
-  looks wrong; it sends nothing to the internet and saves nothing.
+  looks wrong, and where your Excel allows it, goes on after you close the pane until you close the workbook; it sends
+  nothing to the internet and saves nothing.
 - Files in `%LOCALAPPDATA%\AnomalyHunter`:
 
   | File | What it holds |

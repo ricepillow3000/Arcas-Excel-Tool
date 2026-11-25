@@ -19,7 +19,7 @@ import { remember, forget, recall, clearAll, pastFix, SAME_SLIP, MAX_KEPT, OFFER
 import { historyOf, cellsSaid } from "./features/history.js";
 import { measures, copiedTabs, copiedSaid, lastRowSaid } from "./features/tabs.js";
 import { tablesFromGrid, sentOf, unreadSaid, errorsSaid, formatRows, asSheet, place, local, biggest, rowAt, areaOf, invalidIn, INVALID } from "./utils/layout.js";
-import { findingsAt, inRange, ignored, liveable, liveOn, soundOn, noteSaid, checkedSaid, LIVE_ROWS, onRow, heldBack, ROW_KINDS, HOLD } from "./features/live.js";
+import { findingsAt, inRange, ignored, liveable, liveOn, soundOn, noteSaid, checkedSaid, LIVE_ROWS, onRow, heldBack, ROW_KINDS, HOLD, reopens, leftAlone, NOT_AGAIN } from "./features/live.js";
 import { asLearned, learnIn, taught, learnedOf, stoppable, KIND_WORDS, ONE_CELL, PER_SHEET as LEARN_CAP, SENT, TEXT } from "./features/learned.js";
 import { ruleOf, heldOf, asRules, keepIn, MAX as RULES_MAX, SHEETS as RULE_SHEETS, HEADER } from "./features/rules.js";
 
@@ -940,7 +940,22 @@ for (const f of readdirSync(new URL(".", import.meta.url)).filter((f) => f.endsW
   assert.ok(!heldBack([{ cell: "E12", kinds: [["rule", "Net"], ["spelling", "Region"]] }], { id: "Sales", address: "B12" }, "Sales"), "AH-218: beside a spelling slip, said at once");
   assert.ok([...ROW_KINDS].every((k) => !ONE_CELL.has(k)), "AH-218: no check of one cell's own value waits");
   assert.equal(HOLD, 20000, "AH-218: said after 20 s at most, so it is never lost");
+  // AH-220: with a shared runtime a finding brings the closed pane back, once an edit burst, never to chase a person who
+  // closed it again soon after; every condition tested alone, each at its limit
+  const p = { shared: true, hidden: true, on: true, ring: true, alone: false, burst: 4, last: 3 };
+  assert.ok(reopens(p), "AH-220: a finding with the pane closed brings it back");
+  for (const [k, v, why] of [["shared", false, "an Excel without SharedRuntime 1.1"], ["hidden", false, "the pane already open"], ["on", false, "Check as you work off"],
+    ["ring", false, "a note that is no finding (a sheet too big)"], ["alone", true, "a person who closed it again soon after"], ["last", 4, "a second time in one edit burst"]])
+    assert.ok(!reopens({ ...p, [k]: v }), `AH-220: never for ${why}`);
+  assert.ok(reopens({ ...p, burst: 5, last: 4 }) && reopens({ ...p, burst: 1, last: -1 }), "AH-220: each new edit burst may bring it back once");
+  assert.equal(NOT_AGAIN, 60000, "AH-220: closed within a minute of Arcas opening it, the pane is left alone");
+  assert.ok(leftAlone(1000, 1000 + NOT_AGAIN - 1), "AH-220: closed just under a minute after Arcas opened it: left alone");
+  assert.ok(!leftAlone(1000, 1000 + NOT_AGAIN), "AH-220: closed a minute or more after: Arcas may open it again");
+  assert.ok(!leftAlone(0, 5), "AH-220: a pane the person opened and closed is never taken as left alone");
 }
+// AH-220: Arcas never starts by itself with a workbook (Office.addin.setStartupBehavior): only a workbook whose pane the
+// person opened has a page that listens, so the pane is never opened for a workbook that never ran Arcas
+for (const f of panes) assert.ok(!readFileSync(new URL(f, import.meta.url), "utf8").includes("setStartupBehavior"), `AH-220: ${f} never sets Arcas to start with the workbook`);
 
 
 // AH-205: a Dismiss teaches the sheet the values its one-cell checks named, as codes, never the values; "Stop checking"
