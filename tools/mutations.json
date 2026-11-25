@@ -2776,6 +2776,40 @@
   ]
  },
  {
+  "id": "group-span-tighten",
+  "guard": "A small group's slip is judged among its own group's values where groups differ 2x+ (AH-215)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "SCALE_SPAN = 2\n",
+  "new": "SCALE_SPAN = 10\n",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_group_normal.py::test_a_decimal_slip_in_a_small_group_priced_3x_the_big_one_is_caught_as_often_as_in_the_big_one"
+  ]
+ },
+ {
+  "id": "group-normal-tighten",
+  "guard": "A cell inside its own group's usual limits is no breach of the whole column's limits or cross-column score (AH-215)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "or kind in GROUP_NORMAL and (i, _about(r)) in normal)]",
+  "new": "or False)]",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_group_normal.py::test_at_strength_8_a_small_groups_honest_prices_are_judged_by_its_own_normal"
+  ]
+ },
+ {
+  "id": "group-normal-loosen",
+  "guard": "A cell inside its own group's usual limits is no breach of the whole column's limits or cross-column score (AH-215)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if _crossed(y, b_lo, b_hi) is None:",
+  "new": "if True:",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_group_normal.py::test_at_strength_8_a_decimal_slip_in_the_small_group_is_still_caught",
+   "backend/tests/test_group_normal.py::test_a_decimal_slip_in_a_small_group_priced_3x_the_big_one_is_caught_as_often_as_in_the_big_one"
+  ]
+ },
+ {
   "id": "coded-codes-loosen",
   "guard": "A misspelling its row's code proves (10+ codes of 2+ rows) is Medium (AH-198)",
   "file": "backend/anomaly_hunter/engine/pipeline.py",

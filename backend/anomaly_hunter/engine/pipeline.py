@@ -1931,7 +1931,10 @@ def coded_spellings(df, column_types, skip, maybe):
 
 
 SCALE_FIT = 0.5  # share of a column's spread (of its log sizes) its category explains before the category sets its scale
-SCALE_SPAN = 10  # ...and the categories' usual sizes this many times apart: potassium near 4 beside a CRP near 50
+# ...and the categories' usual sizes this many times apart: potassium near 4 beside a CRP near 50. It was 10: a small
+# product line priced 3x the big one (40 of 440 rows) had its decimal slips (300 -> 30) caught 0 times in 20, the big
+# line's 18: the slip sat inside the big line's prices (AH-215, "judge normal within each group"). Benches unmoved
+SCALE_SPAN = 2
 
 
 def by_scale(df, column_types, skip, k, computed=(), voted=()):
@@ -1946,7 +1949,7 @@ def by_scale(df, column_types, skip, k, computed=(), voted=()):
     from anomaly_hunter.engine.detectors import _crossed, _signed, column_stats, likely_value
     from anomaly_hunter.engine.limits import _limits  # limits imports this module: here, never at the top
 
-    out = [[] for _ in range(len(df))]
+    out, normal = [[] for _ in range(len(df))], set()
     prot = set(fairness.protected(column_types))
     labels = {g: df[g].astype(str).str.strip().where(~skip & ~_blank(df[g])) for g, t in list(column_types.items())[:64]
               if t == "text" and g not in prot}  # the first 64 columns, then 16 label columns at most below
@@ -1977,6 +1980,8 @@ def by_scale(df, column_types, skip, k, computed=(), voted=()):
             b_lo, b_hi, w_lo, w_hi = _limits(v, k, _signed(c, df.columns))
             st = column_stats(v.to_numpy(dtype=float))
             for i, y in v.items():
+                if _crossed(y, b_lo, b_hi) is None:
+                    normal.add((i, c))
                 if (lim := _crossed(y, w_lo, w_hi)) is None or c in voted[i]:
                     continue
                 fix = likely_value(y, st, b_lo, b_hi)
@@ -1984,7 +1989,7 @@ def by_scale(df, column_types, skip, k, computed=(), voted=()):
                     out[i].append(Why(f"{c} {say(y)} is far outside the other {c} values for {g} {_short(name)} (weird limit "
                                       f"{lim:g}), {max(abs(y / fix), abs(fix / y)):.0f} times {'a usual one' if abs(y) > abs(fix) else 'smaller than a usual one'}: "
                                       "a slip of zeros or the decimal point", c))
-    return out
+    return out, normal
 
 
 def _swaps(v):
@@ -2578,6 +2583,7 @@ KINDS = ("duplicate", "type", "blank", "placeholder", "code", "far_date", "sum",
 ONE_CELL = frozenset(("limits", "spelling", "type", "code", "far_date", "date_form", "lost_zero", "placeholder",
                       "gene_date", "fraction", "whole_number", "named_bound", "shifted", "validation"))
 DETECTOR_KINDS = {"limits": "limits", "sequence": "series", "ecod": "combination"}
+GROUP_NORMAL = frozenset(("limits", "combination"))  # the whole column's judgments a group's own normal answers (AH-215)
 
 
 def _about(reason):
@@ -2649,7 +2655,7 @@ def score(df, column_types, errors_log, limits, order_by, strength=5, saved=(), 
     before = date_order(df, column_types, skip, far, records)  # AH-198: delivered before it shipped
     same = same_in_record(df, column_types, skip, records, computed)
     owed, owed_fix = balances(df, column_types, skip, records, computed)
-    scaled = by_scale(df, column_types, skip, k, computed, [{c for r in said for c in r.cols} for said in lim["reasons"]])
+    scaled, normal = by_scale(df, column_types, skip, k, computed, [{c for r in said for c in r.cols} for said in lim["reasons"]])
     calc, calc_fix = formulas(df, column_types, skip, grid)  # AH-152: a typed value or another formula among a column's formulas
     # AH-214: ...and a formula that breaks its row's or column's siblings, a totals row's too (the grand total that adds
     # its "of which" rows), each cell said once
@@ -2689,13 +2695,17 @@ def score(df, column_types, errors_log, limits, order_by, strength=5, saved=(), 
     if s >= ALONE:
         notes.append(("limits", lim["alone_reasons"]))
     touched = set()  # rows a learned rule took a reason from: their fixes are kept only for the cells still named
-    if learned:
-        accepted, ignored, dismissed = learned
+    # AH-215: a cell inside its own group's usual limits (by_scale's label sets the column's scale) is no breach of the
+    # whole column's: at strength 8 a product line priced 3x the big one had 2.25% of its honest rows flagged, the big
+    # line 0.24%, by the column's limits and the cross-column score, both of which the big line sets
+    if learned or normal:
+        accepted, ignored, dismissed = learned or (set(), set(), set())
 
         def keep(kind, i, said):
             if i in dismissed:
                 return said
-            out = [r for r in said if not ((kind, _about(r)) in ignored or kind in ONE_CELL and (i, _about(r)) in accepted)]
+            out = [r for r in said if not ((kind, _about(r)) in ignored or kind in ONE_CELL and (i, _about(r)) in accepted
+                                           or kind in GROUP_NORMAL and (i, _about(r)) in normal)]
             if len(out) < len(said):
                 touched.add(i)
             return out
