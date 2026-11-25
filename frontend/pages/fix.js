@@ -7,7 +7,7 @@ import { act } from "../hooks/use-action.js";
 import { busy, notice } from "../components/progress.js";
 import { showAccepted, showFix } from "../components/fix-preview.js";
 import { doneOf, plainReason, shareOf } from "../features/scan.js";
-import { recommendFix, suggestTypo } from "../features/fix.js";
+import { recommendFix, suggestTypo, withPast } from "../features/fix.js";
 import { fillRow } from "../features/highlight.js";
 import { listRows } from "./results.js";
 import { saveDecisions } from "../features/decisions.js";
@@ -81,8 +81,10 @@ async function openRow(i, selectInSheet, from, focus) { // from: the list's butt
   });
   if (u) return showAccepted(f, u);
   let rec = recommendFix(columns, rows, i, t.limits || state.lastLimits, r.reason, startRow, startCol, r.likely, f.calc, r.maybe, r.formula, t.o);
+  rec = withPast(rec, columns, rows[i], r.kinds, f.calc, startRow + 2 + i, startCol); // AH-219: the user's own fix of this slip
   if (state.fix === f) rec = await suggestTypo(f, r, rec).catch(() => rec); // no typo found or engine busy: the advice stays
-  const label = !rec.changes.length ? "What to check" : rec.typo ? "Possible typo: check it before you accept"
+  const label = !rec.changes.length ? "What to check" : rec.past ? "Your earlier fix: check it before you accept"
+    : rec.typo ? "Possible typo: check it before you accept"
     : rec.guess ? "Best guess: check it before you accept" : "Suggested fix";
   if (state.fix !== f) return;
   $("ai-fold").open = !rec.changes.length; // no fix to offer: the way to ask for one shows
