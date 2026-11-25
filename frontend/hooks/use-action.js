@@ -15,9 +15,7 @@ export const act = (fn, scope = "#main-ui") => async (...args) => {
   off.forEach((b) => (b.disabled = true)); // the slider stays live: it queues its own re-check
   // the line it said something on keeps its place while this runs, so what it says next lands where that was (styles #status)
   const main = document.getElementById("main-ui");
-  // AH-228 P-32: so does the space a scan that ended with nothing to say kept (data-landed): it goes once this one ends
-  main.toggleAttribute("data-held", !!document.getElementById("notice").textContent || main.hasAttribute("data-landed"));
-  main.removeAttribute("data-landed");
+  main.toggleAttribute("data-held", !!document.getElementById("notice").textContent);
   notice("");
   try {
     await fn(...args);

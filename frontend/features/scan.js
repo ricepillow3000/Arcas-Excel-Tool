@@ -48,7 +48,7 @@ export async function runScan(auto, held = false) { // auto === false: the re-ch
   if (state.view !== "results") only(state.lastScan ? "results" : "empty-state"); // no fix view left without its row
   scanning(true);
   $("main-ui").toggleAttribute("data-held", true); // the progress takes one held space till the action ends (use-action.js)
-  $("main-ui").toggleAttribute("data-landed", false);
+  $("main-ui").toggleAttribute("data-foot", false); // under the button again while this scan runs (AH-228 P-32)
   stopper = new AbortController();
   stopShown(true);
   try {
@@ -79,6 +79,11 @@ async function scan(auto, held, t0, stop) {
   stopShown(false); // what follows writes the results: no stopping halfway
   if (held) await new Promise((go) => setTimeout(go, Math.max(0, HOLD - (Date.now() - t0))));
   scanning(false); // the results take the skeleton's place
+  // AH-228 P-32: in the same task the list is drawn, the progress's held space goes, and from here until the next scan
+  // what the pane says (step 3, a Power BI or auto-fix word, a later action's) is said in the foot bar, as over a card
+  // (AH-165), so the rows land higher and never move after (fix round 1: the space stayed, an empty band over the results)
+  $("main-ui").removeAttribute("data-held");
+  $("main-ui").toggleAttribute("data-foot", true);
   state.lastStrength = level; // Agent 3 judges fixes at the level this scan used
   state.lastScan = s;
   state.lastRows = body.rows;
@@ -107,8 +112,6 @@ async function scan(auto, held, t0, stop) {
   await watchSelection(s.sheet, onSelect);
   notice(body.power_bi_saved === false
     ? "The files for Power BI could not be saved. If latest-scan.csv is open in another program, close it, then click Find problems again." : "");
-  // the progress's space stays held over the list once the scan ends with nothing to say, so nothing moves (N12)
-  $("main-ui").toggleAttribute("data-landed", true);
   // a checked workbook reopens with this pane open (Office autoopen; manifest TaskpaneId). Set once: written on every
   // scan it made Excel ask to save a workbook nothing had changed, and opened the pane for everyone it went to (AH-150)
   const settings = Office.context.document.settings;

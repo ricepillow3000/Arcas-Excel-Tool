@@ -36,8 +36,8 @@ await page.addInitScript(() => {
   addEventListener("unhandledrejection", (e) => __unhandled("unhandledrejection", String(e.reason?.stack || e.reason)));
   addEventListener("error", (e) => __unhandled("error", String(e.error?.stack || e.message)));
   // every layout shift since this load, as CLS counts them (none just after a press)
-  window.__shift = 0;
-  new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) window.__shift += e.value; }).observe({ type: "layout-shift", buffered: true });
+  window.__shift = 0; window.__shifts = []; // and each with its time (AH-228 P-32)
+  new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) window.__shift += e.value, __shifts.push([e.startTime, e.value]); }).observe({ type: "layout-shift", buffered: true });
 });
 // AH-181: checking as you work is on unless turned off, and the other modes edit cells on purpose to test what a scan and
 // a fix do (a sort, a retyped cell): there it is off, so no check of its own adds a /scan call. Mode live turns it on, with
@@ -214,7 +214,7 @@ if (mode === "flow") {
     const f = () => { const b = document.querySelector("#flagged-list button"); if (b?.checkVisibility()) __tops.push(b.getBoundingClientRect().top); if (!window.__stopTops) requestAnimationFrame(f); };
     requestAnimationFrame(f);
     window.__slow = 150; // an Excel that takes its time, so every step of the scan gets frames of its own
-    new MutationObserver((_, mo) => { mo.disconnect(); __arrive = [...document.getElementById("flagged-list").children].slice(0, 12).map((li) => li.getAnimations().map((a) => [a.effect.getTiming().delay, Object.keys(a.effect.getKeyframes()[0]).filter((k) => !["offset", "easing", "composite", "computedOffset"].includes(k))])); })
+    new MutationObserver((_, mo) => { mo.disconnect(); window.__landAt = performance.now(); __arrive = [...document.getElementById("flagged-list").children].slice(0, 12).map((li) => li.getAnimations().map((a) => [a.effect.getTiming().delay, Object.keys(a.effect.getKeyframes()[0]).filter((k) => !["offset", "easing", "composite", "computedOffset"].includes(k))])); })
       .observe(document.getElementById("flagged-list"), { childList: true }); });
   // AH-149 review: every frame the summary counts, its words as drawn (a counting number is its counter's --n) and how wide
   // each drawn number is beside the number it becomes. The total was counted too and drew "0 of     0 rows look wrong."
@@ -313,12 +313,17 @@ if (mode === "flow") {
   ok(since(c0) === "/scan" && calls[c0][1].strength === 5 && calls[c0][1].power_bi === false, "Find problems sends exactly one /scan, at the slider's level - " + since(c0));
   { const m = await matchesEngine(); ok(m.ok, "the list is exactly what the engine answered: each flagged row, its severity in words and its reason - " + m.why); }
   ok((await text("#summary")).startsWith("5 of 300 rows look wrong."), "summary in plain words - " + (await text("#summary")));
-  // AH-228 P-32 (was "Done in N seconds." in the notice box over the results): said in the summary's own line, the notice
-  // empty, and the space the progress took kept till the next press, so nothing moves as the scan ends (N12)
-  { const end = await page.evaluate(() => ({ notice: document.getElementById("notice").textContent, summary: document.getElementById("summary").textContent,
-      status: document.getElementById("status").getBoundingClientRect().height }));
-    ok(end.notice === "" && /^5 of 300 rows look wrong\..* Checked in \d+ seconds?\.$/.test(end.summary) && end.status > 50,
-      "AH-228 P-32: how long it took is said in the summary's line, no box over the results, its space kept - " + JSON.stringify(end)); }
+  // AH-228 P-32 (was "Done in N seconds." in the notice box over the results): said in the summary's own line, and the
+  // rows start higher: the progress's space is let go as the list is drawn (step 3 says its progress in the foot bar), so
+  // the list lands where it stays and nothing moves after (fix round 1: the empty 57 px band stayed over the results)
+  { const end = await page.evaluate(() => { const st = document.getElementById("status");
+      return { notice: document.getElementById("notice").textContent, summary: document.getElementById("summary").textContent,
+        gap: Math.round(document.getElementById("results").getBoundingClientRect().top - document.querySelector(".pane-hero").getBoundingClientRect().bottom),
+        inFlow: getComputedStyle(st).position !== "fixed" ? st.getBoundingClientRect().height : 0,
+        // shifts past the frames the list lands in: the results taking the skeleton's place is the landing itself
+        shift: __shifts.filter(([t]) => t > __landAt + 100).reduce((k, [, v]) => k + v, 0), landing: __shifts.filter(([t]) => t > __landAt - 50 && t <= __landAt + 100).map(([t, v]) => [Math.round(t - __landAt), v]) }; });
+    ok(end.notice === "" && /^5 of 300 rows look wrong\..* Checked in \d+ seconds?\.$/.test(end.summary) && end.inFlow < 1 && end.gap < 40 && end.shift === 0,
+      "AH-228 P-32: how long it took is said in the summary's line, no band over the results, nothing moved after they landed - " + JSON.stringify(end)); }
   { const l = await line(); ok(!l.shown, "AH-184: no finish line before the first decision - " + JSON.stringify(l)); }
   const listed = await page.$$eval("#flagged-list button", (bs) => bs.slice(0, 5).map((b) => b.innerText.split("\n")[0]));
   ok(["11", "22", "51", "81", "121"].every((r) => listed.some((l) => l.startsWith(`Row ${r}`))), "all 5 planted problems listed first - " + listed);
