@@ -177,6 +177,18 @@ def test_every_ribbon_icon_an_old_cached_manifest_names_is_still_our_crest():
         assert r.data == (frontend / now[int(size)]).read_bytes(), path
         assert r.headers["Cache-Control"] == "public, max-age=86400", path
 
+
+def test_the_manifest_keeps_the_panes_page_running_for_the_life_of_the_workbook_and_asks_no_excel_for_it():
+    # AH-220: Check as you work goes on with the pane closed only in one shared runtime, the pane's own page, kept as long
+    # as the workbook. A SharedRuntime requirement would keep Arcas off every Excel without it, where it still checks while
+    # the pane is open; a new Version makes Excel read the new manifest (it caches one per Version)
+    manifest = (Path(__file__).resolve().parents[2] / "frontend" / "manifest.xml").read_text(encoding="utf-8")
+    assert re.findall(r"<Runtime\b[^>]*>", manifest) == ['<Runtime resid="Taskpane.Url" lifetime="long"/>']
+    assert re.findall(r'<FunctionFile resid="([^"]+)"/>', manifest) == ["Taskpane.Url"]
+    assert "<Requirements>" not in manifest and "SharedRuntime" not in re.sub(r"<!--.*?-->", "", manifest, flags=re.DOTALL)
+    assert re.findall(r"<Version>([\d.]+)</Version>", manifest) == ["1.0.10.0"]
+
+
 def test_health():
     resp = client().get("/health")
     assert resp.status_code == 200

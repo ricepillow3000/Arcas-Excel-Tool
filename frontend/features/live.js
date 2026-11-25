@@ -11,14 +11,20 @@ import { copiedSaid, dropTab, newPairs } from "./tabs.js";
 
 // AH-181 (John, 2026-11-17): check alongside the user as they type, on any tab, and say at once when a cell they changed
 // looks wrong: a note in the pane with our crest, a short chime, and "Show me". Office.js cannot draw near the pointer or
-// over the grid, so the note lives in the pane. It all runs on this PC, while the pane is open: without a shared runtime
-// the pane's code stops when the pane closes.
+// over the grid, so the note lives in the pane. It all runs on this PC.
+// AH-220 (John, 2026-11-25: "runs continuously from open until Excel closes, even with the task pane closed"): with Office's
+// shared runtime (manifest Runtimes, lifetime="long", SharedRuntime 1.1) this page and its listeners outlive a closed pane,
+// and a finding brings the pane back to show its note. Arcas never asks Office to start it with a workbook: only a
+// workbook whose pane was opened has a page to listen. Without SharedRuntime 1.1 the page stops with the pane, as before
 // QUIET: a sheet is checked this long after its last edit, so typing a column of numbers is one check, not one a cell.
 // LIVE_ROWS: a bigger sheet would make every edit wait for a full scan; Find problems still checks it
 export const QUIET = 1500, LIVE_ROWS = 20000;
 
 export const liveOn = () => { try { return localStorage.getItem(LIVE_KEY) !== "0"; } catch { return true; } };
 export const soundOn = () => { try { return localStorage.getItem(SOUND_KEY) !== "0"; } catch { return true; } };
+// AH-220: a pane closed this soon after Arcas brought it back means "leave me be": Arcas does not bring it back again
+// until the person opens it and closes it themselves
+export const NOT_AGAIN = 60000;
 const setOn = (key, on) => { try { localStorage.setItem(key, on ? "1" : "0"); } catch { /* private mode: stays on */ } };
 
 // Pure: an edit never checked: our own write (Accept, Undo, auto-fix: Excel names its trigger from 1.14), a co-author's
@@ -40,6 +46,12 @@ export function inRange(address, cell) {
     return (!a[1] || within(at.col, colOf(a[1]), colOf(b[1] || a[1]))) && (!a[2] || within(at.row, +a[2], +(b[2] || a[2])));
   });
 }
+
+// Pure (AH-220): bring the closed pane back for this note? Only for a finding (a note that rings, never "nothing unusual"
+// or a sheet too big), with Check as you work on, a shared runtime, the pane closed, not left alone, once an edit burst
+export const reopens = (p) => p.shared && p.hidden && p.on && p.ring && !p.alone && p.burst !== p.last;
+// Pure (AH-220): closed within NOT_AGAIN of Arcas bringing it back (shownAt 0: the person opened it)
+export const leftAlone = (shownAt, closedAt) => shownAt > 0 && closedAt - shownAt < NOT_AGAIN;
 
 // Pure: a cell a flagged row's reasons name, as highlight.js colours it (s: the row's own table, utils/layout.js place)
 const cellOf = (r, s, j) => colLetter(s.startCol + j) + (s.startRow + 2 + r.i);
@@ -88,8 +100,10 @@ export function checkedSaid(sheet, addresses) {
 
 const edits = new Map(); // tab id -> the addresses changed since its last check
 const big = new Set(); // tabs said too big to check as you type, once each
-const waiting = new Map(); // AH-218: tab id -> a note held back while its row is being typed: {cells, rows, lines, where, timer}
+const waiting = new Map(); // AH-218: tab id -> a note held back while its row is being typed: {cells, rows, lines, b, where, timer}
 let timer = 0, running = false, tries = 0, audio = null, target = null, selected = null;
+// AH-220: the pane's state as Office tells it, and each edit burst (the edits one check takes together) numbered
+let shared = false, hidden = false, alone = false, shownAt = 0, burst = 0, lastBurst = -1;
 
 function heard(e) {
   if (!liveOn() || ignored(e, state.working)) return;
@@ -112,7 +126,7 @@ function release(id) {
   if (!w) return;
   clearTimeout(w.timer);
   waiting.delete(id);
-  say(w.lines, w.where);
+  say(w.lines, w.where, true, w.b);
 }
 
 // One check at a time, one sheet after another; edits made during a check wait for the next one
@@ -121,9 +135,9 @@ async function checkAll() {
   if (state.working) return void (timer = setTimeout(checkAll, QUIET)); // a scan or an action of ours first
   running = true;
   try {
-    const now = [...edits];
+    const now = [...edits], b = ++burst;
     edits.clear();
-    for (const [id, cells] of now) await check(id, cells).catch((e) => console.warn("check as you work", e));
+    for (const [id, cells] of now) await check(id, cells, b).catch((e) => console.warn("check as you work", e));
   } finally {
     running = false;
     if (edits.size) timer = setTimeout(checkAll, QUIET);
@@ -131,7 +145,7 @@ async function checkAll() {
 }
 
 // The same /scan a Find problems sends, quietly: no skeleton, no list, no highlight, no progress
-async function check(id, cells) {
+async function check(id, cells, b) {
   const s = await readSheet(() => {}, Infinity, id, liveable);
   if (!s) return;
   if (s.big) {
@@ -147,18 +161,35 @@ async function check(id, cells) {
   const lines = [found.length ? noteSaid(s.sheet, found[0], found.length - 1, s.names) : "", ...pairs.map(copiedSaid)].filter(Boolean);
   if (!pairs.length && heldBack(found, selected, id)) { // AH-218: the row is still being typed: said when it is left
     const rows = found.map((f) => cellAt(f.cell).row);
-    waiting.set(id, { cells, rows, lines, where: { sheet: s.sheet, cell: found[0].cell }, timer: setTimeout(() => release(id), HOLD) });
-  } else if (lines.length) say(lines, found.length ? { sheet: s.sheet, cell: found[0].cell } : { sheet: pairs[0].sheet });
+    waiting.set(id, { cells, rows, lines, b, where: { sheet: s.sheet, cell: found[0].cell }, timer: setTimeout(() => release(id), HOLD) });
+  } else if (lines.length) say(lines, found.length ? { sheet: s.sheet, cell: found[0].cell } : { sheet: pairs[0].sheet }, true, b);
   // nothing flagged in the changed cells: said in the notice, with no sound, never over a note still showing
   else if ($("live-note").hidden) notice(checkedSaid(s.sheet, cells));
 }
 
 // The note stays until it is closed or a newer one takes its place
-function say(lines, where, ring = true) {
+function say(lines, where, ring = true, b = burst) {
   target = where;
   $("live-text").replaceChildren(...lines.map((t) => Object.assign(document.createElement("p"), { textContent: t })));
   show("live-note");
   if (ring) chime();
+  if (reopens({ shared, hidden, on: liveOn(), ring, alone, burst: b, last: lastBurst })) bringBack(b);
+}
+
+// AH-220: the pane comes back with the note already in it, as it shows today. A refusal leaves the note for the next open
+async function bringBack(b) {
+  lastBurst = b;
+  try {
+    await Office.addin.showAsTaskpane();
+    shownAt = Date.now();
+  } catch { /* the note waits in the pane */ }
+}
+
+// AH-220: Office says when the pane is closed or opened. Closed soon after Arcas brought it back: left alone, until the
+// person opens it and closes it again themselves
+function seen(e) {
+  hidden = e.visibilityMode === "Hidden";
+  if (hidden) alone = leftAlone(shownAt, Date.now()), shownAt = 0;
 }
 
 // Browsers let a page make sound only after a press in it: the first press or key in the pane opens the audio
@@ -210,6 +241,9 @@ async function listen() {
 }
 
 export function initLive() {
+  shared = Office.context.requirements?.isSetSupported?.("SharedRuntime", "1.1") === true;
+  if (shared) Promise.resolve().then(() => Office.addin.onVisibilityModeChanged(seen)).catch(() => {});
+  else $("live-closed").textContent = "This Excel checks your edits only while Arcas is open.";
   $("live").checked = liveOn();
   $("live-sound").checked = soundOn();
   $("live").addEventListener("change", () => setOn(LIVE_KEY, $("live").checked));
