@@ -7,6 +7,7 @@ import { dated } from "../utils/dom.js";
 export function rowItem(r, startRow, onClick, done = null) {
   const li = document.createElement("li");
   li.className = done ? "done" : `sev-${r.severity}`;
+  li.dataset.i = r.i; // the row it opens: the list may show one kind, or more than its first 50 (AH-228)
   const b = document.createElement("button");
   b.innerHTML = `<span class="row-head"><span class="swatch"></span>Row ${esc(startRow + r.i + 2)}<span class="sev">${esc(done || SEV[r.severity])}</span></span>` +
     '<span class="row-why"></span>';

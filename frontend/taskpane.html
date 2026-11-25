@@ -106,9 +106,12 @@
           <ul id="fairness-list" class="hint"></ul>
         </details>
         <h2 id="list-title" tabindex="-1">Rows to check</h2>
-        <p id="list-hint" class="hint">Worst first. Click a row to see what's wrong and a suggested fix. Check each one before you accept: you know your data best. The cells to check are coloured in your sheet. This changes no values. Remove highlights takes the colour off.</p>
+        <p id="list-hint" class="hint">Worst first. Click a row to see the fix. Check each one before you accept: you know your data best.</p>
+        <!-- AH-228: one kind of check at a time, when the list holds two or more (pages/results.js) -->
+        <div id="kind-filter" class="tries" role="group" aria-label="Show one kind of problem" hidden></div>
         <ul id="flagged-list" class="flagged-list"></ul>
         <button id="clear-highlights" class="secondary">Remove highlights</button>
+        <p id="highlight-hint" class="hint">The cells to check are coloured in your sheet. This changes no values. Remove highlights takes the colour off.</p>
         <div id="odd-box" hidden>
           <button id="odd-check" class="secondary">Check words with AI</button>
           <p class="hint">AI spots a word that doesn't fit its column.</p>
@@ -150,7 +153,6 @@
         <button id="fix-back" class="link-btn">&larr; All rows to check</button>
         <div class="fix-result">
           <h2 id="fix-title" tabindex="-1"></h2>
-          <p id="fix-reason" class="reason-box"></p>
           <div class="fix-body">
             <div class="fix-sk" aria-hidden="true"><span class="sk-bar sk-title">&nbsp;</span><span class="sk-bar sk-long">&nbsp;</span><span class="sk-bar sk-mid">&nbsp;</span></div>
             <h3 id="fix-label">Suggested fix</h3>
@@ -162,15 +164,18 @@
             <button id="fix-dismiss" class="secondary">Dismiss</button>
             <button id="fix-undo" class="secondary" hidden>Undo</button>
             <button id="fix-next" class="secondary" hidden>Next row &rarr;</button>
-            <button id="fix-mute" class="link-btn" data-off>Stop checking this</button>
+            <button id="fix-mute" class="link-btn" data-off>Never check this</button>
           </div>
           <p id="fix-status" class="hint" role="status" aria-live="polite"></p>
           <p id="fix-care" role="status" hidden></p>
+          <!-- AH-228: why the row was flagged, under the buttons, so Accept and Dismiss come first at any width -->
+          <h3 id="reason-head">Why it was flagged</h3>
+          <p id="fix-reason" class="reason-box"></p>
         </div>
         <details id="ai-fold" class="more">
           <summary>Want a different fix? Ask AI</summary>
           <div id="ai-box">
-            <label for="fix-intent">For a different fix, describe it and AI will draft one.</label>
+            <label id="fix-intent-label" for="fix-intent">For a different fix, describe it and AI will draft one.</label>
             <textarea id="fix-intent" rows="3" maxlength="2000" aria-describedby="fix-sends" placeholder="e.g. Use the average Units for the East region"></textarea>
             <p id="fix-tries-label" class="hint">Or start from one of these. Picking one only fills the box: nothing is sent until you press Ask AI.</p>
             <div id="fix-tries" class="tries" role="group" aria-labelledby="fix-tries-label">
@@ -243,6 +248,8 @@
       <details class="more">
         <summary>Saved in this workbook</summary>
         <p class="hint">This workbook keeps the limits you changed, the strength slider, the last auto-fixes with their old values (for Undo auto-fixes), the old values and number formats of the cells you changed with Accept, and what Accept wrote (for Undo), a short code for each row you fixed or dismissed, a short code for each value you dismissed and the checks you stopped (never the values), the subject rules that held (their kind and headers), the numbers of the last check (how many rows it read and flagged, never a value), and a setting that opens this pane with the file. They stay in the file after you uninstall. Forgetting them never changes a cell.</p>
+        <!-- AH-228: each check stopped with "Never check", to turn back on (features/learned.js) -->
+        <ul id="stopped-list"></ul>
         <button id="forget-book" class="secondary">Forget what this workbook saved</button>
         <p id="forget-state" class="hint" role="status" aria-live="polite"></p>
       </details>

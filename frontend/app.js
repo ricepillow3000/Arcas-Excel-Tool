@@ -11,7 +11,7 @@ import { clearHighlights } from "./features/highlight.js";
 import { applyFix, undoFix } from "./features/fix.js";
 import { setAi, askFix, checkWords, checkRules } from "./features/ai.js";
 import { openLimitsEditor, saveLimitsAndRescan } from "./pages/limits.js";
-import { backToList, dismissFix, muteFix, nextFix } from "./pages/fix.js";
+import { backToList, dismissFix, fixedIt, muteFix, nextFix } from "./pages/fix.js";
 import { initStrength } from "./pages/strength.js";
 import { autoOn, setAuto, autoUndo, undoAutoFix } from "./features/autofix.js";
 import { notice } from "./components/progress.js";
@@ -22,6 +22,7 @@ import { plainError } from "./utils/errors.js";
 import { sayProfile } from "./features/profile.js";
 import { initLive } from "./features/live.js";
 import { initHistory } from "./features/history.js";
+import { initStopped } from "./features/learned.js";
 
 const CARD = "#fix-view"; // what a card does turns off only the card's buttons (AH-149)
 // AH-170: focus goes to the button that took the pressed one's place (Accept's Undo, Undo's Accept): the pressed one was
@@ -43,7 +44,10 @@ else {
     if (info.host !== Office.HostType.Excel) return away();
     initMotion();
     oneClickEach();
-    $("scan").onclick = act(() => runScan(true, true)); // held: the skeleton stays long enough to be seen
+    // held: the skeleton stays long enough to be seen. AH-228 P-06: the button was turned off while it ran, and focus fell to
+    // the page: it lands on the list's title, or back on Find problems when nothing is listed
+    $("scan").onclick = thenFocus(act(() => runScan(true, true)), () => (document.activeElement === document.body || !document.activeElement)
+      && ($("list-title").checkVisibility() ? $("list-title") : $("scan")));
     $("retry-health").onclick = () => checkHealth();
     $("clear-highlights").onclick = act(clearHighlights);
     $("edit-limits").onclick = act(openLimitsEditor); // AH-170: like every action, it clears the last one's notice
@@ -51,7 +55,14 @@ else {
     $("save-limits").onclick = act(saveLimitsAndRescan);
     $("auto-limits").onclick = act(async () => (saveLimits(null), await runScan()));
     $("fix-back").onclick = () => { backToList().catch((e) => notice(plainError(e))); };
-    $("fix-apply").onclick = thenFocus(act(() => state.fix && applyFix(state.fix, state.fix.changes, state.fix.sheet), CARD), () => fixDone() && $("fix-undo"));
+    // AH-228 P-36: Escape on an open card goes back to the list, as Back does
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape" || e.defaultPrevented || state.view !== "fix-view" || state.working || e.target.matches?.("textarea, input")) return; // never what is being typed
+      e.preventDefault();
+      backToList().catch((err) => notice(plainError(err)));
+    });
+    // AH-228 P-08: a card with no fix to write offers "I fixed it" in Accept's place: the row is read and checked again
+    $("fix-apply").onclick = thenFocus(act(() => state.fix && (state.fix.recheck ? fixedIt() : applyFix(state.fix, state.fix.changes, state.fix.sheet)), CARD), () => fixDone() && $("fix-undo"));
     $("fix-undo").onclick = thenFocus(act(() => state.fix && undoFix(state.fix), CARD), () => state.fix && !fixDone() && $("fix-apply"));
     $("fix-dismiss").onclick = act(() => dismissFix(), CARD);
     $("fix-mute").onclick = act(muteFix, CARD); // AH-205
@@ -84,6 +95,7 @@ else {
     activeSheet().then((name) => { $("sheet-name").textContent = name; }).catch(() => {}); // Excel refuses while a cell is being typed in: the name stays blank until the first scan (AH-58)
     initLive(); // AH-181: check as you work
     initHistory(); // AH-218: the fixes accepted in this workbook, each with its Undo
+    initStopped(); // AH-228: the checks stopped, each with Check again
     only("empty-state");
     sayLastScan(); // AH-157: the workbook's last check, there the moment the pane shows
     checkHealth();

@@ -20,6 +20,9 @@ import { historyOf, cellsSaid } from "./features/history.js";
 import { measures, copiedTabs, copiedSaid, lastRowSaid } from "./features/tabs.js";
 import { tablesFromGrid, sentOf, unreadSaid, errorsSaid, formatRows, asSheet, place, local, biggest, rowAt, areaOf, invalidIn, INVALID } from "./utils/layout.js";
 import { findingsAt, inRange, ignored, liveable, liveOn, soundOn, noteSaid, checkedSaid, LIVE_ROWS, onRow, heldBack, ROW_KINDS, HOLD, reopens, leftAlone, NOT_AGAIN } from "./features/live.js";
+import { stopWords, taughtSaid, stoppedOf } from "./features/learned.js";
+import { kindsOf, kindLabel, listed, shownCount, MORE, SHOWN_MAX } from "./features/scan.js";
+import { spaceParts, spaceNote } from "./components/fix-preview.js";
 import { asLearned, learnIn, taught, learnedOf, stoppable, KIND_WORDS, ONE_CELL, PER_SHEET as LEARN_CAP, SENT, TEXT } from "./features/learned.js";
 import { ruleOf, heldOf, asRules, keepIn, MAX as RULES_MAX, SHEETS as RULE_SHEETS, HEADER } from "./features/rules.js";
 
@@ -819,8 +822,9 @@ for (const f of readdirSync(new URL(".", import.meta.url)).filter((f) => f.endsW
   const down = flat(/<section id="server-down"[^>]*>([\s\S]*?)<\/section>/.exec(html)?.[1] || "");
   assert.equal(down, "Arcas has stopped. Wait half a minute and press Try again. If that doesn't work, open your Downloads folder, double-click Arcas.exe, then press Try again. Try again", "the engine down at start");
   assert.ok(readFileSync(new URL("services/api.js", import.meta.url), "utf8").includes('throw ours("Arcas has stopped. Wait half a minute and try again. If that doesn\'t work, open your Downloads folder, double-click Arcas.exe, then try again.")'), "the engine down mid-call");
-  assert.ok(/<p id="list-hint" class="hint">[^<]*The cells to check are coloured in your sheet\. This changes no values\. Remove highlights takes the colour off\.<\/p>/.test(html), "the list's hint does not say what the colours are");
-  assert.ok(html.includes('<button id="clear-highlights" class="secondary">Remove highlights</button>'), "the hint names a button that is not there");
+  // AH-228 P-17: the colours are said beside Remove highlights, where the list's hint said them first in 43 words
+  assert.ok(html.includes('<p id="list-hint" class="hint">Worst first. Click a row to see the fix. Check each one before you accept: you know your data best.</p>'), "the list's hint is its short form");
+  assert.ok(html.includes('<button id="clear-highlights" class="secondary">Remove highlights</button>\n        <p id="highlight-hint" class="hint">The cells to check are coloured in your sheet. This changes no values. Remove highlights takes the colour off.</p>'), "the colours are said beside Remove highlights");
   assert.ok(/<summary>AI help \(optional, free\)<\/summary>\s*<p class="hint">Optional\. Arcas finds problems without AI\.<\/p>/.test(html), "AI help does not open by saying it is optional");
   assert.ok(readFileSync(new URL("features/fix.js", import.meta.url), "utf8").includes("Check it against the original receipt, invoice or report before you click Accept."), "a fix card's check against the source");
 }
@@ -1345,6 +1349,57 @@ assert.ok(KIND_WORDS.group && !ONE_CELL.has("group"), "AH-214: a row's group is 
   clearAll();
   assert.equal(offer(), advice, "AH-219: Forget what the AI learned takes it out");
   delete globalThis.localStorage;
+}
+
+// AH-228 (the UX study, measured in a browser): the list, the row card and what Arcas learns
+{
+  // P-02: the stop link names the check on the column the card's fix changes, never only the row's first check
+  const kinds = [["sum", "Total"], ["limits", "Units"]];
+  assert.deepEqual(stoppable(kinds, ["Units"]), ["limits", "Units"], "P-02: a fix to Units offers to stop the usual range in Units, never totals in Total");
+  assert.deepEqual(stoppable(kinds, []), ["sum", "Total"], "P-02: no fix: the row's first check, as before");
+  assert.deepEqual(stoppable(kinds, ["Gone"]), ["sum", "Total"]);
+  // P-01, P-02: the reach said plainly; a duplicate is the whole row, so its stop is the sheet's (the engine keys it on the
+  // row's first column, pipeline.duplicates), never "duplicates in OrderDate"
+  assert.equal(stopWords(["sum", "Amount"]), "totals in Amount");
+  assert.equal(stopWords(["duplicate", "OrderDate"]), "duplicates");
+  assert.equal(stopWords(["spelling", "Units.1"], (c) => c === "Units.1" ? "Units (column E)" : c), "spelling in Units (column E)");
+  // P-19: what a Dismiss teaches, said
+  assert.equal(taughtSaid([["limits", "Units"], ["sum", "Total"]], ["Units", "Total"], [7777, 10]), "Units 7777 is fine on this sheet from now on.");
+  assert.equal(taughtSaid([["limits", "Units"], ["spelling", "Glass"]], ["Units", "Glass"], [7777, "Highball glass"]), "Units 7777 and Glass Highball glass are fine on this sheet from now on.");
+  assert.equal(taughtSaid([["sum", "Total"], ["blank", "Units"]], ["Units", "Total"], ["", 10]), "", "P-19: a sum or a blank teaches nothing: nothing said");
+  // P-01: each stopped check listed by its sheet, newest last, to check again
+  assert.deepEqual(stoppedOf({ S: [["spelling", "Region"]], T: [["duplicate", "Date"], ["sum", "Total"]] }).map((x) => x.said),
+    ["Spelling in Region on S", "Duplicates on T", "Totals in Total on T"]);
+  assert.deepEqual(stoppedOf({ S: [["spelling", "Region"]] })[0].pair, ["spelling", "Region"]);
+  assert.deepEqual(stoppedOf(null), []);
+  // P-21: the kinds over the list, each with its rows, only when 2+ are present
+  const rows = [{ kinds: [["sum", "Total"], ["limits", "Units"]] }, { kinds: [["spelling", "Region"]] }, { kinds: [["sum", "Total"]] }, { kinds: [] }, { kinds: [["nonsense", "X"]] }];
+  assert.deepEqual(kindsOf([0, 1, 2, 3, 4], rows), [["sum", 2], ["limits", 1], ["spelling", 1]], "P-21: most rows first, a row counted once a kind");
+  assert.deepEqual(kindsOf([0, 2], rows), [["sum", 2], ["limits", 1]]);
+  assert.deepEqual(kindsOf([2], rows), [], "P-21: one kind: no filter");
+  assert.equal(kindLabel("sum"), "Totals");
+  assert.equal(kindLabel("limits"), "Usual range");
+  assert.deepEqual(listed([0, 1, 2, 3], rows, "sum"), [0, 2]);
+  assert.deepEqual(listed([0, 1, 2, 3], rows, null), [0, 1, 2, 3]);
+  // P-20: rows past the first 50 can be reached, 20 more a press, never past a bound
+  assert.equal(shownCount(6000, 0), 50);
+  assert.equal(shownCount(6000, 1), 50 + MORE);
+  assert.equal(shownCount(60, 3), 60);
+  assert.equal(shownCount(100000, 100000), SHOWN_MAX, "P-20: the list never draws more than SHOWN_MAX rows");
+  // P-09: a fix that only takes off a space shows the space and says where it was
+  assert.deepEqual(spaceParts("Meals "), ["", "Meals", " "]);
+  assert.deepEqual(spaceParts("  East"), ["  ", "East", ""]);
+  assert.deepEqual(spaceParts("East"), ["", "East", ""]);
+  assert.deepEqual(spaceParts(42), ["", "42", ""]);
+  assert.equal(spaceNote("Meals ", "Meals"), "(a space at the end)");
+  assert.equal(spaceNote(" Meals", "Meals"), "(a space at the start)");
+  assert.equal(spaceNote(" Meals  ", "Meals"), "(spaces at both ends)");
+  assert.equal(spaceNote("meals", "Meals"), "");
+  assert.equal(spaceNote(5, 50), "");
+  // P-39: a capitals or spaces fix is the column's own word: no receipt to check it against
+  const caps = recommendFix(["Region", "Units"], [["east ", 5]], 0, {}, 'Region "east " looks like "East"', 0, 0, { Region: "East" });
+  assert.deepEqual(caps.changes, [{ cell: "A2", new: "East" }]);
+  assert.ok(caps.explanation.endsWith("Same word as the rest of the column.") && !caps.explanation.includes("receipt"), "P-39: " + caps.explanation);
 }
 
 console.log("panel self-check passed");

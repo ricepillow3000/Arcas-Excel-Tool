@@ -13,7 +13,7 @@ import { onSelect } from "../pages/fix.js";
 import { strength } from "../pages/strength.js";
 import { autoFix, autoOn, autoUndo } from "./autofix.js";
 import { codes, decisionsFor, rowHash } from "./decisions.js";
-import { learnedFor } from "./learned.js";
+import { KIND_WORDS, learnedFor } from "./learned.js";
 import { rulesFor } from "./rules.js";
 import { undosFor } from "./undo-store.js";
 import { hideProfile } from "./profile.js";
@@ -74,6 +74,10 @@ async function scan(auto, held, t0) {
   $("sheet-name").textContent = s.sheet;
   renderResults(body.rows, s, body.fairness);
   $("book-notes").replaceChildren(...notes.map((line) => Object.assign(document.createElement("p"), { className: "notice", textContent: line })));
+  // AH-228 P-04 (John, 2026-11-25): a scan pressed for lands where its summary is: at 200% text the first row was at
+  // 1,418 px, out of sight. Once, only for Find problems (held), never a quiet re-check or a redraw after a decision
+  const top = $("summary").getBoundingClientRect();
+  if (held && top.bottom > innerHeight) $("summary").scrollIntoView({ block: "start", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
   if (auto !== false) {
     const said = levelChange(before, { level, rows: body.rows, hashes, sheet: s.sheet });
     $("level-change").textContent = said;
@@ -221,6 +225,23 @@ export function legendOf(rows) {
   const kinds = Object.keys(SEV).filter((k) => counts[k]);
   return kinds.length > 1 ? kinds.map((k) => [k, counts[k]]) : [];
 }
+
+// Pure (AH-228 P-21): the kinds of check behind the list's rows, [kind, rows], most rows first, a row counted once a kind;
+// [] when fewer than two kinds: one kind needs no filter. rows: the engine's, each with its [kind, column] pairs
+export function kindsOf(order, rows) {
+  const count = new Map();
+  for (const i of order) for (const k of new Set((rows[i]?.kinds || []).map(([k]) => k))) if (Object.hasOwn(KIND_WORDS, k)) count.set(k, (count.get(k) || 0) + 1);
+  const out = [...count].sort((a, b) => b[1] - a[1]);
+  return out.length > 1 ? out : [];
+}
+// Pure: a kind as its filter button says it ("Totals", "Usual range")
+export const kindLabel = (k) => { const t = KIND_WORDS[k].replace(/^the /, ""); return t.charAt(0).toUpperCase() + t.slice(1); };
+// Pure: the list's rows of one kind (null: all)
+export const listed = (order, rows, kind) => (kind ? order.filter((i) => rows[i]?.kinds?.some(([k]) => k === kind)) : order);
+// Pure (AH-228 P-20): how many rows the list draws: CAP, then MORE a press of "Show the next 20", never past SHOWN_MAX
+// (AH-204: 6,134 rows drawn at once froze the pane)
+export const MORE = 20, SHOWN_MAX = 250;
+export const shownCount = (total, presses) => Math.min(total, CAP + MORE * presses, SHOWN_MAX);
 
 // Pure (AH-171): the finish line said in the foot bar after each Accept, Dismiss or Undo: how many of the list's rows are
 // fixed or dismissed (the rows "Rows to check (1 of 5 done)" counts; flaggedRows alone drops a fixed row once its re-check

@@ -43,6 +43,7 @@ const addUps = (reason) => String(reason || "").replace(/^Flagged by \d+ of \d+:
 export function recommendFix(columns, rows, i, limits, reason, startRow, startCol, likely, calc, maybe, formula, o = 0) {
   const row = startRow + 2 + i;
   const changes = [], typos = [], slips = [], calcCells = [], seen = new Set(); // seen: columns already explained
+  let words = 0; // AH-228 P-39: the capitals/spaces fixes: the column's own word, no receipt to check it against
   let guessed = false; // a misspelling's fix is a guess too
   const unsure = []; // the cells whose value is a guess
   reason = reason || "";
@@ -75,6 +76,7 @@ export function recommendFix(columns, rows, i, limits, reason, startRow, startCo
     if (calc && String(calc[j]).startsWith("=")) return void calcCells.push(cell); // never type over a formula
     if (variant) {
       changes.push({ cell, new: likely[c] });
+      words++;
       return void typos.push(`${c} says "${v}" where the rest of the column says "${likely[c]}": same word, different capitals/spaces`);
     }
     if (miss) {
@@ -116,7 +118,8 @@ export function recommendFix(columns, rows, i, limits, reason, startRow, startCo
   const notes = [];
   if (calcCells.length) notes.push(`${calcCells.join(", ")} ${calcCells.length > 1 ? "are" : "is"} calculated by a formula. ` +
     "Fix the cells it uses rather than typing over it.");
-  if (typos.length) notes.push(`${typos.join("; ")}. Check it against the original receipt, invoice or report before you click Accept.`);
+  if (typos.length) notes.push(`${typos.join("; ")}. ${words === typos.length ? "Same word as the rest of the column."
+    : "Check it against the original receipt, invoice or report before you click Accept."}`);
   const dup = /Duplicate of row (\d+)/.exec(reason); // engine counts from a header in row 1 (o: AH-212, a table's offset in the sheet's rows)
   // which copy is the stray one the sheet's order says, not the engine: 5 of 14 blind pairs had the copy first
   if (dup) notes.push(`This row repeats row ${+dup[1] + startRow + o} in every column. If one of them is a double entry, delete ` +
@@ -231,7 +234,7 @@ const HINTS = [
     "and columns they read"],
   // AH-217: a row against a subject rule the sheet kept: which of its cells is wrong is unknown, so no value is written
   [/: a rule the AI read from your headers, true on \d+ of \d+ rows\.$/, "one mistyped cell is the usual cause; if this " +
-    "row is a real exception to the rule, Dismiss it, or Stop checking keeps the rule quiet in this column"],
+    "row is a real exception to the rule, Dismiss it, or Never check keeps the rule quiet in this column"],
   [/ starts like the rows under .+ \(".*"\), not like the other \d+ under /, "a row pasted into the wrong block is the " +
     "usual cause; move it under the group its code belongs to, or correct its code"],
 ];
@@ -304,6 +307,31 @@ export async function checkFix(f, changes) {
   if (!at.length || at.some(off)) return null;
   return post("/check", { columns, rows: sentOf(local(t)).rows, limits: t.limits || state.lastLimits, strength: state.lastStrength, row_index: f.i - (t.o || 0),
     changes: at.map((a) => ({ col: a.col - startCol, value: a.value })) }, 300); // a full re-scan: as long as /scan gets
+}
+
+// AH-228 P-08: "I fixed it": the row read again from the sheet, each cell that changed since the scan checked as a fix
+// would be. -> true when the row looks right now (kept as Fixed, like an Accept, its highlight off); else the card says why
+export async function recheckFix(f) {
+  const { startRow, startCol, columns, dates } = place(state.lastScan, f.i), rowNum = startRow + 2 + f.i;
+  const status = (t) => { if (state.fix === f) $("fix-status").textContent = t; };
+  status("Reading the row again…");
+  const [now] = await readRows(f.sheet, [{ row: rowNum - 1, col: startCol, width: columns.length }]);
+  const row = readAs(now.values, dates), was = state.lastScan.rows[f.i];
+  const changes = columns.flatMap((_, j) => (String(row[j] ?? "") === String(was[j] ?? "") ? [] : [{ cell: `${colLetter(startCol + j)}${rowNum}`, new: row[j] ?? "" }]));
+  if (!changes.length) return void status(`Row ${rowNum} has not changed since the scan. Fix it in the sheet, then press I fixed it.`);
+  status("Checking the row again…");
+  const v = await checkFix(f, changes);
+  if (!v) return void status(`Row ${rowNum} changed. A formula is checked when you click Find problems again.`);
+  state.lastScan.rows[f.i] = row; // later checks and fixes see the row as it is now
+  state.lastRows[f.i] = { ...state.lastRows[f.i], severity: v.severity, reason: v.reason };
+  if (!v.clean) return void status(`Row ${rowNum} still looks wrong: ${plainReason(v.reason, undefined, "; ")}.`);
+  const code = codeAt(state.hashes, f.i, rowHash(row));
+  state.decided[f.i] = "fixed";
+  saveDecisions(f.sheet, [[state.codes[f.i], null], [code, "fixed"]]);
+  state.codes[f.i] = code;
+  state.hashes[f.i] = code.slice(0, code.lastIndexOf("."));
+  await fillRow(f.i, false);
+  return true;
 }
 
 // Pure: each cell an accepted fix wrote, as Ask AI's memory keeps it (AH-143): [header, old value, new value]

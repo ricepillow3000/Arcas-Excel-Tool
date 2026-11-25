@@ -340,7 +340,7 @@ if (mode === "flow") {
     await shot("podium-row");
     ok(before[0] === "matrix(0, 0, 0, 1, 0, 0)" && after[0] === "matrix(1, 0, 0, 1, 0, 0)" && scaleOf(before[1]) === 1 && scaleOf(after[1]) > 1.01 && +after[2] === 1 && after[3] === "2" && after[4] === before[4],
       "a hovered row: the fill sweeps from scaleX(0) to scaleX(1), the row lifts above its neighbours on a shadow, its words unchanged - " + JSON.stringify([before.slice(0, 4), after.slice(0, 4)]));
-    await page.mouse.move(1, 1); await page.focus("#strength-box > summary"); await page.keyboard.press("Tab"); await page.waitForTimeout(600); // from the control before the list: since AH-175, the folded slider's summary
+    await page.mouse.move(1, 1); await page.focus("#kind-filter button:last-child"); await page.keyboard.press("Tab"); await page.waitForTimeout(600); // from the control before the list: since AH-228, the last kind button (AH-175: the folded slider's summary)
     const keyed = await page.evaluate(() => { const b = document.activeElement; return [b.matches("#flagged-list button:focus-visible"), getComputedStyle(b, "::before").transform, getComputedStyle(b).transform]; });
     ok(keyed[0] && keyed[1] === "matrix(1, 0, 0, 1, 0, 0)" && scaleOf(keyed[2]) > 1.01, "keyboard focus gets the same fill and lift - " + keyed);
     await page.evaluate(() => document.activeElement.blur()); }
@@ -540,7 +540,8 @@ if (mode === "flow") {
   ok((await cell("C22")).v === 7777 && (await cell("C22")).fill === null && (await cell("B22")).fill === "#00B0F0", "Dismiss keeps the value and removes only our highlight");
   ok((await page.evaluate(() => __log.length)) === beforeDismiss, "Dismiss (and opening the next row) writes no cell at all");
   ok(/^Row \d+/.test(await text("#fix-title")) && !(await text("#fix-title")).startsWith("Row 22"), "and moves to the next row - " + (await text("#fix-title")));
-  ok((await text("#notice")) === "1 of 5 rows done.", "AH-171: Dismiss says how many rows are done - " + (await text("#notice")));
+  // AH-228 P-19: since then, after what the Dismiss taught and before its Undo
+  ok((await text("#notice")) === "Dismissed. Units 7777 is fine on this sheet from now on. 1 of 5 rows done. Undo", "AH-171: Dismiss says how many rows are done - " + (await text("#notice")));
   { const l = await line(); ok(l.shown && Math.abs(l.wide - 0.2) < 1e-6, "AH-184: the line after Dismiss is 0.2 of the bar - " + JSON.stringify(l)); }
   // ... an Accept on top counts one more, and its Undo takes it back (row 11 as it was, for step 4)
   await back(); await openRow(11); await page.click("#fix-apply"); await idle();
@@ -1060,7 +1061,7 @@ if (mode === "flow2") {
     await page.click("#scan"); await idle(); await page.waitForSelector("#results", { state: "visible" });
     for (let t = 0; replies.length === r0 && t < 100; t++) await page.waitForTimeout(50);
     const flagged = replies.at(-1).rows.filter((r) => SEV_WORDS[r.severity]).length;
-    const list = await page.evaluate(() => ({ buttons: document.querySelectorAll("#flagged-list button").length, more: [...document.querySelectorAll("#flagged-list .more-rows")].map((li) => li.textContent) }));
+    const list = await page.evaluate(() => ({ buttons: document.querySelectorAll("#flagged-list li[data-i] button").length, more: [...document.querySelectorAll("#flagged-list .more-rows")].map((li) => li.textContent) })); // rows (AH-228: the more line has its own button)
     const longest = await page.evaluate(() => __longest);
     ok(flagged >= 5000 && list.buttons === 50 && list.more.length === 1 && list.more[0].startsWith(`+ ${(flagged - 50).toLocaleString("en-US")} more,`),
       `${flagged} rows flagged: 50 listed and one "+ N more" line with the rest - ${JSON.stringify(list)}`);
@@ -1212,11 +1213,13 @@ if (mode === "ai") { // engine started with a Claude key pointed at stub_claude.
   await shortNote("#rules-box", "#rules-box p", "What is sent?", ["It sends only the first 200 column headers, each cut to 100 characters, and whether each column holds numbers, dates, text or IDs", "never a cell.", "Arcas checks each rule on every row on this PC."]);
   // AH-175: Ask AI is folded under a card's fix, "Want a different fix? Ask AI", and open by itself on a card with no fix
   { const look = () => page.evaluate(() => ({ title: document.getElementById("fix-title").textContent, fix: document.getElementById("fix-changes").children.length,
-      open: document.getElementById("ai-fold").open, summary: document.querySelector("#ai-fold > summary").textContent, box: document.getElementById("fix-intent").checkVisibility() }));
+      open: document.getElementById("ai-fold").open, summary: document.querySelector("#ai-fold > summary").textContent, box: document.getElementById("fix-intent").checkVisibility(),
+      label: document.getElementById("fix-intent-label").textContent }));
     const cards = [];
     for (const r of [11, 51, 121]) { await openRow(r); cards.push(await look()); await back(); }
-    ok(cards.every((c) => c.summary === "Want a different fix? Ask AI" && c.open === !c.fix && c.box === !c.fix) && cards.some((c) => c.fix) && cards.some((c) => !c.fix),
-      "AH-175: Ask AI folded on a card with a fix, open on one with none - " + JSON.stringify(cards)); }
+    ok(cards.every((c) => c.summary === (c.fix ? "Want a different fix? Ask AI" : "Ask AI for a fix") && c.open === !c.fix && c.box === !c.fix
+      && c.label === (c.fix ? "For a different fix, describe it and AI will draft one." : "Describe the fix you want and AI will draft one.")) && cards.some((c) => c.fix) && cards.some((c) => !c.fix),
+      "AH-175, AH-228 P-33: Ask AI folded on a card with a fix, open on one with none and said as the way to a fix - " + JSON.stringify(cards)); }
   await openRow(11);
   ok(await page.isVisible("#ai-fold") && !(await page.isVisible("#ai-off")), "Ask AI shown when a key is set");
   await page.click("#ai-fold > summary");
@@ -1579,10 +1582,20 @@ if (mode === "flow2") {
       Object.assign(__state, { lastRows: rows, lastScan: { startRow: 0 }, decided: {} });
       renderResults(rows, {}, null);
       const list = document.getElementById("flagged-list");
-      return { rows: list.querySelectorAll("button").length, more: [...list.querySelectorAll(".more-rows")].map((li) => li.textContent), nodes: list.querySelectorAll("*").length };
+      const out = { rows: list.querySelectorAll("li[data-i] button").length, next: list.querySelector(".more-rows button")?.textContent, more: [...list.querySelectorAll(".more-rows")].map((li) => li.textContent), nodes: list.querySelectorAll("*").length };
+      // AH-228 P-20: the rows past the first 50 are a press away, 20 at a time, never past 250
+      const press = () => list.querySelector(".more-rows button")?.click();
+      press(); out.after = list.querySelectorAll("li[data-i] button").length;
+      for (let k = 0; k < 20; k++) press();
+      out.most = list.querySelectorAll("li[data-i] button").length;
+      out.last = list.querySelector(".more-rows")?.textContent ?? null;
+      return out;
     }, count);
     ok(got.rows === 50 && got.nodes < 400 && slips.length === 0 && (more ? got.more.length === 1 && got.more[0].startsWith(more + ", all highlighted in the sheet.") : !got.more.length),
       `AH-204: ${count} flagged rows draw 50 rows${more ? ` and "${more}"` : " and no more line"} - ` + JSON.stringify({ ...got, slips }));
+    const want = { 6000: [70, 250, "Show the next 20"], 51: [51, 51, "Show the next 1"], 50: [50, 50, undefined] }[count];
+    ok(got.after === want[0] && got.most === want[1] && got.next === want[2] && (count === 6000 ? got.last.endsWith("Fix these first, then click Find problems again.") : got.last === null),
+      `AH-228 P-20: "Show the next 20" draws 20 more rows, never past 250 - ` + JSON.stringify({ count, after: got.after, most: got.most, next: got.next, last: got.last }));
   }
   await many.close();
 
@@ -1887,8 +1900,10 @@ if (mode === "live") { // AH-180, AH-181
     const tagOn = (r) => page.locator(`#flagged-list button:has-text("Row ${r} ") .sev`).textContent({ timeout: 2000 }).catch(() => null);
     ok((await tagOn(32)) && (await tagOn(62)) && (await tagOn(121)) && (await tagOn(151)), "AH-205: both Cnetral rows and both blank Units are flagged first");
     await openRow(32);
+    // measured once the card has turned in: since AH-228 the line is named when the card's fix is known, while it still turns
+    await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== "running"), null, { timeout: 5000 }).catch(() => {});
     const mute = await page.evaluate(() => { const b = document.getElementById("fix-mute"); return { said: b.textContent, shown: b.checkVisibility({ visibilityProperty: true }), h: b.getBoundingClientRect().height }; });
-    ok(mute.said === "Stop checking spelling in Region" && mute.shown && mute.h >= 44, "AH-205: the card offers to stop the row's check in its column, 44 px tall - " + JSON.stringify(mute));
+    ok(mute.said === "Never check spelling in Region on this sheet" && mute.shown && mute.h >= 44, "AH-205: the card offers to stop the row's check in its column, 44 px tall - " + JSON.stringify(mute));
     await contrast("a card with Stop checking");
     // the line is held: an Accept hides it and nothing under it moves (row 11's -5, then Undo)
     await back(); await openRow(11);
@@ -1910,7 +1925,7 @@ if (mode === "live") { // AH-180, AH-181
     ok((await tagOn(62)) === null && (await tagOn(32)) === "Dismissed" && (await tagOn(11)) && (await tagOn(121)),
       `AH-205: the next Find problems no longer flags row 62's Cnetral; row 32 stays Dismissed and the rest are still there - ${await tagOn(62)}, ${await tagOn(32)}, ${await tagOn(11)}, ${await tagOn(121)}`);
     await openRow(121);
-    ok((await text("#fix-mute")) === "Stop checking blanks in Units", "AH-205: a blank's card offers to stop checking blanks in its column - " + (await text("#fix-mute")));
+    ok((await text("#fix-mute")) === "Never check blanks in Units on this sheet", "AH-205: a blank's card offers to stop checking blanks in its column - " + (await text("#fix-mute")));
     await page.click("#fix-mute"); await idle();
     ok((await text("#notice")).startsWith("Arcas will not check blanks in Units on this sheet again."), "AH-205: the foot bar says what was learned - " + (await text("#notice")));
     ok((await page.evaluate(() => JSON.stringify(__settings.anomalyHunterIgnored))) === '{"Bar":[["blank","Units"]]}', "AH-205: the stopped check is kept as its kind and column");
@@ -1997,7 +2012,7 @@ if (mode === "live") {
     "AH-217: Find problems sends the kept rules and lists the rows against them - " + JSON.stringify([await why(11), await why(21)]));
   // pass 1: row 11 is an honest exception, so its check is stopped in its column; row 21 is fixed by hand
   await openRow(11);
-  ok((await text("#fix-mute")) === "Stop checking subject rules in Amount", "AH-217: a kept rule's card offers to stop it in its column - " + (await text("#fix-mute")));
+  ok((await text("#fix-mute")) === "Never check subject rules in Amount on this sheet", "AH-217: a kept rule's card offers to stop it in its column - " + (await text("#fix-mute")));
   await page.click("#fix-mute"); await idle();
   ok((await text("#notice")).startsWith("Arcas will not check subject rules in Amount on this sheet again."), "AH-217: the foot bar says the rule is stopped - " + (await text("#notice")));
   if (await page.isVisible("#fix-back")) await back();
@@ -2081,6 +2096,110 @@ if (mode === "live") {
   await typed("C207", 88887);
   ok(JSON.stringify(await pane()) === '{"shown":0,"open":false}', "AH-220: without SharedRuntime 1.1 nothing ever asks the pane to open - " + JSON.stringify(await pane()));
   await page.evaluate(() => sessionStorage.removeItem("__noShared"));
+}
+
+// AH-228 (the UX study, measured in a browser): the list, the row card and what Arcas learns, on a sheet of their own
+// ("UX", the same planted rows) so nothing decided here reaches the steps above
+if (mode === "flow2") {
+  await page.evaluate((rows) => { __load("UX", rows, [0]); __activate("UX"); }, rows);
+  await page.evaluate(() => { scrollTo(0, 0); document.activeElement?.blur(); });
+  // P-04: a scan pressed for lands where its summary is, once, when it would be out of sight (a short pane stands in for
+  // text at 200%, where the first row was at 1,418 px)
+  await page.setViewportSize({ width: 360, height: 200 });
+  await page.focus("#scan"); await page.keyboard.press("Enter"); await idle(); await page.waitForSelector("#results", { state: "visible" });
+  await page.waitForFunction(() => document.activeElement !== document.body, null, { timeout: 3000 }).catch(() => {});
+  await page.waitForTimeout(900); // a smooth scroll settles
+  const landed = await page.evaluate(() => { const r = document.getElementById("summary").getBoundingClientRect(); return { top: Math.round(r.top), bottom: Math.round(r.bottom), h: innerHeight, y: scrollY, focus: document.activeElement.id || document.activeElement.tagName }; });
+  ok(landed.y > 0 && landed.top >= 0 && landed.bottom <= landed.h, "AH-228 P-04: a pressed scan brings its summary into view - " + JSON.stringify(landed));
+  // P-06: pressed with the keyboard, focus lands on the list's title, never on the page
+  ok(landed.focus === "list-title", "AH-228 P-06: after Find problems by keyboard, focus is on the list's title - " + landed.focus);
+  await page.evaluate(() => scrollTo(0, 0));
+  await openLevel(); await page.focus("#strength"); const y0 = await page.evaluate(() => scrollY); await page.keyboard.press("ArrowRight");
+  await page.waitForFunction(() => __state.lastStrength === 6, null, { timeout: 15000 }).catch(() => {}); await idle();
+  await page.keyboard.press("ArrowLeft");
+  await page.waitForFunction(() => __state.lastStrength === 5, null, { timeout: 15000 }).catch(() => {}); await idle();
+  ok((await page.evaluate(() => scrollY)) === y0, "AH-228 P-04: a quiet re-check (the slider) never scrolls the pane");
+  await page.$eval("#strength-box", (d) => (d.open = false));
+  await page.setViewportSize({ width: 360, height: 900 });
+  // P-03: the list is part of the pane's page, never a box that scrolls inside it
+  const box = await page.$eval("#flagged-list", (l) => ({ y: getComputedStyle(l).overflowY, inner: l.scrollHeight - l.clientHeight }));
+  ok(box.y === "visible" && box.inner <= 1, "AH-228 P-03: the list does not scroll inside the scrolling pane - " + JSON.stringify(box));
+  // P-17: the list's hint is short, and what the colours are is said beside Remove highlights
+  ok((await text("#list-hint")) === "Worst first. Click a row to see the fix. Check each one before you accept: you know your data best."
+    && (await page.isVisible("#highlight-hint")) && (await page.evaluate(() => document.getElementById("clear-highlights").nextElementSibling.id)) === "highlight-hint",
+    "AH-228 P-17: the list's hint in 18 words, the colours said beside Remove highlights");
+  // P-21: one kind at a time, All to reset; each button 44 px tall
+  const kinds = () => page.$$eval("#kind-filter button", (bs) => bs.map((b) => [b.textContent, b.getAttribute("aria-pressed"), b.getBoundingClientRect().height]));
+  const all = await kinds(), rowsListed = () => page.$$eval("#flagged-list button", (bs) => bs.map((b) => +/^Row (\d+)/.exec(b.innerText)[1]));
+  const every = await rowsListed();
+  ok(all.length >= 3 && /^All \d+$/.test(all[0][0]) && all[0][1] === "true" && all.every(([, , h]) => h >= 44) && all.some(([t]) => t === "Duplicates 1"),
+    "AH-228 P-21: kind buttons over the list, All pressed - " + JSON.stringify(all));
+  await page.click('#kind-filter button:has-text("Duplicates")');
+  const dups = await rowsListed();
+  ok(dups.length === 1 && dups[0] === 51 && (await page.getAttribute('#kind-filter button:has-text("Duplicates")', "aria-pressed")) === "true"
+    && (await page.evaluate(() => document.activeElement.textContent)) === "Duplicates 1", "AH-228 P-21: Duplicates shows row 51 alone, its button pressed and focused - " + dups);
+  await page.click('#kind-filter button:has-text("All")');
+  ok(JSON.stringify(await rowsListed()) === JSON.stringify(every), "AH-228 P-21: All shows every row again");
+  // P-07: a row's keyboard ring is navy, as every other control's (gold-hi is for navy grounds: 2.25:1 on the field)
+  await page.focus("#kind-filter button:last-child"); await page.keyboard.press("Tab");
+  const ring = await page.evaluate(() => { const b = document.activeElement; return [b.matches("#flagged-list button:focus-visible"), getComputedStyle(b).outlineColor]; });
+  ok(ring[0] && ring[1] === "rgb(12, 25, 56)", "AH-228 P-07: a focused row's ring is navy - " + ring);
+  await page.evaluate(() => document.activeElement.blur());
+  // P-02, P-05, P-16: row 11's fix changes Units, so its stop names the usual range in Units, never totals in Total; the
+  // reasons sit under the buttons; after Accept the card says fixed
+  await openRow(11);
+  const card = await page.evaluate(() => { const y = (id) => document.getElementById(id).getBoundingClientRect();
+    return { mute: document.getElementById("fix-mute").textContent, head: document.getElementById("reason-head").textContent, below: y("fix-reason").top > y("fix-apply").bottom }; });
+  ok(card.mute === "Never check the usual range in Units on this sheet" && card.head === "Why it was flagged" && card.below,
+    "AH-228 P-02, P-05: the stop names the column the fix changes, and the reasons come under Accept - " + JSON.stringify(card));
+  await page.click("#fix-apply"); await idle();
+  const done = { title: await text("#fix-title"), label: await text("#fix-label"), said: await text("#fix-explanation") };
+  ok(done.title === "Row 11: fixed" && done.label === "Accepted fix" && done.said === "Undo puts the old values back.", "AH-228 P-16: an accepted card says fixed - " + JSON.stringify(done));
+  await page.click("#fix-undo"); await idle();
+  ok((await text("#fix-title")) !== "Row 11: fixed" && (await text("#fix-explanation")) !== "Undo puts the old values back.", "AH-228 P-16: Undo brings back what the card said - " + (await text("#fix-title")));
+  await back();
+  // P-09, P-39: "east " to "East": the space drawn as a dot a screen reader says, and the column's own word needs no receipt
+  await openRow(81);
+  const east = await page.evaluate(() => ({ dots: document.querySelectorAll('#fix-changes .old .space[aria-label="space"]').length, said: document.getElementById("fix-explanation").textContent }));
+  ok(east.dots === 1 && east.said.endsWith("Same word as the rest of the column.") && !east.said.includes("receipt"), "AH-228 P-09, P-39: " + JSON.stringify(east));
+  // P-36: Escape on an open card goes back to the list
+  await page.keyboard.press("Escape"); await page.waitForSelector("#results", { state: "visible" }); await idle();
+  ok(await page.isVisible("#flagged-list"), "AH-228 P-36: Escape goes back to the list");
+  // P-19: a Dismiss says what it taught, with Undo
+  await openRow(22); await page.click("#fix-dismiss"); await idle();
+  const taughtNote = await text("#notice");
+  ok(taughtNote.startsWith("Dismissed. Units 7777 is fine on this sheet from now on.") && (await page.isVisible("#notice-undo")), "AH-228 P-19: " + taughtNote);
+  await page.click("#notice-undo"); await idle();
+  ok((await page.evaluate(() => __state.decided[20])) === undefined && (await text("#notice")).startsWith("Row 22 is back on your list"), "AH-228 P-19: Undo puts the row back - " + (await text("#notice")));
+  // P-01, P-02: a duplicate's stop is the sheet's, said so; its Undo and Check again take it back
+  if (await page.isVisible("#fix-view")) await back();
+  await openRow(51);
+  ok((await text("#fix-mute")) === "Never check duplicates on this sheet", "AH-228 P-02: a duplicate's stop is said as the sheet's - " + (await text("#fix-mute")));
+  await page.click("#fix-mute"); await idle();
+  const stopped = () => page.$$eval("#stopped-list li", (lis) => lis.map((l) => l.textContent));
+  ok((await text("#notice")).startsWith("Arcas will not check duplicates on this sheet again.") && (await page.isVisible("#notice-undo")) && (await stopped()).join() === "Duplicates on UXCheck again",
+    "AH-228 P-01: Never check says so with Undo, and lists the stop under Saved in this workbook - " + (await stopped()));
+  await page.click("#notice-undo"); await idle();
+  ok((await stopped()).length === 0 && (await page.evaluate(() => __state.decided[49])) === undefined, "AH-228 P-01: its Undo checks duplicates again and puts row 51 back");
+  if (await page.isVisible("#fix-view")) await back();
+  await openRow(51); await page.click("#fix-mute"); await idle();
+  await page.$eval("#stopped-list", (l) => (l.closest("details").open = true));
+  await page.click('#stopped-list button:has-text("Check again")');
+  ok((await stopped()).length === 0 && (await text("#forget-state")) === "Arcas checks duplicates on UX again from the next scan.", "AH-228 P-01: Check again turns the stop off - " + (await text("#forget-state")));
+  await page.$eval("#stopped-list", (l) => (l.closest("details").open = false));
+  // P-08: a card with no fix offers "I fixed it": nothing changed, it says so; still wrong, it says why; right, it is Fixed
+  if (await page.isVisible("#fix-view")) await back();
+  await openRow(121);
+  ok((await text("#fix-apply")) === "I fixed it" && (await page.isVisible("#fix-apply")) && (await text("#fix-dismiss")) === "Looks right"
+    && (await page.$eval("#fix-apply", (b) => b.getBoundingClientRect().height)) >= 44, "AH-228 P-08: a card with no fix offers I fixed it, then Looks right");
+  await page.click("#fix-apply"); await idle();
+  ok((await text("#fix-status")).startsWith("Row 121 has not changed since the scan."), "AH-228 P-08: nothing changed, it says so - " + (await text("#fix-status")));
+  await page.evaluate(() => __edit("UX", "C121", 99999)); await page.click("#fix-apply"); await idle();
+  ok((await text("#fix-status")).startsWith("Row 121 still looks wrong: "), "AH-228 P-08: still wrong, the card says why - " + (await text("#fix-status")));
+  await page.evaluate((u) => __edit("UX", "C121", u), 40 + ((119 * 7) % 23)); await page.click("#fix-apply"); await idle();
+  ok((await page.evaluate(() => __state.decided[119])) === "fixed" && (await text("#notice")).startsWith("Row 121 looks right now."), "AH-228 P-08: right now, the row is Fixed - " + (await text("#notice")));
+  if (await page.isVisible("#fix-view")) await back();
+  await contrast("AH-228: the list with its kind buttons");
 }
 
 // proof for people, at rest: the pointer off every button first (the full-page picture moved the page under it, and a

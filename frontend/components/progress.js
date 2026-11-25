@@ -2,8 +2,14 @@ import { $, show } from "../utils/dom.js";
 
 // AH-184: with doneOf's words comes the share of the list done, drawn as a gold line over the foot bar (styles
 // #status::before). Any other words take it away; it keeps its width meanwhile, so the next decision grows it from there
-export function notice(msg, done = null) {
+// undo (AH-228 P-01, P-19): a click handler for an Undo beside the words, put back with them
+export function notice(msg, done = null, undo = null) {
   $("notice").textContent = msg || "";
+  if (msg && undo) {
+    const b = Object.assign(document.createElement("button"), { className: "link-btn", id: "notice-undo", textContent: "Undo" });
+    b.addEventListener("click", undo);
+    $("notice").append(" ", b);
+  }
   $("status").toggleAttribute("data-done", !!msg && done !== null);
   if (done !== null) $("status").style.setProperty("--done", done);
 }
