@@ -106,8 +106,16 @@
   window.Office = {
     HostType: { Excel: "Excel" }, onReady: (cb) => setTimeout(() => cb({ host: "Excel" }), 0),
     // window.__oldExcel = true (before the pane loads): an Excel without ExcelApi 1.9; window.__noApi = "1.6": without that one
-    context: { requirements: { isSetSupported: (set, v) => !(set === "ExcelApi" && ((window.__oldExcel && v === "1.9") || v === window.__noApi)) }, document: { settings: { get: (k) => settings[k] ?? null, set: (k, v) => (settings[k] = v), remove: (k) => delete settings[k], saveAsync, refreshAsync: (cb) => cb() } } },
+    // AH-220: sessionStorage "__noShared" (set, then a reload): an Excel without SharedRuntime 1.1
+    context: { requirements: { isSetSupported: (set, v) => !(set === "ExcelApi" && ((window.__oldExcel && v === "1.9") || v === window.__noApi))
+      && !(set === "SharedRuntime" && sessionStorage.getItem("__noShared")) }, document: { settings: { get: (k) => settings[k] ?? null, set: (k, v) => (settings[k] = v), remove: (k) => delete settings[k], saveAsync, refreshAsync: (cb) => cb() } } },
   };
+  // AH-220: the shared runtime's pane. __pane(false) closes it as the person does, __pane(true) opens it; Arcas's own
+  // showAsTaskpane() is counted in __shown and opens it. Each tells the onVisibilityModeChanged handlers, as Office does
+  const seen = []; window.__shown = 0; window.__open = true;
+  window.__pane = (open) => { window.__open = open; seen.forEach((h) => h({ visibilityMode: open ? "Taskpane" : "Hidden" })); };
+  window.Office.addin = { showAsTaskpane: async () => { window.__shown++; window.__pane(true); },
+    onVisibilityModeChanged: async (h) => { seen.push(h); return async () => { seen.splice(seen.indexOf(h), 1); }; } };
   // window.__cellEdit = n (set before the pane loads, or any time): the next n Excel.run calls reject as real Excel does
   // while the user is typing in a cell. window.__typeError = n: the next n throw a script error, as a bug of ours would.
   // window.__slow = ms: every Excel.run waits that long first, as a big workbook or a busy Excel does (AH-149)
