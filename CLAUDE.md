@@ -113,7 +113,7 @@ Adding or removing a check: update this table in the same commit.
   the any-schema proof (`test_schema_agnostic.py`: generated 8- and 40-column sheets with meaningless headers, same
   flags under other headers, a column's limits scale with it). Nor does any group's: `backend/bench/groups.py` (AH-223)
   grades recall and false alarms per group (a big group of 400 rows, a small one of 40 at another scale, slips planted in
-  both) and fails when the small group is caught 10 points less often or falsely flagged 1 point more. A check that reads a header word says so in the map.
+  both) and fails when the small group is caught 10 points less often or falsely flagged 1 point more. Nor does the five-sheet eval: `eval/run_eval.py` (AH-225, a gate since AH-229: in `tools/check.py` and CI) reads five `.xlsx` sheets as the pane does and fails when a planted error is missed or a false alarm is added (`FALSE_ALARMS`, `MEDIUM_FALSE_ALARMS`: a change that removes one lowers them in the same commit). A check that reads a header word says so in the map.
 - **An AI prompt, its context or the model** changes only with `backend/bench/ai_eval.py` numbers (your own key,
   never the relay; paired wins vs losses on dev and held-out) in the commit message. No eval run, no change. An arm's
   request that is byte for byte one already answered takes that answer (AH-153: the same question asked twice only
