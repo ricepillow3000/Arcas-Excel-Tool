@@ -38,15 +38,18 @@ def profile(columns, rows):
     kind = ("a survey of people" if about["people"] and about["survey"] else "a survey" if about["survey"]
             else "a list of people" if about["people"] else f"a time series by {by}" if about["series"]
             else f"a list of transactions (many rows share each {by})" if ledger else "a table")
-    lines = [f"This sheet looks like {kind}." + "".join(
+    # AH-228 P-23: "a time series by OrderDate" was an analyst's words
+    head = f"Each row is a date in {by}." if about["series"] and not about["survey"] and not about["people"] \
+        else f"This sheet looks like {kind}."
+    lines = [head + "".join(
         f" {_names([c for c, h in about['by_group'].items() if h == g])} judged within each {g}."
         for g in dict.fromkeys(about["by_group"].values()))]
     lines.append(f"Fairness will compare {_names(['flagged rows', *outcomes, *amounts])} across {_names(prot)}." if prot
-                 else "No column says who the rows are, so no fairness check will run.")
+                 else "No column about people, so the fairness check is off.")
     if about["totals"]:
         lines.append(f"Totals to check: {_names(about['totals'])}.")
     if about["dates"]:
-        lines.append(f"Dates in: {_names(about['dates'])}.")
+        lines.append(f"Dates are in {_names(about['dates'])}.")
     if padded := list(df.attrs["padded"]):
         lines.append(f"Kept as typed, not as numbers: {_names(padded)}.")
     said = [f'"{w}" in {c}' for c, w in about["no_value"].items()] + [f"{code} in {c}" for c, code in about["codes"].items()]

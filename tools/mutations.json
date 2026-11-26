@@ -3709,10 +3709,10 @@
  },
  {
   "id": "list-cap-loosen",
-  "guard": "The findings list draws at most CAP (50) rows and one \"+ N more\" line however many a scan flags (AH-204)",
-  "file": "frontend/pages/results.js",
-  "old": "order.slice(0, CAP).map(",
-  "new": "order.map(",
+  "guard": "The findings list draws CAP (50) rows at first, then 20 more a press of Show the next 20, never past 250, however many a scan flags (AH-204, AH-228 P-20)",
+  "file": "frontend/features/scan.js",
+  "old": "Math.min(total, CAP + MORE * presses, SHOWN_MAX)",
+  "new": "Math.min(total, SHOWN_MAX)",
   "kind": "loosen",
   "tests": [
    "e2e"
@@ -3721,10 +3721,10 @@
  },
  {
   "id": "list-cap-tighten",
-  "guard": "The findings list draws at most CAP (50) rows and one \"+ N more\" line however many a scan flags (AH-204)",
-  "file": "frontend/pages/results.js",
-  "old": "order.slice(0, CAP).map(",
-  "new": "order.slice(0, CAP - 1).map(",
+  "guard": "The findings list draws CAP (50) rows at first, then 20 more a press of Show the next 20, never past 250, however many a scan flags (AH-204, AH-228 P-20)",
+  "file": "frontend/features/scan.js",
+  "old": "Math.min(total, CAP + MORE * presses, SHOWN_MAX)",
+  "new": "Math.min(total, CAP - 1 + MORE * presses, SHOWN_MAX)",
   "kind": "tighten",
   "tests": [
    "e2e"
@@ -5065,8 +5065,8 @@
   "id": "layout-scan-tighten",
   "guard": "Each table on a sheet is its own /scan, sent as the engine reads it: merged labels filled, subtotals blank (AH-212)",
   "file": "frontend/features/scan.js",
-  "old": "  for (const r of requests) bodies.push(await post(\"/scan\", r, 300));",
-  "new": "  for (const r of requests.slice(0, 1)) bodies.push(await post(\"/scan\", r, 300));",
+  "old": "  for (const r of requests) bodies.push(await post(\"/scan\", r, 300, stop));",
+  "new": "  for (const r of requests.slice(0, 1)) bodies.push(await post(\"/scan\", r, 300, stop));",
   "kind": "tighten",
   "tests": [
    "e2e"

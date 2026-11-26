@@ -1,11 +1,13 @@
-import { LIVE_KEY, SOUND_KEY, SEV } from "../constants/index.js";
+import { LIVE_KEY, SOUND_KEY } from "../constants/index.js";
 import { state } from "../hooks/use-state.js";
 import { $, show } from "../utils/dom.js";
 import { notice } from "../components/progress.js";
 import { n } from "../utils/text.js";
 import { cellAt, colLetter, spots } from "../utils/sheet.js";
 import { readSheet, showCell } from "../services/excel.js";
-import { flaggedRows, plainReason, scanAll, scanRequest } from "./scan.js";
+import { flaggedRows, plainReason, runScan, scanAll, scanRequest } from "./scan.js";
+import { act } from "../hooks/use-action.js";
+import { openFix } from "../pages/fix.js";
 import { place } from "../utils/layout.js";
 import { copiedSaid, dropTab, newPairs } from "./tabs.js";
 
@@ -61,17 +63,27 @@ const cellOf = (r, s, j) => colLetter(s.startCol + j) + (s.startRow + 2 + r.i);
 // wants every change answered, wrong or "nothing unusual", and a cell retyped still wrong said nothing at all
 export function findingsAt(rows, s, decided = {}, edited = []) {
   return flaggedRows(rows).filter((r) => !decided[r.i]).flatMap((r) => {
-    const t = place(s, r.i), k = spots(r, t.columns).find((j) => edited.some((a) => inRange(a, cellOf(r, t, j))));
-    return k === undefined ? [] : [{ ...r, cell: cellOf(r, t, k), column: t.columns[k] }];
+    const t = place(s, r.i), at = spots(r, t.columns), k = at.find((j) => edited.some((a) => inRange(a, cellOf(r, t, j))));
+    // spots: every cell the row's reasons name, [column, cell], so the note can name the wrong one (AH-228 P-13)
+    return k === undefined ? [] : [{ ...r, cell: cellOf(r, t, k), column: t.columns[k], spots: at.map((j) => [t.columns[j], cellOf(r, t, j)]) }];
   });
 }
 
-// Pure: the note's sentence: where, how sure, the reason as the list says it (its line about the changed cell's column, else
-// its first: a typed 77777 broke its row's Total too, and "Total 103.48 does not add up" came first), and how many more
-export function noteSaid(sheet, f, more, names = {}) {
-  const lines = plainReason(f.reason, names).split("\n"), col = names[f.column] || f.column;
+// Pure: the reason as the list says it (its line about the changed cell's column, else its first: a typed 77777 broke its
+// row's Total too, and "Total 103.48 does not add up" came first), and the cell that line is about. AH-228 P-13: the note
+// named the cell changed ("cell D40: ... Units 99999" where Units is C40)
+export function wrongAt(f, names = {}) {
+  const shown = (c) => String(names[c] || c), lines = plainReason(f.reason, names).split("\n"), col = shown(f.column);
   const why = lines.find((l) => col && l.startsWith(`${col} `)) || lines[0];
-  return `Sheet "${sheet}", cell ${f.cell}: ${SEV[f.severity]}. ${why}${/[.!?]$/.test(why) ? "" : "."}${more ? ` And ${n(more)} more in what you changed.` : ""}`;
+  const at = (f.spots || []).filter(([c]) => why.startsWith(`${shown(c)} `)).sort((a, b) => shown(b[0]).length - shown(a[0]).length)[0];
+  return [why, at ? at[1] : f.cell];
+}
+
+// Pure: the note's sentence: the cell changed, the cell that looks wrong, the reason, and how many more
+export function noteSaid(sheet, f, more, names = {}) {
+  const [why, wrong] = wrongAt(f, names), look = f.severity === "Low" ? "is worth a check" : "looks wrong";
+  const head = wrong === f.cell ? `You changed ${f.cell} on ${sheet}. It ${look}` : `You changed ${f.cell}. ${wrong} on ${sheet} ${look}`;
+  return `${head}: ${why}${/[.!?]$/.test(why) ? "" : "."}${more ? ` And ${n(more)} more in what you changed.` : ""}`;
 }
 
 // AH-218 (John's master spec: no nagging on the row being typed): a finding only about a row's whole (a blank not filled
@@ -161,16 +173,26 @@ async function check(id, cells, b) {
   const lines = [found.length ? noteSaid(s.sheet, found[0], found.length - 1, s.names) : "", ...pairs.map(copiedSaid)].filter(Boolean);
   if (!pairs.length && heldBack(found, selected, id)) { // AH-218: the row is still being typed: said when it is left
     const rows = found.map((f) => cellAt(f.cell).row);
-    waiting.set(id, { cells, rows, lines, b, where: { sheet: s.sheet, cell: found[0].cell }, timer: setTimeout(() => release(id), HOLD) });
-  } else if (lines.length) say(lines, found.length ? { sheet: s.sheet, cell: found[0].cell } : { sheet: pairs[0].sheet }, true, b);
+    waiting.set(id, { cells, rows, lines, b, where: whereOf(s, found[0]), timer: setTimeout(() => release(id), HOLD) });
+  } else if (lines.length) say(lines, found.length ? whereOf(s, found[0]) : { sheet: pairs[0].sheet }, true, b);
   // nothing flagged in the changed cells: said in the notice, with no sound, never over a note still showing
   else if ($("live-note").hidden) notice(checkedSaid(s.sheet, cells));
 }
+
+// Show me selects the cell that looks wrong; i and rows: the finding's row and the sheet's size, to find its card (P-14)
+const whereOf = (s, f) => ({ sheet: s.sheet, cell: wrongAt(f, s.names)[1], i: f.i, rows: s.rows.length });
+
+// Pure (AH-228 P-14): the list holds this row when it was made on this sheet as it is now sized, and lists that row
+export const inList = (where, scan) => where?.i !== undefined && scan.sheet === where.sheet && scan.rows === where.rows && !!scan.order?.includes(where.i);
+
+const listed = () => ({ sheet: state.lastScan?.sheet, rows: state.lastScan?.rows.length, order: state.order });
 
 // The note stays until it is closed or a newer one takes its place
 function say(lines, where, ring = true, b = burst) {
   target = where;
   $("live-text").replaceChildren(...lines.map((t) => Object.assign(document.createElement("p"), { textContent: t })));
+  // AH-228 P-14: the next step after Show me: the row's card, as a list row opens it, or else a check of the whole sheet
+  $("live-more").textContent = inList(where, listed()) ? "Open its card" : "Check the whole sheet";
   show("live-note");
   if (ring) chime();
   if (reopens({ shared, hidden, on: liveOn(), ring, alone, burst: b, last: lastBurst })) bringBack(b);
@@ -246,10 +268,20 @@ export function initLive() {
   else $("live-closed").textContent = "This Excel checks your edits only while Arcas is open.";
   $("live").checked = liveOn();
   $("live-sound").checked = soundOn();
-  $("live").addEventListener("change", () => setOn(LIVE_KEY, $("live").checked));
+  // AH-228 P-29: Play a sound is off, drawn off, while Check the cells I change is
+  const sound = () => { $("live-sound").disabled = !$("live").checked; };
+  sound();
+  $("live").addEventListener("change", () => { setOn(LIVE_KEY, $("live").checked); sound(); });
   $("live-sound").addEventListener("change", () => setOn(SOUND_KEY, $("live-sound").checked));
   for (const type of ["pointerdown", "keydown"]) document.addEventListener(type, wake, { capture: true });
   $("live-show").addEventListener("click", () => { if (target) showCell(target.sheet, target.cell).catch(() => {}); });
   $("live-close").addEventListener("click", () => show("live-note", false));
+  $("live-more").addEventListener("click", act(async () => {
+    const to = target;
+    show("live-note", false);
+    if (inList(to, listed())) return openFix(to.i, true, null, true);
+    if (to?.cell) await showCell(to.sheet, to.cell).catch(() => {}); // the tab in front is the one Find problems checks
+    await runScan(true, true);
+  }));
   listen();
 }

@@ -68,8 +68,27 @@ export function taught(kinds, columns, row) {
   return out;
 }
 
-// Pure: the row's first check the card can stop: [kind, column], or null
-export const stoppable = (kinds) => (Array.isArray(kinds) ? kinds : []).find(([k, c]) => Object.hasOwn(KIND_WORDS, k) && text(c)) || null;
+// Pure: the row's check the card can stop: [kind, column], or null. AH-228 P-02: the one about a column the card's fix
+// changes (`changed`), else the row's first: a fix to Units offered "Stop checking totals in Total"
+export function stoppable(kinds, changed = []) {
+  const can = (Array.isArray(kinds) ? kinds : []).filter(([k, c]) => Object.hasOwn(KIND_WORDS, k) && text(c));
+  return can.find(([, c]) => changed.includes(c)) || can[0] || null;
+}
+
+// Pure (AH-228 P-01, P-02): a stopped check in words, "totals in Amount". A duplicate is the whole row: the engine keys
+// it on the row's first column (pipeline.duplicates), so its stop is the sheet's, never "duplicates in OrderDate"
+export const stopWords = ([kind, col], shown = (c) => c) => (kind === "duplicate" ? KIND_WORDS.duplicate : `${KIND_WORDS[kind]} in ${shown(col)}`);
+const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+
+// Pure (AH-228 P-19): what a Dismiss of this row teaches, in words ("Units 7777 is fine on this sheet from now on."), or ""
+export function taughtSaid(kinds, columns, row, shown = (c) => c) {
+  const said = taught(kinds, columns, row).map(([col]) => `${shown(col)} ${row[columns.indexOf(col)]}`);
+  return said.length ? `${said.join(" and ")} ${said.length === 1 ? "is" : "are"} fine on this sheet from now on.` : "";
+}
+
+// Pure (AH-228 P-01): every check stopped in this workbook, by sheet, to check again: [{sheet, pair, said}]
+export const stoppedOf = (book) => Object.entries(book || {}).flatMap(([sheet, pairs]) =>
+  (Array.isArray(pairs) ? pairs : []).map((pair) => ({ sheet, pair, said: `${cap(stopWords(pair))} on ${sheet}` })));
 
 // Pure: a sheet as read and what it learned -> the /scan's `learned`, or null: each accepted code turned back into the
 // [column, value] it was made from by hashing that column's values (only a value still in the sheet can match), at most
@@ -110,3 +129,27 @@ export const teach = (sheet, pairs, drop = false) =>
   learn(asCodes(settings().get(ACCEPTED_KEY)), sheet, pairs, drop, (book) => settings().set(ACCEPTED_KEY, book));
 export const stopKind = (sheet, pairs, drop = false) =>
   learn(asKinds(settings().get(IGNORED_KEY)), sheet, pairs, drop, (book) => settings().set(IGNORED_KEY, book));
+// AH-228 P-01: each check stopped in this workbook, under "Saved in this workbook", with Check again: a stop reached the
+// whole sheet from one press under Accept, and only Forget took it back
+export function sayStopped() {
+  const list = document.getElementById("stopped-list");
+  list.replaceChildren(...stoppedOf(asKinds(settings().get(IGNORED_KEY))).map(({ sheet, pair, said }) => {
+    const li = Object.assign(document.createElement("li"), { textContent: said });
+    const b = Object.assign(document.createElement("button"), { className: "secondary", textContent: "Check again" });
+    b.addEventListener("click", () => {
+      stopKind(sheet, [pair], true);
+      settings().saveAsync();
+      sayStopped();
+      document.getElementById("forget-state").textContent = `Arcas checks ${stopWords(pair)} on ${sheet} again from the next scan.`;
+    });
+    li.append(b);
+    return li;
+  }));
+}
+
+// listed when the fold opens, and again after Forget (its line says what went)
+export function initStopped() {
+  const list = document.getElementById("stopped-list");
+  list.closest("details").addEventListener("toggle", (e) => e.target.open && sayStopped());
+  new MutationObserver(sayStopped).observe(document.getElementById("forget-state"), { childList: true });
+}

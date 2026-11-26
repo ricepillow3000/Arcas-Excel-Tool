@@ -40,8 +40,10 @@ const attr = (src, name) => [...src.matchAll(/\s([a-z-]+)="([^"]*)"/g)].filter((
 // every page is one a visitor can reach: an old mock left in site/ (tool-preview.html) was served to anyone who guessed it
 const linked = new Set(PAGES.flatMap((p) => attr(html[p], "href")).map((h) => h.split("#")[0]).filter((h) => h && !/^[a-z]+:/.test(h)));
 for (const f of fs.readdirSync(SITE).filter((f) => f.endsWith(".html") && f !== MISSING)) assert.ok(PAGES.includes(f) && (linked.has(f) || NOINDEX.includes(f)), `${f} is not linked from the site`);
-// ... and the thank-you page is the one the contact form goes to
-assert.ok(/"thanks\.html"/.test(read("support.js")), "support.js never leads to thanks.html");
+// ... though since AH-227 (W-14, John: "Email first, keep message") the contact form thanks the visitor inside itself and
+// keeps the page, so what they typed is still there for Email John and Back never empties it; thanks.html stays for anyone
+// who lands on it, and support.js leads nowhere
+assert.ok(!/"thanks\.html"/.test(read("support.js")), "support.js still leaves the page for thanks.html");
 
 for (const p of PAGES) {
   const src = html[p];
@@ -444,7 +446,8 @@ for (const f of SCRIPTS) {
   // optional on the page, in support.js and in the issue form (GitHub refuses an issue missing a required field), and
   // the box says what is typed will be public
   assert.ok(card.includes('<label for="c-name">Name (optional)</label>\n            <input id="c-name" name="name" type="text" maxlength="80" autocomplete="name">'), "the contact form's name is not an optional field labelled Name (optional)");
-  assert.ok(sjs.includes('needed: [["c-message", "a message"], ["c-public", "the box that says what you type will be public"]],'), "support.js does not need exactly the contact form's message and public box");
+  // AH-227 W-15: each missing field said as what to do, in a sentence ("Please add a message, the box that says...")
+  assert.ok(sjs.includes('needed: [["c-message", "write a message"], ["c-public", "tick the box that says it will be public"]],'), "support.js does not need exactly the contact form's message and public box");
   assert.ok(/\n  - type: input\n    id: name\n    attributes:\n      label: Name\n    validations:\n      required: false\n/.test(yml.replace(/\r\n/g, "\n")), "contact.yml still requires a name");
   assert.ok(/<label class="confirm"><input id="c-public" type="checkbox" required><span>I understand what I type here will be public on GitHub\.<\/span><\/label>\s*<div class="form-actions">/.test(card), "the contact form has no required box saying what is typed will be public");
   // the thank-you page: says where the message is, that it is public there, the reply time, and leads back
@@ -483,11 +486,14 @@ for (const f of SCRIPTS) {
   // in plain words since AH-148 ("bench" and "tuned on" were the engine room's words): the figures still the record's
   // AH-171: shorter, each figure's words alone, with no lede over them (585 px for three figures read as a wall)
   assert.deepEqual(items.map(([, said]) => said), [`planted mistakes found in ${iSheets} test sheets`, `found in ${bSheets} more test sheets it had never seen`,
-    `correct rows called probably wrong in those test sheets, out of ${iClean} and ${bClean} clean rows`], "the proof strip's words");
+    // AH-227 W-25: the third figure's two counts said as one sum, both the record's ("0 Medium+ false alarms" in each)
+    `correct rows called probably wrong in those ${+iSheets + +bSheets} test sheets, out of ${(+iClean.replace(",", "") + +bClean.replace(",", "")).toLocaleString("en-US")} clean rows`], "the proof strip's words");
   assert.ok(!/sec-lede/.test(proof), "the proof strip still has a lede over its figures");
   // ... and the strip links the record once, under it (each figure linked it, three links to one file)
   const PROOF = REPO + "/blob/main/docs/proof/2026-11-05-stress-test.md";
-  assert.ok(proof.split(`href="${PROOF}"`).length === 2 && new RegExp(`</dl>[\\s\\S]*<p class="proof-from[^"]*">From the <a href="${PROOF.replace(/[.]/g, "\\.")}">stress test of 5 November 2026</a>\\.</p>`).test(proof), "the proof strip does not link the record once, under it");
+  // ... and, since AH-227 W-25, which version was out then (the record's download row), so a reader knows what was measured
+  const version = (/^\| Download button \| redirects to the latest release, v(\d+\.\d+\.\d+),/m.exec(doc) || [])[1];
+  assert.ok(version && proof.split(`href="${PROOF}"`).length === 2 && new RegExp(`</dl>[\\s\\S]*<p class="proof-from[^"]*">From the <a href="${PROOF.replace(/[.]/g, "\\.")}">stress test of 5 November 2026</a>, when the download was version ${version.replace(/[.]/g, "\\.")}\\.</p>`).test(proof), "the proof strip does not link the record once, under it, with the version then");
   // only the measured figures here (AH-156); the licence went to the download it covers (AH-159, John: "the MIT License is
   // under the wrong spot"), and a quiet link leads on to the case studies' own page
   assert.ok(!/MIT License|LICENSE/.test(proof) && proof.includes('<a href="cases.html">See what it found in three public tables</a>'), "the proof strip still carries the licence, or no link to the case studies");
@@ -509,10 +515,13 @@ for (const f of SCRIPTS) {
   for (const [p, form, id] of [["index.html", "note", "c-email"], ["support.html", "ticket", "email"]]) {
     const f = (/<form id="(\w+)"[\s\S]*?<\/form>/.exec(html[p].slice(html[p].indexOf(`<form id="${form}"`))) || [""])[0];
     assert.ok(f, `${p}: no form #${form}`);
-    // a fixed pattern, the id compared after (a RegExp built from a name is what Semgrep refuses, CLAUDE.md)
-    const pair = /<button class="btn btn-primary[^"]*" type="submit">[^<]+<\/button>\s*<a class="btn btn-plain" id="([\w-]+)" href="mailto:([^"]+)">Email John instead<\/a>/.exec(f);
-    assert.ok(pair && pair[1] === id && pair[2] === EMAIL, `${p}: no Email John instead beside the GitHub button`);
-    assert.ok(text(f).includes(HELP), `${p}: the form does not say what GitHub is`);
+    // a fixed pattern, the id compared after (a RegExp built from a name is what Semgrep refuses, CLAUDE.md). AH-227 W-03
+    // (John: "Email first"): on the home page Email John is the main button, the GitHub one the second
+    const pair = p === "index.html"
+      ? /<a class="btn btn-primary" id="([\w-]+)" href="mailto:([^"]+)">Email John<\/a>\s*<button class="btn btn-plain" type="submit">Open my message on GitHub<\/button>/.exec(f)
+      : /<button class="btn btn-primary[^"]*" type="submit">[^<]+<\/button>\s*<a class="btn btn-plain" id="([\w-]+)" href="mailto:([^"]+)">Email John instead<\/a>/.exec(f);
+    assert.ok(pair && pair[1] === id && pair[2] === EMAIL, `${p}: no Email John beside the GitHub button`);
+    assert.ok(text(f).includes(p === "index.html" ? HELP.replace(" instead.", ".") : HELP), `${p}: the form does not say what GitHub is`);
     assert.ok(/This is public/.test(f), `${p}: the public-data warning is gone`);
     // AH-192: the link carries what was typed, so GitHub has it from the moment its tab opens, before Submit
     assert.ok(text(f).includes("GitHub gets what you typed as soon as its tab opens; nothing is posted until you press Submit there."), `${p}: the notice does not say GitHub gets what was typed once its tab opens`);
@@ -531,9 +540,12 @@ for (const f of SCRIPTS) {
   assert.ok(text((/<p class="sec-lede[^"]*">([\s\S]*?)<\/p>/.exec(dl) || [])[1] || "").startsWith("On a work computer, ask your IT team first. Arcas installs only on a Windows account that is an administrator on that PC."), "the install's first line");
   const stage = (/<div class="stage[\s\S]*?<\/div>/.exec(dl) || [""])[0];
   // ... with the MIT sentence right under the button since AH-159 (John: "the MIT License is under the wrong spot")
-  assert.ok(/Download for Windows<\/a>\s*<p class="license-line">Free for any number of people\. Open source under the <a href="https:\/\/github\.com\/ricepillow3000\/excel-anomaly-hunter\/blob\/main\/LICENSE">MIT License<\/a>\.<\/p>\s*<p class="[^"]+">Your browser may say Arcas\.exe isn't commonly downloaded\. Click the three dots beside it, then Keep, then Keep anyway\. It says this because the file is new and not signed yet\.<\/p>/.test(stage), "no browser warning under the download button");
+  assert.ok(/Download for Windows<\/a>\s*<p class="license-line">Free for any number of people\. Open source under the <a href="https:\/\/github\.com\/ricepillow3000\/excel-anomaly-hunter\/blob\/main\/LICENSE">MIT License<\/a>\.<\/p>\s*$/.test(stage.slice(0, -"</div>".length)), "the MIT sentence is not the last thing under the download button");
   const steps = [...((/<div class="steps[\s\S]*?<\/ol>/.exec(dl) || [""])[0]).matchAll(/<li\b[^>]*>([\s\S]*?)<\/li>/g)].map((m) => text(m[1]));
   assert.equal(steps.length, 4, `the install has ${steps.length} steps, not 4`);
+  // AH-227 W-11: the browser's warning, the first hurdle, was a note beside the button and outside the steps; it is step 1
+  assert.ok(steps[0] === "If your browser says Arcas.exe isn't commonly downloaded, click the three dots beside it, then Keep, then Keep anyway. Then double-click Arcas.exe in your Downloads folder.", `the first step: ${steps[0]}`);
+  assert.ok(!/stage-note/.test(home + css), "the browser's warning is still a note beside the download button");
   assert.ok(/Downloads/.test(steps[0]) && /Windows protected your PC/.test(steps[1]) && /More info/.test(steps[1]) && /Run anyway/.test(steps[1]), `the first steps: ${steps.slice(0, 2)}`);
   assert.ok(steps[2].includes("Windows asks to install a certificate named Anomaly Hunter local CA, Arcas's old name. It only lets Excel talk to Arcas on this computer. Click Yes."), `the certificate step: ${steps[2]}`);
   assert.ok(/Start here/.test(steps[3]) && /Find problems/.test(steps[3]) && /Practice/.test(steps[3]), `the last step: ${steps[3]}`);
@@ -565,7 +577,8 @@ for (const f of SCRIPTS) {
   const ADMIN = "Arcas could not finish. Your Windows account is not an administrator on this PC. Ask the person who looks after your computers to install it for you.";
   assert.ok([...sup.matchAll(/<summary>([\s\S]*?)<\/summary>/g)].some((m) => text(m[1]).includes(ADMIN)), "support.html has no question for the installer's administrator message");
   // the hero says what changes and what is further down
-  assert.ok(text((/<span class="note">([\s\S]*?)<\/span>/.exec(home) || [])[1] || "") === "Free for Windows with desktop Excel.", "the hero's note");
+  // AH-227 W-21: what it costs and where it opens, in that order
+  assert.ok(text((/<span class="note">([\s\S]*?)<\/span>/.exec(home) || [])[1] || "") === "Free. It opens inside desktop Excel on Windows.", "the hero's note");
   // the IT section is named for who reads it, and says a person can skip it (on the support page since AH-159)
   const it = (/<section\b[^>]*\sid="it"[\s\S]*?<\/section>/.exec(sup) || [""])[0];
   assert.equal(text((/<h2\b[^>]*>([\s\S]*?)<\/h2>/.exec(it) || [])[1] || ""), "For your IT team", "the IT section's heading");
@@ -573,7 +586,7 @@ for (const f of SCRIPTS) {
   assert.deepEqual([...it.matchAll(/<dt>([^<]+)<\/dt>/g)].map((m) => m[1]), ["Price", "Who can install it", "Internet use", "What leaves this PC"], "the IT section's items");
   // the sample's filters and the checks table in plain names
   assert.deepEqual([...home.matchAll(/<button type="button" data-kind="(\w+)"[^>]*>([^<]+)</g)].map((m) => [m[1], m[2]]),
-    [["all", "All findings"], ["recon", "Totals that don't add up"], ["keying", "Typing slips"], ["label", "Same word, typed two ways"], ["time", "Odd jumps over time"]], "the sample's filters");
+    [["all", "All findings"], ["recon", "Totals that don't add up"], ["keying", "Typing slips"], ["label", "Spelling"], ["time", "Dates"]], "the sample's filters"); // AH-227 W-07: the rulebook's W13 names
   for (const old of ["Reconciliation breaks", "Keying errors<span", "Label mismatches", "Temporal outliers"]) assert.ok(!home.includes(old), `the home page still says ${old}`);
   // the maker's phone and email come before his photo on a phone, or the photo stays small: here it stays a third wide
   assert.ok(/@media \(max-width: 760px\)[\s\S]*\.maker img\s*\{[^}]*width:\s*min\(33%, 240px\)/.test(css), "the maker's photo fills a phone's width");
@@ -662,7 +675,7 @@ function woff2(file) {
   // plain words in the site's own copy (the engine's and the pane's words stay theirs, held by test_site_sample.py): a
   // detail box names its checks as the filters do
   const said = [...home.matchAll(/<dt>Checks?<\/dt><dd>([^<]*)<\/dd>/g)].map((m) => m[1]);
-  assert.deepEqual(said, ["Totals that don't add up, typing slips", "Totals that don't add up, typing slips, odd jumps over time", "Same word, typed two ways", ...Array(4).fill("Odd jumps over time")], "the detail boxes' checks are not the filters' plain names");
+  assert.deepEqual(said, ["Totals that don't add up, typing slips", "Totals that don't add up, typing slips, dates", "Spelling", ...Array(4).fill("Dates")], "the detail boxes' checks are not the filters' plain names");
 }
 // ---- AH-148 fix round 1, a blind design review: the sample's caption read like a note to a developer, a "≠" asked a
 // reader to know the sign, "John's relay" named neither John nor a relay to a stranger, and the questions looked like
@@ -671,7 +684,10 @@ function woff2(file) {
   const home = html["index.html"], words = (s) => s.replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
   const cap = words((/<figcaption class="ws-foot" id="ws-cap">([\s\S]*?)<\/figcaption>/.exec(home) || ["", ""])[1]);
   assert.ok(cap.split(/[.:;] /).length <= 3 && cap.split(". ").length <= 2 && !/test|source/.test(cap), `the sample's caption is not two short plain sentences: "${cap}"`);
-  for (const fact of ["engine's own", "level 5 of 10", "recommended", "Click a flagged row", "the row's own numbers", "the column's usual spelling"]) assert.ok(cap.includes(fact), `the sample's caption no longer says "${fact}"`);
+  for (const fact of ["engine's own", "level 5 of 10", "recommended", "the row's own numbers", "the column's usual spelling"]) assert.ok(cap.includes(fact), `the sample's caption no longer says "${fact}"`);
+  // AH-227 W-06: the how-to sat under the table, 1,165 px down; it is said over the sheet, before its tabs, and only there
+  const how = home.indexOf('<p class="ws-how">Click a flagged row, then Accept its fix.</p>');
+  assert.ok(how > home.indexOf('id="preview"') && how < home.indexOf('<div class="tabs"') && !/Click a flagged row/.test(cap), "the sample's how-to is not over the sheet, before its tabs");
   for (const p of PAGES) assert.ok(!html[p].includes("≠"), `${p}: a "≠" a reader must know the sign to read`);
   // the three places it was said on the home page are the download's facts, the IT list (support.html) and the Ask AI
   // check (checks.html) since AH-159
@@ -696,7 +712,7 @@ function woff2(file) {
   assert.ok(img.includes('alt="The Arcas pane after a scan: 5 of 300 rows look wrong, and the rows to check start with Row 22 and Row 11, each with its reason"'), `the pane's screenshot's alt is not its window's: ${img}`);
   const shotCss = (/(?:^|\})\s*\.shot img\s*\{([^}]*)\}/.exec(css) || ["", ""])[1];
   assert.ok(/aspect-ratio:\s*360 \/ 364/.test(shotCss) && /object-fit:\s*cover/.test(shotCss) && /object-position:\s*50% \d+%/.test(shotCss) && /width:\s*360px/.test(shotCss), `styles.css: the pane's screenshot is not a 360 x 364 window drawn 1:1: ${shotCss}`);
-  assert.ok(/^The Arcas pane after a scan of a 300-row sales sheet\b/.test(words((/<figcaption>([\s\S]*?)<\/figcaption>/.exec(shot) || ["", ""])[1])), "the pane's screenshot has no caption that says what sheet it is");
+  assert.ok(/^The Arcas pane after a scan of a longer sales sheet of 300 rows\b/.test(words((/<figcaption>([\s\S]*?)<\/figcaption>/.exec(shot) || ["", ""])[1])), "the pane's screenshot has no caption that says what sheet it is");
   // beside the short list of checks since AH-159, after the sample
   const checks = (/<section\b[^>]*\sid="checks"[\s\S]*?<\/section>/.exec(home) || [""])[0];
   assert.ok(home.indexOf('class="shot') > home.indexOf('id="preview"') && checks.includes('<figure class="shot'), "the pane's screenshot is not in the checks, after the sample");
@@ -779,12 +795,75 @@ function woff2(file) {
     assert.ok(!m, `${p} still promises a result: "${m && m[0]}"`);
   }
   const proof = (/<section\b[^>]*\sid="proof"[\s\S]*?<\/section>/.exec(home) || [""])[0];
-  assert.ok(/<dt>0<\/dt>\s*<dd>correct rows called probably wrong in those test sheets, out of /.test(proof), "the proof strip's 0 does not say it was in those test sheets");
+  assert.ok(/<dt>0<\/dt>\s*<dd>correct rows called probably wrong in those \d+ test sheets, out of /.test(proof), "the proof strip's 0 does not say it was in those test sheets");
   const note = (/<\/dl>\s*<p class="proof-note[^"]*">([\s\S]*?)<\/p>/.exec(proof) || ["", ""])[1];
   assert.equal(note.replace(/<[^>]+>/g, "").trim(), "Real sheets are messier than test sheets. When Arcas misses something, tell John, and the next version learns from it.", "no line right under the proof strip that says Arcas can miss");
   assert.ok(note.includes('<a href="#contact">tell John</a>') && ids(home).includes("contact"), "the line under the proof strip does not link the contact form");
   assert.ok(/(?:^|\})\s*\.proof-note\s*\{[^}]*max-width:\s*var\(--measure\)/.test(css), "styles.css: the line under the proof strip is not held to the measure");
   assert.ok(/<p id="list-hint" class="hint">[^<]*Check each one before you accept: you know your data best\.[^<]*<\/p>/.test(pane), "the pane's list does not ask to check each row before Accept");
+}
+// ---- AH-227 (the UX study, 2026-11-25; W- for the website, P- for the privacy page). Each item a person met: a focus
+// ring they could not see, a how-to under the table, two names for one check, tech words, a phone sent to an .exe ----
+{
+  const miss = [];
+  const want = (ok, what) => { if (!ok) miss.push(what); };
+  const words = (s) => s.replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&gt;/g, ">").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
+  const home = html["index.html"], sup = html["support.html"], checks = html["checks.html"];
+  const sectionOf = (src, id) => ([...src.matchAll(/<section\b[^>]*\sid="([\w-]+)"[\s\S]*?<\/section>/g)].find((m) => m[1] === id) || [""])[0];
+  // W-01, W-02: a ring in currentColor was paper on the header's paper (Download) and navy on the box's navy head (Accept)
+  want(css.includes(".links .btn-trim:focus-visible { outline-color: var(--ink); }"), "W-01 styles.css: the header's Download has no navy focus ring");
+  want(css.includes(".m-head .btn-primary:focus-visible { outline-color: var(--gold-hi); }"), "W-02 styles.css: a detail box's Accept has no gold ring on the navy head");
+  // W-09: a phone cannot run Arcas.exe, so the download section's main button there emails the link, as the dock does
+  const stage = (/<div class="stage[\s\S]*?<\/div>/.exec(sectionOf(home, "download")) || [""])[0];
+  want(stage.includes(`<a class="btn btn-primary phone-dl" href="${SELF_MAIL}">Email yourself the link</a>`), "W-09 #download: no Email yourself the link for a phone");
+  want(/@media \(max-width: 760px\)[\s\S]*#download \.stage > a\.btn-primary:not\(\.phone-dl\) \{ display: none; \}/.test(css) && /(?:^|\})\s*\.phone-dl \{ display: none; \}/.test(css), "W-09 styles.css: the phone's and the computer's download buttons are not each shown on their own screen");
+  want(/<div class="hero-cta"><a class="btn btn-primary" href="#download">Download for Windows<\/a>/.test(home), "W-09: the hero's buttons changed");
+  // W-03, W-14: Email John first; a thank-you inside the form, the page and what was typed kept
+  want(/<p id="c-thanks" role="status" hidden>Thanks\. [^<]+<\/p>/.test(home), "W-14 index.html: no thank-you status inside the contact form");
+  // W-15: an empty form is told what to do, in a sentence
+  const sjs = read("support.js");
+  want(sjs.includes('needed: [["summary", "write a short summary"], ["details", "say what happened"], ["clean", "tick the box that says it has no key or private data"]],'), "W-15 support.js: the support form's missing fields are not said as what to do");
+  // W-16: IT's facts lead on to IT's section, which names every address Arcas reaches, read from the code
+  const it = sectionOf(sup, "it"), fileFacts = (/<details class="[^"]*">\s*<summary>File details for IT<\/summary>[\s\S]*?<\/details>/.exec(home) || [""])[0];
+  want(fileFacts.includes('<a href="support.html#it">More for your IT team</a>'), "W-16 the File details for IT box does not lead to support.html#it");
+  const office = (/<script src="https:\/\/([\w.-]+)\/lib\/1\/hosted\/office\.js"><\/script>/.exec(fs.readFileSync(path.join(SITE, "..", "frontend", "taskpane.html"), "utf8")) || [])[1];
+  const client = fs.readFileSync(path.join(SITE, "..", "backend", "anomaly_hunter", "ai", "client.py"), "utf8");
+  const gemini = (/^GEMINI_URL = "https:\/\/([\w.-]+)\//m.exec(client) || [])[1], relayHost = (/^RELAY_URL = os\.environ\.get\("ANOMALY_HUNTER_RELAY", "https:\/\/([\w.-]+)"\)/m.exec(client) || [])[1];
+  want(office && gemini && relayHost && [office, gemini, relayHost].every((h) => it.includes(` https://${h}`)), `W-16 #it does not name ${[office, gemini, relayHost]}`);
+  want(!/one command/.test(it) && it.includes('removed from <a href="#uninstall">Settings &gt; Apps</a>'), "W-16 #it still says removed with one command");
+  // W-17: every page leads to the case studies in its footer; the checks and the cases end on one next step
+  for (const p of PAGES) want(/<nav class="reveal-item" aria-label="Footer">[\s\S]*<a href="cases\.html">Real examples<\/a>[\s\S]*<\/nav>/.test(html[p]), `W-17 ${p}: no Real examples in the footer`);
+  for (const p of ["checks.html", "cases.html"]) {
+    const main = (/<main[\s\S]*<\/main>/.exec(html[p]) || [""])[0];
+    want(/<p class="next-step[^"]*"><a class="btn btn-primary" href="index\.html#download">Try it on your own sheet<\/a><\/p>\s*<\/div>\s*<\/section>\s*<\/main>$/.test(main), `W-17 ${p}: it does not end on Try it on your own sheet`);
+  }
+  // W-20: the pane's picture is of another sheet, longer than the sample: said so
+  want(home.includes("<figcaption>The Arcas pane after a scan of a longer sales sheet of 300 rows, not the sample above: it lists the rows to check, worst first.</figcaption>"), "W-20 the pane's caption does not say it is another, longer sheet");
+  // W-23, W-29: the notice line holds no link (the hero and the header have Download); under 360 px it is one short line
+  for (const p of [...PAGES, MISSING]) { const n = (/<aside class="notice-bar"[\s\S]*?<\/aside>/.exec(p === MISSING ? read(MISSING) : html[p]) || [""])[0];
+    want(n && !/<a\b/.test(n) && words(n) === "Free for Windows · a scan never leaves your PC" && n.includes('<span class="wide-only"> · a scan never leaves your PC</span>'), `W-29 ${p}: the notice line ${words(n)}`); }
+  want(/@media \(max-width: 359px\)[^{]*\{[^}]*\.wide-only \{ display: none; \}/.test(css), "W-23 styles.css: the notice line is not shorter under 360 px");
+  // W-24, W-33: eight checks; Ask AI runs only when asked; the part that names the sample, as a phone shows it too
+  const lede = words((/<section class="page-head">[\s\S]*?<p class="calm"[^>]*>([\s\S]*?)<\/p>/.exec(checks) || ["", ""])[1]);
+  want(lede === 'Eight checks read every row of your sheet. Ask AI runs only when you ask. Each check\'s "In the sample" says where the sample on the home page has one.', `W-24 checks.html's lede: ${lede}`);
+  // W-28: on a phone the key is one line and the overlap note goes
+  want(/@media \(max-width: 760px\)[\s\S]*\.typology \.overlap \{ display: none; \}/.test(css), "W-28 styles.css: the overlap note still shows on a phone");
+  // W-30: the support card names John's phone and email once, and its button says what it does, like the home form's
+  const card = (/<section class="form-card"[\s\S]*?<\/section>/.exec(sup) || [""])[0];
+  want(card.split('href="tel:').length === 2 && card.split(`href="mailto:${EMAIL}"`).length === 2 + 1, `W-30 support.html: the card gives the phone ${card.split('href="tel:').length - 1} times`);
+  want(card.includes('<button class="btn btn-primary" type="submit">Prepare my question for GitHub</button>'), "W-30 support.html: the question form's button");
+  // W-31: no section numbers; the privacy card names its section by a link
+  want(!/§|counter\(sec\)/.test(css) && !/§/.test(html["privacy.html"] + html["terms.html"]), "W-31 a § number is still drawn");
+  want(html["privacy.html"].includes('The parts listed under <a href="#use">What AI help sends</a>'), "W-31 privacy.html's card does not link What AI help sends");
+  // W-32: the page states the contrast check reads, counted the way the browser half counts them
+  want(/on 51 page states/.test(sup) && !/47 page states/.test(sup), "W-32 support.html does not say 51 page states");
+  // W-34: "the form below" is a link to it
+  want(sectionOf(home, "maker").includes('or write with <a href="#contact">the form below</a>.'), "W-34 #maker: the form below is not a link");
+  // W-12: the home page's reading text at body size, paid for by smaller section headings
+  want(css.includes(".sec-title { grid-column: 1 / span 10; font-size: clamp(min(var(--fs-3), 11vw), 4.4vw, var(--fs-6)); }"), "W-12 styles.css: the section headings did not shrink");
+  // P-37: the privacy page's five lines in short take a heading's place in the outline, never a bold label
+  want(/<div class="short reveal-item">\s*<h2>In short<\/h2>\s*<ul>/.test(html["privacy.html"]), "P-37 privacy.html: no In short list at the top");
+  assert.deepEqual(miss, [], `AH-227:\n${miss.join("\n")}`);
 }
 // ---- AH-193 (the unslop pass, 2026-11-18): gold for the drawn lines on paper, the sample's data at 400 so its flagged
 // cells' 800 stands out, motion.js asked for beside the stylesheet, and every page's bytes paid for like its height ----
@@ -821,7 +900,11 @@ function woff2(file) {
   // numbers for stand-ins on this PC and that Check words sends its words as they are (127 bytes gzipped, held the same way)
   // AH-217 raised privacy.html's by 100: the twins' sentences that the workbook keeps the subject rules that held (their
   // kind and headers, never a cell) and every later scan checks them with no AI (106 bytes gzipped, held the same way)
-  const CAPS = { "index.html": 89900, "privacy.html": 85850, "support.html": 82400, "terms.html": 79400, "thanks.html": 78200, "checks.html": 79500, "cases.html": 79200, "code-signing.html": 78900 };
+  // AH-227 raised each cap by 1,350 to 1,650: the UX study's fixes, most of it shared by every page (styles.css about 700
+  // bytes, home.js about 480, motion.js 160: the box's focus, its cell in view, the bar beside the sample, the pane's step
+  // 3, the landing that skips the entrance, and the comments that say why), the rest each page's own words (the home
+  // page's most: the how-to over the sheet, the phone's download, step 1's browser warning, the thank-you in the form)
+  const CAPS = { "index.html": 91550, "privacy.html": 87300, "support.html": 83900, "terms.html": 80850, "thanks.html": 79550, "checks.html": 80900, "cases.html": 80650, "code-signing.html": 80250 };
   for (const p of PAGES) {
     const files = [p, ...new Set([...html[p].matchAll(/\s(?:src|href)="([a-z-]+\.(?:css|js))"/g)].map((m) => m[1]))];
     const sizes = files.map((f) => [f, zlib.gzipSync(fs.readFileSync(path.join(SITE, f)), { level: 9 }).length]);
@@ -989,7 +1072,8 @@ const done = async ({ ctx, problems, outside }, label, allowed = []) => {
       return { hidden: d.hidden, shown: d.getClientRects().length > 0, bottom: Math.round(r.bottom), top: Math.round(r.top), h: innerHeight, height: Math.round(r.height) }; });
     const d0 = await dock();
     want(d0 && d0.hidden && !d0.shown, `AH-126 download bar at ${width}px (${motion}), at load: ${JSON.stringify(d0)}`);
-    await p.evaluate(() => { const a = document.querySelector(".hero-cta .btn-primary") || document.querySelector(".hero-copy"); let top = 0; for (let e = a; e; e = e.offsetParent) top += e.offsetTop; scrollTo(0, top + a.offsetHeight + 200); });
+    // past the sample too since AH-227 W-10 (the bar lay over it while it was more than 30% on screen): at the checks
+    await p.evaluate(() => { const a = document.getElementById("checks"); let top = 0; for (let e = a; e; e = e.offsetParent) top += e.offsetTop; scrollTo(0, top + 10); });
     await p.waitForTimeout(600);
     const d1 = await dock();
     if (width > 760) want(d1 && d1.hidden, `AH-126 download bar at ${width}px: shown on a wide screen ${JSON.stringify(d1)}`);
@@ -1021,8 +1105,8 @@ const done = async ({ ctx, problems, outside }, label, allowed = []) => {
     const t = await open("support.html", { width: 390, height: 844, motion: "reduce" });
     const p = t.page;
     const tel = await p.evaluate(() => [...document.querySelectorAll('a[href^="tel:"]')].map((a) => [a.getAttribute("href"), a.textContent, a.getClientRects().length > 0]));
-    // AH-135: twice, the line above the form and the contact block under it, both John's number and both shown
-    want(JSON.stringify(tel) === JSON.stringify([["tel:+17702659930", "(770) 265-9930", true], ["tel:+17702659930", "(770) 265-9930", true]]), `AH-126 support: the phone links ${JSON.stringify(tel)}`);
+    // AH-135: the line above the form; AH-227 W-30: once (the contact block under the form said it again)
+    want(JSON.stringify(tel) === JSON.stringify([["tel:+17702659930", "(770) 265-9930", true]]), `AH-126 support: the phone links ${JSON.stringify(tel)}`);
     want(await p.evaluate(() => /John Nguyen/.test(document.getElementById("page").textContent)), "AH-126 support: John Nguyen is not named");
     await p.fill("#summary", "x"); await p.fill("#details", "y"); await p.check("#clean");
     await p.click('button[type="submit"]');
@@ -1117,7 +1201,7 @@ const done = async ({ ctx, problems, outside }, label, allowed = []) => {
         invalid: ["c-name", "c-message", "c-public"].filter((id) => document.getElementById(id).getAttribute("aria-invalid") === "true").join(),
         described: ["c-name", "c-message", "c-public"].filter((id) => document.getElementById(id).getAttribute("aria-describedby") === "c-missing").join() }; });
     const e = await look();
-    want(JSON.stringify(e) === JSON.stringify({ focus: "c-message", text: "Please add a message, the box that says what you type will be public.", shown: true, invalid: "c-message,c-public", described: "c-message,c-public" }), `${label}: an empty send ${JSON.stringify(e)}`);
+    want(JSON.stringify(e) === JSON.stringify({ focus: "c-message", text: "Please write a message and tick the box that says it will be public.", shown: true, invalid: "c-message,c-public", described: "c-message,c-public" }), `${label}: an empty send ${JSON.stringify(e)}`);
     if (motion === "reduce") { const bad = await p.evaluate(contrastProblems); want(!bad.length, `${label}: contrast with the message shown ${JSON.stringify(bad)}`); }
     // typed with the keyboard, as a person types (a DOM0 handler once swallowed every key, CLAUDE.md)
     if (name) { await p.focus("#c-name"); await p.keyboard.type(name); }
@@ -1148,12 +1232,14 @@ const done = async ({ ctx, problems, outside }, label, allowed = []) => {
         && (message.startsWith(u.searchParams.get("message")) && (blocked || [...message].length < 400 ? u.searchParams.get("message") === message : u.searchParams.get("message").length < message.length)),
         `${label}: the GitHub link ${link.slice(0, 300)}`);
     }
-    // then our own thank-you page, brought in the way a link brings a page: the same document, never a reload
-    await p.waitForURL((u) => u.pathname === "/thanks.html", { timeout: 4000 }).catch(() => want(false, `${label}: no thank-you page after sending`));
-    await p.waitForFunction(() => document.querySelectorAll("main").length === 1, null, { timeout: 3000 }).catch(() => {});
-    const th = await p.evaluate(() => ({ kept: window.__kept, page: document.getElementById("page").dataset.page, h1: document.querySelector("h1").textContent, robots: (document.querySelector('meta[name="robots"]') || {}).content || "",
-      canonical: document.querySelector('link[rel="canonical"]').href, xss: document.querySelectorAll("img[src=x]").length }));
-    want(th.kept === "same document" && th.page === "thanks" && th.h1 === "One more step to send your message" && th.canonical === SITE_URL + "thanks.html" && th.xss === 0, `${label}: the thank-you page ${JSON.stringify(th)}`);
+    // then a thank-you inside the form, and the page kept with what was typed (AH-227 W-14, John: "Email first, keep
+    // message"; it was thanks.html in the same document, which emptied the form and left Email John nothing to send)
+    await p.waitForTimeout(500);
+    const th = await p.evaluate(() => { const s = document.getElementById("c-thanks");
+      return { kept: window.__kept, at: location.pathname, page: document.getElementById("page").dataset.page, message: document.getElementById("c-message").value,
+        shown: !!s && !s.hidden && s.getClientRects().length > 0, role: s && s.getAttribute("role"), text: s ? s.textContent : "", xss: document.querySelectorAll("img[src=x]").length }; });
+    want(th.kept === "same document" && th.at === "/index.html" && th.page === "home" && th.message.length > 0 && message.startsWith(th.message) && th.shown && th.role === "status" && /^Thanks\./.test(th.text) && th.xss === 0,
+      `${label}: the thank-you in the form ${JSON.stringify({ ...th, message: th.message.length })}`);
     await done(t, label, [API]);
   };
   await contact({ width: 390, motion: "reduce" });
@@ -1207,7 +1293,7 @@ const done = async ({ ctx, problems, outside }, label, allowed = []) => {
     await done(t, "AH-133 structured data", [API]);
   }
   assert.deepEqual(miss, [], `John's website list of 2026-11-05 (AH-133):\n${miss.join("\n")}`);
-  console.log("AH-133: the contact form (glide, errors, new tab with no way back, our thank-you page in the same document, a blocked tab and a long message given the link), the photo loaded near the screen at 1x and 2x with CLS 0, the structured data parsed with no CSP report and the questions word for word, the profile links");
+  console.log("AH-133: the contact form (glide, errors, new tab with no way back, a thank-you in the form with the message kept (AH-227), a blocked tab and a long message given the link), the photo loaded near the screen at 1x and 2x with CLS 0, the structured data parsed with no CSP report and the questions word for word, the profile links");
 }
 // ---- AH-135: Email John instead, on both forms. It checks the same fields first, then hands the visitor's own email app
 // a message filled from the form (a mailto link, cut to fit what mail apps take, and said so), and never leaves the page
@@ -1221,12 +1307,12 @@ const done = async ({ ctx, problems, outside }, label, allowed = []) => {
     if (a) { window.__mail.push(e.defaultPrevented ? "stopped" : a.href); e.preventDefault(); } }); };
   for (const [file, width, fill, id, missing, subject, body, cutId] of [
     ["index.html", 390, async (p, long) => { await p.fill("#c-name", "Ana & Bo"); await p.selectOption("#c-topic", "A problem"); await p.fill("#c-message", long ? "😀🧾".repeat(1500) : "It stops at row 3000.\nWhat now? & = + % # ?"); await p.check("#c-public"); },
-      "c-email", "Please add a message, the box that says what you type will be public.", "[Contact]: A problem", "Name: Ana & Bo\r\nTopic: A problem\r\n\r\nIt stops at row 3000.\r\nWhat now? & = + % # ?", "c-mail-cut"],
+      "c-email", "Please write a message and tick the box that says it will be public.", "[Contact]: A problem", "Name: Ana & Bo\r\nTopic: A problem\r\n\r\nIt stops at row 3000.\r\nWhat now? & = + % # ?", "c-mail-cut"],
     // AH-197: the name is optional, and an email with none has no empty "Name:" line
     ["index.html", 390, async (p, long) => { await p.selectOption("#c-topic", "A problem"); await p.fill("#c-message", long ? "😀🧾".repeat(1500) : "It stops at row 3000."); await p.check("#c-public"); },
-      "c-email", "Please add a message, the box that says what you type will be public.", "[Contact]: A problem", "Topic: A problem\r\n\r\nIt stops at row 3000.", "c-mail-cut"],
+      "c-email", "Please write a message and tick the box that says it will be public.", "[Contact]: A problem", "Topic: A problem\r\n\r\nIt stops at row 3000.", "c-mail-cut"],
     ["support.html", 1280, async (p, long) => { await p.fill("#summary", "Scan stops"); await p.fill("#version", "v0.1.102"); await p.fill("#details", long ? "😀🧾".repeat(1500) : "Line 1\nline 2 & ?"); await p.check("#clean"); },
-      "email", "Please add a short summary, what happened, the box that says it contains no key or private data.", "[Support]: Scan stops", "Topic: Something isn't working\r\nEngine version: v0.1.102\r\n\r\nLine 1\r\nline 2 & ?", "mail-cut"]]) {
+      "email", "Please write a short summary, say what happened and tick the box that says it has no key or private data.", "[Support]: Scan stops", "Topic: Something isn't working\r\nEngine version: v0.1.102\r\n\r\nLine 1\r\nline 2 & ?", "mail-cut"]]) {
     const t = await open(file, { width, motion: "reduce", init: catcher });
     const p = t.page, label = `AH-135 Email John instead on ${file} at ${width}px${body.startsWith("Topic: A problem") ? ", no name" : ""}`;
     const look = () => p.evaluate(([m, c]) => ({ mail: window.__mail.slice(), at: location.pathname, focus: document.activeElement.id, missing: document.getElementById(m).hidden ? "" : document.getElementById(m).textContent,
@@ -1352,12 +1438,12 @@ const done = async ({ ctx, problems, outside }, label, allowed = []) => {
         described: ["summary", "details", "clean"].filter((id) => (document.getElementById(id).getAttribute("aria-describedby") || "").split(" ").includes("missing")).join() }; });
     const want = (got, exp, step) => { if (JSON.stringify(got) !== JSON.stringify(exp)) short.push(`AH-114 support form ${step}: ${JSON.stringify(got)}, want ${JSON.stringify(exp)}`); };
     await p.click('button[type="submit"]');
-    want(await look(), { focus: "summary", text: "Please add a short summary, what happened, the box that says it contains no key or private data.", shown: true, fieldShown: true, invalid: "summary,details,clean", described: "summary,details,clean" }, "after an empty submit");
+    want(await look(), { focus: "summary", text: "Please write a short summary, say what happened and tick the box that says it has no key or private data.", shown: true, fieldShown: true, invalid: "summary,details,clean", described: "summary,details,clean" }, "after an empty submit");
     await p.keyboard.type("Scan stops");
     const typed = await look();
     want([typed.invalid, typed.described], ["details,clean", "details,clean"], "once the summary is typed");
     await p.click('button[type="submit"]');
-    want(await look(), { focus: "details", text: "Please add what happened, the box that says it contains no key or private data.", shown: true, fieldShown: true, invalid: "details,clean", described: "details,clean" }, "after a second submit");
+    want(await look(), { focus: "details", text: "Please say what happened and tick the box that says it has no key or private data.", shown: true, fieldShown: true, invalid: "details,clean", described: "details,clean" }, "after a second submit");
     await p.keyboard.type("It stops"); await p.check("#clean");
     const filled = await look();
     want([filled.invalid, filled.described, filled.text], ["", "", ""], "once everything is filled");
@@ -1550,15 +1636,19 @@ const onTop = (page) => page.evaluate(async () => {
   await p.click('.typology button[data-kind="all"]');
   // open moves focus into the box (it is a dialog); Escape and Close give it back to the row; a click outside closes it
   await p.focus('.rowbtn[aria-controls="m11"]'); await p.keyboard.press("Enter");
-  assert.deepEqual(await state(), { state: "found", counts: "7 2 2 1 5", open: "m11", focus: "m-close" });
+  // ... on its title since AH-227 W-05 (on Close, Tab left the box), so focus's class is the title's, none
+  assert.deepEqual(await state(), { state: "found", counts: "7 2 2 1 5", open: "m11", focus: "" });
+  assert.ok(await p.evaluate(() => document.activeElement.matches("#m11 .m-head b")), "the box's title does not have focus");
   await p.keyboard.press("Escape"); assert.deepEqual([(await state()).open, await p.evaluate(() => document.activeElement.textContent)], ["", "11"]);
   // Tab out of the box closes it, and focus goes on where Tab took it: the box stayed open, floating over the rows,
   // with focus already past it (AH-132)
   await p.keyboard.press("Enter"); assert.equal((await state()).open, "m11");
-  // (AH-171: the box's Accept sits before its Close, reached with Shift+Tab, inside the box, which stays open)
-  await p.keyboard.down("Shift"); await p.keyboard.press("Tab"); await p.keyboard.up("Shift");
-  assert.deepEqual([(await state()).open, await p.evaluate(() => document.activeElement.className)], ["m11", "btn btn-primary m-accept"], "Shift+Tab from Close to Accept");
+  // (AH-171: the box's Accept sits before its Close; AH-227 W-05: from the title Tab reaches Accept, then Close, inside
+  // the box, which stays open)
   await p.keyboard.press("Tab");
+  assert.deepEqual([(await state()).open, await p.evaluate(() => document.activeElement.className)], ["m11", "btn btn-primary m-accept"], "Tab from the title to Accept");
+  await p.keyboard.press("Tab");
+  assert.deepEqual([(await state()).open, await p.evaluate(() => document.activeElement.className)], ["m11", "m-close"], "Tab from Accept to Close");
   await p.keyboard.press("Tab");
   assert.deepEqual(await p.evaluate(() => [[...document.querySelectorAll(".matrix")].filter((m) => !m.hidden).length, !!document.activeElement.closest(".matrix"), document.activeElement !== document.body]), [0, false, true], "Tab out of a detail box");
   await p.click('tr[data-kind="label"] td.why'); assert.equal((await state()).open, "m31");
@@ -1714,7 +1804,8 @@ for (const [width, height, min] of [[1280, 800, 340], [390, 844, 300]]) {
   await p.waitForTimeout(300);
   const r = await p.evaluate(() => { const i = document.querySelector("#checks .shot img"), b = i.getBoundingClientRect();
     return { w: i.clientWidth, h: i.clientHeight, natural: [i.naturalWidth, i.naturalHeight], right: Math.round(b.right), screen: innerWidth, cls: window.__cls }; });
-  assert.ok(r.w >= min && r.w <= 360 && Math.abs(r.h - r.w * 364 / 360) <= 1 && r.right <= r.screen && r.natural.join() === "360,900" && r.cls === 0, `AH-171 the pane's picture at ${width} px: ${JSON.stringify(r)}`);
+  // AH-227 W-35: on a phone a window of the picture at 1:1, its 364 px height whatever width the phone leaves it
+  assert.ok(r.w >= min && r.w <= 360 && Math.abs(r.h - (width > 760 ? r.w * 364 / 360 : 364)) <= 1 && r.right <= r.screen && r.natural.join() === "360,900" && r.cls === 0, `AH-171 the pane's picture at ${width} px: ${JSON.stringify(r)}`);
   await done(t, `AH-171 the pane's picture at ${width} px`, [API]);
 }
 console.log("AH-171: the pane's picture drawn 1:1 at 1280 and on a phone, its box kept (CLS 0)");
@@ -2406,7 +2497,7 @@ async function supportForm(p) {
   const submit = async () => { await p.click('button[type="submit"]'); return look(); };
   assert.equal((await look()).ready, false, 'the "Ready" box shows before anything is typed');
   let r = await submit();
-  assert.deepEqual([r.missing, r.ready], ["Please add a short summary, what happened, the box that says it contains no key or private data.", false]);
+  assert.deepEqual([r.missing, r.ready], ["Please write a short summary, say what happened and tick the box that says it has no key or private data.", false]);
   const cases = [
     { summary: '"><script>alert(1)</script> & ?x=1#y', version: "v0.1.102 (2026-10-20)", details: "Line 1\nemoji 😀🧾 & = + % # ?\n\"><img src=x onerror=alert(1)>", topic: 1 },
     { summary: "plain", version: "", details: "a".repeat(4000), topic: 3 },
@@ -2436,7 +2527,7 @@ async function supportForm(p) {
   assert.equal(await p.$$eval("img[src=x], #result script", (x) => x.length), 0);
   await p.uncheck("#clean");
   r = await submit();
-  assert.deepEqual([r.missing, r.ready], ["Please add the box that says it contains no key or private data.", false]);
+  assert.deepEqual([r.missing, r.ready], ["Please tick the box that says it has no key or private data.", false]);
   // the FAQ opens and closes from the keyboard
   await p.focus("details:nth-of-type(2) summary"); await p.keyboard.press("Enter");
   assert.ok(await p.$eval("details:nth-of-type(2)", (d) => d.open));
@@ -2480,6 +2571,8 @@ for (const width of [1280, 390]) {
     }
     await done(t, `contrast of ${file} at ${width}px`, [API]);
   }
+  // AH-227 W-32: the support page's accessibility list says how many (it said 47 while 51 were read)
+  assert.equal(checked, +((/on (\d+) page states/.exec(read("support.html")) || [])[1]), "support.html does not say how many page states the contrast check reads");
   console.log(`contrast: every text, text box edge and placeholder over WCAG AA in ${checked} page states`);
 }
 // ---- the sample's "⋯" rows stay rows (AH-87 fix round 1): the skip link's first class, .skip, was also the separator
@@ -2672,9 +2765,9 @@ const press = async (p, sel) => { const b = await p.locator(sel).boundingBox(); 
     page: document.getElementById("page").dataset.page, current: document.querySelector('header a[aria-current="page"]').getAttribute("href"),
     desc: document.querySelector('meta[name="description"]').content, canonical: document.querySelector('link[rel="canonical"]').href,
     og: document.querySelector('meta[property="og:url"]').content, focus: document.activeElement.tagName + (document.activeElement.closest("#page") ? " in #page" : ""),
-    brand: document.querySelector("header .brand").getAttribute("href"), notice: document.querySelector(".notice-bar a").getAttribute("href"), gl: !!document.getElementById("field") }));
+    brand: document.querySelector("header .brand").getAttribute("href"), notice: !!document.querySelector(".notice-bar a"), gl: !!document.getElementById("field") }));
   assert.deepEqual(after, { marker: 1, title: TITLE["privacy.html"], body: "privacy", mains: 1, page: "privacy", current: "privacy.html",
-    canonical: PUBLIC["privacy.html"], og: PUBLIC["privacy.html"], desc: after.desc.startsWith("What Arcas keeps") ? after.desc : "(the home page's)", focus: "H1 in #page", brand: "index.html", notice: "index.html#download", gl: true }, "the move to privacy.html");
+    canonical: PUBLIC["privacy.html"], og: PUBLIC["privacy.html"], desc: after.desc.startsWith("What Arcas keeps") ? after.desc : "(the home page's)", focus: "H1 in #page", brand: "index.html", notice: false, gl: true }, "the move to privacy.html"); // AH-227 W-29: the notice line holds no link
   assert.equal(w.together, 2, "the new page did not go in while the old one was still there");
   assert.ok(w.both >= 3 && w.anims === 2, `the two pages did not move together (${w.both} frames with both, ${w.anims} moving at once)`);
   const whites = cast.frames.map(whiteShare);
@@ -2696,7 +2789,7 @@ const press = async (p, sel) => { const b = await p.locator(sel).boundingBox(); 
   assert.deepEqual(await p.evaluate(() => [document.querySelector("dl.anchor").hasAttribute("data-loading"), document.getElementById("preview").hasAttribute("data-loading")]), [false, false], "a skeleton on a visit back");
   await p.waitForTimeout(1400);
   await p.click('.rowbtn[aria-controls="m11"]');
-  assert.deepEqual(await p.evaluate(() => [document.getElementById("m11").hidden, document.activeElement.className]), [false, "m-close"], "the workspace's detail box after Back");
+  assert.deepEqual(await p.evaluate(() => [document.getElementById("m11").hidden, document.activeElement.matches("#m11 .m-head b")]), [false, true], "the workspace's detail box after Back");
   await p.keyboard.press("Escape");
   await p.click('.typology button[data-kind="label"]');
   assert.equal(await p.$$eval("#p-found .grid tbody tr:not(.skip)", (rs) => rs.filter((r) => getComputedStyle(r).opacity === "1").map((r) => r.querySelector("th").textContent).join()), "31", "the filters after Back");
@@ -2719,10 +2812,10 @@ const press = async (p, sel) => { const b = await p.locator(sel).boundingBox(); 
   // the support form works on a page reached by a transition
   assert.equal(await p.evaluate(() => window.__marker), 1);
   await supportForm(p);
-  // privacy.html, then its link to the home page's download: it lands at the anchor
+  // privacy.html, then its link to the home page's download: it lands at the anchor (the footer's since AH-227 W-29)
   await p.click('footer a[href="privacy.html"]');
   await p.waitForURL((u) => u.pathname === "/privacy.html"); await p.waitForFunction(() => document.querySelectorAll("main").length === 1 && document.body.id === "privacy");
-  await p.click('.notice-bar a[href="index.html#download"]');
+  await p.click('footer a[href="index.html#download"]');
   await p.waitForURL((u) => u.pathname === "/index.html" && u.hash === "#download");
   await p.waitForFunction(() => document.querySelectorAll("main").length === 1 && document.body.id === "home");
   assert.ok(await inView(p, "download"), "privacy.html to index.html#download does not land at the download");
@@ -3272,13 +3365,10 @@ for (const file of PAGES.filter((f) => /<header[\s\S]*aria-current="page"[\s\S]*
   // 6. on a phone the notice line's last line holds more than "Download", on every page
   for (const file of [...PAGES, MISSING]) {
     const t = await open(file, { width: 390, height: 844, motion: "reduce" });
-    const r = await t.page.evaluate(() => { const p = document.querySelector(".notice-bar p"), a = p.querySelector("a"), top = (x) => Math.round(x.getBoundingClientRect().top);
-      const w = document.createTreeWalker(p, NodeFilter.SHOW_TEXT); let dot = null; for (let n = w.nextNode(); n; n = w.nextNode()) if (!a.contains(n) && n.textContent.includes("·")) dot = n;
-      const q = document.createRange(), i = dot.textContent.lastIndexOf("·"); q.setStart(dot, i); q.setEnd(dot, i + 1);
-      // the link's words, not its box: on a phone its box reaches 12 px above them (a 44 px target, AH-148)
-      const words = document.createRange(); words.selectNodeContents(a);
-      return { dot: Math.round(q.getBoundingClientRect().top), link: top(words), lines: new Set([...(() => { const all = document.createRange(); all.selectNodeContents(p); return all.getClientRects(); })()].map((x) => Math.round(x.top))).size }; });
-    want(Math.abs(r.dot - r.link) <= 6, `S6 ${file} at 390 px: "Download" alone on the notice line's last line ${JSON.stringify(r)}`);
+    // AH-227 W-29: the line holds no link now ("Download" was the word left alone on its last line): it is one line
+    const r = await t.page.evaluate(() => { const all = document.createRange(); all.selectNodeContents(document.querySelector(".notice-bar p"));
+      return { links: document.querySelectorAll(".notice-bar a").length, lines: new Set([...all.getClientRects()].map((x) => Math.round(x.top))).size }; });
+    want(r.links === 0 && r.lines === 1, `S6 ${file} at 390 px: the notice line ${JSON.stringify(r)}`);
     await done(t, `S6 notice line on ${file}`, file === MISSING ? [] : [API]);
   }
   assert.deepEqual(miss, [], `AH-138 fix round 2:\n${miss.join("\n")}`);
@@ -3356,7 +3446,8 @@ for (const file of PAGES.filter((f) => /<header[\s\S]*aria-current="page"[\s\S]*
     // AH-193 fix round F2 (the blind judge): "Step 1 of 3: reading your sheet… 100%" stood 0.4 s beside a full bar while
     // the list still had reading under way and checking waiting. Whenever the bar is full (its fill over) or "100%"
     // shows, reading is done and checking under way (the third step, Auto-fix's, never runs in the sample)
-    const early = run.filter(([a, x, list, filling]) => (/100%/.test(x) || (a === 1 && !filling)) && !list.startsWith("done,now,"));
+    // ... and once the pane's step 3 shows (AH-227 W-26), checking is done too and highlighting under way
+    const early = run.filter(([a, x, list, filling]) => (/100%/.test(x) || (a === 1 && !filling)) && !(x === STAGES[3] ? list.startsWith("done,done,now,") : list.startsWith("done,now,")));
     want(run.some(([, x]) => /100%/.test(x)) && early.length === 0, `${label}: full or at 100% while a step after reading waits: ${JSON.stringify(early.slice(0, 3))}`);
     if (motion === "reduce") want(r.anims === 0, `${label}: ${r.anims} animations under reduced motion`);
     if (motion !== "reduce") {
@@ -3409,7 +3500,7 @@ console.log(`page transitions: ${measured.moving} ms of motion on screen (${meas
     await p.evaluate(() => document.fonts.ready);
     const c = await p.evaluate(([ASC, DESC, CAP]) => {
       const cs = (sel, k) => getComputedStyle(document.querySelector(sel))[k];
-      const b = document.querySelector("#download .stage .btn"), text = [...b.childNodes].find((n) => n.nodeType === 3 && n.data.trim()), rg = document.createRange();
+      const b = document.querySelector("#download .stage .btn:not(.phone-dl)"), text = [...b.childNodes].find((n) => n.nodeType === 3 && n.data.trim()), rg = document.createRange();
       rg.selectNodeContents(text);
       const r = rg.getBoundingClientRect(), fs = parseFloat(getComputedStyle(b).fontSize), base = r.top + r.height * ASC / (ASC + DESC), i = b.querySelector("svg path").getBoundingClientRect();
       return { kern: [...new Set(["p", ".label", ".btn", "h1", ".notice-bar p", ".grid td"].map((sel) => cs(sel, "fontKerning")))].join(), optical: cs("body", "fontOpticalSizing"),
@@ -4016,7 +4107,9 @@ console.log(`page transitions: ${measured.moving} ms of motion on screen (${meas
       const is = [...m.querySelectorAll("i")].map((i) => i.getBoundingClientRect());
       return { h: Math.round(tb.height), line: b.top >= s.top - 4 && b.bottom <= s.bottom + 4, row: is.length === 60 && is.every((r, k) => r.width > 0.5 && Math.abs(r.top - is[0].top) < 0.5 && (!k || r.left >= is[k - 1].right - 0.01)), inside: b.right <= tb.right && b.left >= s.right };
     });
-    want(map.h === (width > 760 ? 52 : 74) && map.line && map.row && map.inside, `${label}: the map ${JSON.stringify(map)}`);
+    // (on a phone 29 px taller since AH-227 W-06: the how-to's own line over the tabs, paid for by the shorter caption
+    // and the phone's one-line key; the map still adds nothing)
+    want(map.h === (width > 760 ? 52 : 103) && map.line && map.row && map.inside, `${label}: the map ${JSON.stringify(map)}`);
     want((await lit(p)) === "5,11,21,22,31,41,57", `${label}: the map lights rows ${await lit(p)}`);
     for (const [k, rows] of [["label", "31"], ["time", "5,21,22,41,57"], ["all", "5,11,21,22,31,41,57"]]) {
       await p.click(`.typology button[data-kind="${k}"]`); await settle();
@@ -4184,6 +4277,142 @@ console.log(`page transitions: ${measured.moving} ms of motion on screen (${meas
   }
   assert.deepEqual(miss, [], `AH-193 F1:\n${miss.join("\n")}`);
   console.log("AH-193 F1: every detail box's Close and Accept keep their word on one line at 390 and 320 px, and at 320 px with text at 200%, inside the box, its head never wider than the box");
+}
+// ---- AH-227 in the browser (the UX study, 2026-11-25): what a keyboard, a phone and text at 200% met ----
+{
+  const miss = [];
+  const want = (ok, what) => { if (!ok) miss.push(what); };
+  const rgb = (c) => (String(c).match(/[\d.]+/g) || []).slice(0, 3).map((x) => Math.round(+x)).join(",");
+  // W-01, W-02, W-05: the header's Download and a box's Accept show a ring in a colour their ground does not have; a box
+  // opened from the keyboard puts focus on its title, so Tab reaches Accept, then Close, and Enter alone accepts nothing
+  {
+    const t = await open("index.html", { width: 1280, height: 800, motion: "reduce" });
+    const p = t.page;
+    await p.keyboard.press("Tab"); // a keyboard user: :focus-visible from here on
+    await p.focus(".links .btn-trim");
+    const dl = await p.evaluate(() => { const a = document.activeElement, c = getComputedStyle(a);
+      return { on: a.matches(".links .btn-trim:focus-visible"), style: c.outlineStyle, ring: c.outlineColor, ground: getComputedStyle(document.querySelector(".bar")).backgroundColor }; });
+    want(dl.on && dl.style === "solid" && rgb(dl.ring) === "12,25,56" && rgb(dl.ring) !== rgb(dl.ground), `W-01 the header's Download: ring ${JSON.stringify(dl)}`);
+    await p.click("#t-found");
+    await p.focus('.rowbtn[aria-controls="m11"]');
+    await p.keyboard.press("Enter");
+    await p.waitForTimeout(100);
+    const at = () => p.evaluate(() => { const a = document.activeElement; return a.matches(".m-head b") ? "title" : a.matches(".m-accept") ? "accept" : a.matches(".m-close") ? "close" : a.matches(".rowbtn") ? "row " + a.getAttribute("aria-controls") : a.tagName; });
+    const seen = [await at()];
+    await p.keyboard.press("Enter"); // on the title: nothing happens, least of all an Accept
+    seen.push(await p.evaluate(() => (document.querySelector("#r11 td.mended") ? "accepted" : document.getElementById("m11").hidden ? "closed" : "open")));
+    await p.keyboard.press("Tab"); seen.push(await at());
+    const acc = await p.evaluate(() => { const a = document.activeElement, c = getComputedStyle(a); return { on: a.matches(":focus-visible"), style: c.outlineStyle, ring: c.outlineColor, ground: a.closest(".m-head") ? getComputedStyle(a.closest(".m-head")).backgroundColor : "none" }; });
+    want(acc.on && acc.style === "solid" && rgb(acc.ring) === "201,168,90" && rgb(acc.ring) !== rgb(acc.ground), `W-02 a box's Accept: ring ${JSON.stringify(acc)}`);
+    await p.keyboard.press("Tab"); seen.push(await at());
+    await p.keyboard.press("Escape"); seen.push(await at());
+    want(JSON.stringify(seen) === JSON.stringify(["title", "open", "accept", "close", "row m11"]), `W-05 a box from the keyboard: ${JSON.stringify(seen)}`);
+    await done(t, "AH-227 focus", [API]);
+  }
+  // W-04: at 320 px with text at 200% no heading word is cut in two ("consis/tent", "somet/hing"), and h1 and h2 stay
+  // bigger than the body text
+  for (const file of [...PAGES, MISSING]) {
+    const t = await open(file, { width: 320, height: 640, motion: "reduce" });
+    const p = t.page;
+    await p.evaluate(() => { document.documentElement.style.fontSize = "200%"; return document.fonts.ready; });
+    await p.waitForTimeout(100);
+    const r = await p.evaluate(() => { const cut = [], small = [], body = parseFloat(getComputedStyle(document.body).fontSize);
+      for (const h of document.querySelectorAll("h1, h2, h3")) {
+        if (!h.getClientRects().length) continue;
+        if (/^H[12]$/.test(h.tagName) && parseFloat(getComputedStyle(h).fontSize) <= body) small.push(h.textContent.trim());
+        for (let n, w = document.createTreeWalker(h, NodeFilter.SHOW_TEXT); (n = w.nextNode());) for (const m of n.data.matchAll(/\S+/g)) {
+          const g = document.createRange(); g.setStart(n, m.index); g.setEnd(n, m.index + m[0].length);
+          const parts = [...g.getClientRects()].filter((x) => x.width > 0.5), wide = parts.reduce((n, x) => n + x.width, 0) > h.clientWidth; // a word wider than its line must break
+          if (!wide && new Set(parts.map((x) => Math.round(x.top))).size > 1) cut.push(m[0]);
+        }
+      }
+      return { cut, small, over: document.documentElement.scrollWidth - document.documentElement.clientWidth }; });
+    want(!r.cut.length && !r.small.length && r.over <= 0, `W-04 ${file} at 320 px, text 200%: ${JSON.stringify(r)}`);
+    await done(t, `AH-227 headings on ${file}`, file === MISSING ? [] : [API]);
+  }
+  // W-23: there, the notice line is one line and Menu stays on the brand's row
+  for (const file of ["index.html", "checks.html"]) {
+    const t = await open(file, { width: 320, height: 640, motion: "reduce" });
+    const p = t.page;
+    await p.evaluate(() => { document.documentElement.style.fontSize = "200%"; return document.fonts.ready; });
+    await p.waitForTimeout(100);
+    const r = await p.evaluate(() => { const n = document.querySelector(".notice-bar p"), g = document.createRange(); g.selectNodeContents(n);
+      const b = document.querySelector(".bar .brand").getBoundingClientRect(), m = document.querySelector(".menu-btn").getBoundingClientRect();
+      return { said: n.innerText.trim(), lines: new Set([...g.getClientRects()].map((x) => Math.round(x.top))).size, menu: Math.round(m.top), brand: [Math.round(b.top), Math.round(b.bottom)] }; });
+    want(r.lines === 1 && r.said === "Free for Windows" && r.menu < r.brand[1] && r.menu + 1 >= r.brand[0] - 10, `W-23 ${file} at 320 px, text 200%: ${JSON.stringify(r)}`);
+    await done(t, `AH-227 notice and menu on ${file}`, [API]);
+  }
+  // W-08: on a phone a box's flagged cell is scrolled into the table's view (row 31's Region sat 192 px off to the left)
+  {
+    const t = await open("index.html", { width: 390, height: 844, motion: "reduce" });
+    const p = t.page;
+    await p.click('.rowbtn[aria-controls="m31"]');
+    await p.waitForTimeout(100);
+    const r = await p.evaluate(() => { const c = document.querySelector("#r31 td.flag").getBoundingClientRect(), s = document.querySelector("#p-found .scroll").getBoundingClientRect(), th = document.querySelector("#r31 th").getBoundingClientRect();
+      return { cell: [Math.round(c.left), Math.round(c.right)], view: [Math.round(th.right), Math.round(s.right)] }; });
+    want(r.cell[0] >= r.view[0] - 1 && r.cell[1] <= r.view[1] + 1, `W-08 row 31's flagged cell on a phone: ${JSON.stringify(r)}`);
+    await done(t, "AH-227 a box's cell in view", [API]);
+  }
+  // W-09: a phone's download section emails the link; a computer's downloads; W-10: the bar steps aside while the sample
+  // is more than 30% on screen
+  for (const width of [390, 1280]) {
+    const t = await open("index.html", { width, height: 844, motion: "reduce" });
+    const p = t.page;
+    const shown = await p.$$eval("#download .btn-primary", (as) => as.filter((a) => a.getClientRects().length).map((a) => [a.textContent.trim(), a.getAttribute("href").slice(0, 7)]));
+    want(JSON.stringify(shown) === JSON.stringify(width < 761 ? [["Email yourself the link", "mailto:"]] : [["Download for Windows", "https:/"]]), `W-09 #download at ${width}px shows ${JSON.stringify(shown)}`);
+    if (width < 761) {
+      const bar = async (y) => { await p.evaluate((y) => scrollTo(0, y), y); await p.waitForTimeout(250); return p.evaluate(() => document.getElementById("dock").hidden); };
+      const sample = await p.evaluate(() => { let top = 0; for (let e = document.getElementById("preview"); e; e = e.offsetParent) top += e.offsetTop; return top; });
+      const maker = await p.evaluate(() => document.getElementById("maker").getBoundingClientRect().top + scrollY);
+      const onSample = await bar(sample), onMaker = await bar(maker);
+      want(onSample === true && onMaker === false, `W-10 the download bar on the sample hidden ${onSample}, on Who made Arcas hidden ${onMaker}`);
+    }
+    await done(t, `AH-227 the download at ${width}px`, [API]);
+  }
+  // W-12: the home page's reading text at body size; W-35: a phone shows the pane's picture as a window at 1:1
+  for (const width of [1280, 390]) {
+    const t = await open("index.html", { width, height: 844, motion: "reduce" });
+    const p = t.page;
+    const r = await p.evaluate(() => ({ sizes: ["#checks .check-list li", "#download .steps li", "#proof dd", "#proof .proof-note"].map((s) => [s, getComputedStyle(document.querySelector(s)).fontSize]).filter(([, f]) => f !== "17px"),
+      shot: (() => { const i = document.querySelector("#checks .shot img"), c = getComputedStyle(i); return { fit: c.objectFit, w: i.clientWidth, h: i.clientHeight }; })() }));
+    want(!r.sizes.length, `W-12 at ${width}px reading text not at body size: ${JSON.stringify(r.sizes)}`);
+    if (width < 761) want(r.shot.fit === "none" && r.shot.h === 364 && r.shot.w >= 300, `W-35 the pane's picture on a phone: ${JSON.stringify(r.shot)}`);
+    await done(t, `AH-227 reading sizes at ${width}px`, [API]);
+  }
+  // W-18: the case studies and the code signing policy show their first words on the first screen at 1280 x 800
+  for (const file of ["cases.html", "code-signing.html"]) {
+    const t = await open(file, { width: 1280, height: 800, motion: "reduce" });
+    const p = t.page;
+    await p.evaluate(() => document.fonts.ready);
+    const top = await p.evaluate(() => { const s = document.querySelector(".page-head").nextElementSibling, w = document.createTreeWalker(s, NodeFilter.SHOW_TEXT);
+      for (let n = w.nextNode(); n; n = w.nextNode()) if (n.data.trim() && n.parentElement.getClientRects().length) { const g = document.createRange(); g.selectNodeContents(n); return Math.round(g.getBoundingClientRect().bottom); } return 9999; });
+    want(top <= 800, `W-18 ${file} at 1280 x 800: its first content ends at ${top} px`);
+    await done(t, `AH-227 first screen of ${file}`, [API]);
+  }
+  // W-22: a "Row 22" link from checks.html lands on the row and nothing moves after: no replayed entrance
+  {
+    const t = await open("checks.html", { width: 1280, height: 800 });
+    const p = t.page;
+    await p.waitForTimeout(ENTERED);
+    await p.click('.to-row[href="index.html#r22"]');
+    await p.waitForURL((u) => u.pathname === "/index.html" && u.hash === "#r22");
+    await p.waitForFunction(() => document.querySelectorAll("main").length === 1, null, { timeout: 4000 }).catch(() => {});
+    await p.waitForTimeout(200);
+    const tops = [];
+    for (let i = 0; i < 20; i++) { tops.push(await p.evaluate(() => Math.round(document.getElementById("r22").getBoundingClientRect().top))); await p.waitForTimeout(75); }
+    const entering = await p.evaluate(() => [...document.querySelectorAll("[data-enter]")].reduce((n, e) => n + e.getAnimations().length, 0));
+    want(Math.max(...tops) - Math.min(...tops) <= 2 && tops[0] >= 0 && tops[0] < 800 && entering === 0, `W-22 row 22 after landing from checks.html: tops ${tops.join(" ")}, ${entering} entrance animations`);
+    await done(t, "AH-227 Row 22 from checks.html", [API]);
+  }
+  // W-28: on a phone the key is one line, and the note that a row can be flagged twice goes
+  {
+    const t = await open("index.html", { width: 390, height: 844, motion: "reduce" });
+    const r = await t.page.evaluate(() => ({ note: document.querySelector(".typology .overlap").getClientRects().length, key: new Set([...document.querySelectorAll(".typology .key span")].map((s) => Math.round(s.getBoundingClientRect().top))).size }));
+    want(r.note === 0 && r.key === 1, `W-28 the key on a phone: ${JSON.stringify(r)}`);
+    await done(t, "AH-227 the key on a phone", [API]);
+  }
+  assert.deepEqual(miss, [], `AH-227:\n${miss.join("\n")}`);
+  console.log("AH-227: focus rings on Download and Accept, a box's focus on its title, headings whole at 320 px and 200%, the notice line and Menu there, a box's cell in view on a phone, the phone's download and bar, reading text at body size, the pane's picture 1:1 on a phone, first screens of cases and code signing, a Row link that lands still, the phone's key on one line");
 }
 await browser.close();
 server.close();

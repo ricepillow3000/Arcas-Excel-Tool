@@ -12,6 +12,8 @@ export const state = {
   undos: {}, // row -> cells to put back, while an applied fix isn't undone
   decided: {}, // row -> "fixed" | "dismissed": kept in the workbook (features/decisions.js), so it outlives the pane; "Next row" skips them
   order: [], // the flagged rows, worst first, as the last scan listed them
+  kind: null, // AH-228: the one kind of check the list shows (null: all)
+  more: 0, // AH-228: how many times "Show the next 20" was pressed on this list
   aiAvailable: false,
   aiProvider: null, // the engine's /health ai_provider: "gemini", "relay", "claude", "free" (AH-151) or null
   working: false, // one sheet action at a time; while one runs the buttons are disabled, never silently queued

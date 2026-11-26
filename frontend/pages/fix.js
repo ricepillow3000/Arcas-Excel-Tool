@@ -1,17 +1,17 @@
 import { SEV } from "../constants/index.js";
 import { state } from "../hooks/use-state.js";
 import { $, dated, only, show } from "../utils/dom.js";
-import { shownAs } from "../utils/sheet.js";
+import { cellAt, shownAs } from "../utils/sheet.js";
 import { place, rowAt } from "../utils/layout.js";
 import { act } from "../hooks/use-action.js";
 import { busy, notice } from "../components/progress.js";
 import { showAccepted, showFix } from "../components/fix-preview.js";
 import { doneOf, plainReason, shareOf } from "../features/scan.js";
-import { recommendFix, suggestTypo, withPast } from "../features/fix.js";
+import { recheckFix, recommendFix, suggestTypo, withPast } from "../features/fix.js";
 import { fillRow } from "../features/highlight.js";
 import { listRows } from "./results.js";
 import { saveDecisions } from "../features/decisions.js";
-import { KIND_WORDS, stopKind, stoppable, taught, teach } from "../features/learned.js";
+import { sayStopped, stopKind, stoppable, stopWords, taught, taughtSaid, teach } from "../features/learned.js";
 import { fadeIn, morph, turnIn } from "../components/motion.js";
 import { plainError } from "../utils/errors.js";
 
@@ -46,7 +46,7 @@ async function openRow(i, selectInSheet, from, focus) { // from: the list's butt
   const r = state.lastRows[i], u = state.undos[i]; // u: its fix was accepted - the card offers Undo
   if (r && !SEV[r.severity] && !u && state.decided[i] === "fixed") return selectFixed(i); // fixed before: nothing to undo here
   if (!r || (!SEV[r.severity] && !u)) return;
-  const f = (state.fix = { i, sheet, changes: [], calc: null, stop: stoppable(r?.kinds) }); // AH-205: the check the card can stop
+  const f = (state.fix = { i, sheet, changes: [], calc: null, stop: null }); // stop (AH-205): the check the card can stop, once its fix is known
   const at = from?.getBoundingClientRect();
   await morph(from?.querySelector(".row-head"), () => {
     $("fix-title").textContent = `Row ${startRow + i + 2}: ${SEV[r.severity]?.toLowerCase() ?? "fixed"}`;
@@ -61,7 +61,7 @@ async function openRow(i, selectInSheet, from, focus) { // from: the list's butt
     $("ai-fold").open = false; // AH-175: Ask AI is folded under the card's fix, opened below when there is none
     $("fix-changes").innerHTML = "";
     $("fix-explanation").textContent = "";
-    $("fix-mute").textContent = f.stop ? `Stop checking ${stopSaid(f.stop)}` : "";
+    $("fix-mute").textContent = ""; // its line held (data-off) until the card knows which column its fix changes
     only("fix-view");
     scrollTo(0, 0); // AH-165: the card opens at the top of the pane, where the scan controls stepped aside
     busy("Opening row…"); // in the bar at the pane's foot (AH-165): said over the list, it pushed the list down as it left
@@ -87,7 +87,13 @@ async function openRow(i, selectInSheet, from, focus) { // from: the list's butt
     : rec.typo ? "Possible typo: check it before you accept"
     : rec.guess ? "Best guess: check it before you accept" : "Suggested fix";
   if (state.fix !== f) return;
+  // AH-228 P-02: the check named under Dismiss is the one about the column the fix changes, never only the row's first
+  f.stop = stoppable(r.kinds, rec.changes.map((c) => columns[cellAt(c.cell)?.col - startCol]).filter(Boolean));
+  $("fix-mute").textContent = f.stop ? `Never check ${stopSaid(f.stop)} on this sheet` : "";
   $("ai-fold").open = !rec.changes.length; // no fix to offer: the way to ask for one shows
+  // AH-228 P-33: with no fix on the card, Ask AI is the way to one, said as such
+  $("ai-fold").querySelector("summary").textContent = rec.changes.length ? "Want a different fix? Ask AI" : "Ask AI for a fix";
+  $("fix-intent-label").textContent = rec.changes.length ? "For a different fix, describe it and AI will draft one." : "Describe the fix you want and AI will draft one.";
   await showFix(f, label, rec);
 }
 
@@ -104,8 +110,9 @@ async function selectFixed(i) {
   notice(`Row ${startRow + i + 2} was fixed and looks right now. There is nothing to undo here: its old values are no longer kept.`);
 }
 
-// AH-205: a stopped check in plain words: "the usual range in Units" (a shared header said as the sheet says it)
-const stopSaid = ([kind, col]) => `${KIND_WORDS[kind]} in ${shownAs(col, state.lastScan?.names)}`;
+// AH-205: a stopped check in plain words: "the usual range in Units" (a shared header said as the sheet says it);
+// "duplicates" alone: a duplicate's stop is the sheet's (AH-228 P-02)
+const stopSaid = (pair) => stopWords(pair, (col) => shownAs(col, state.lastScan?.names));
 
 // Dismiss = leave this row as it is: its highlight goes, like a dismissed Grammarly underline. Then the next row.
 // Kept in the workbook under the row's code, so the row stays dismissed after a reload or a re-scan.
@@ -130,25 +137,45 @@ export async function dismissFix(stop = null) {
   const [saved, moved] = await Promise.allSettled([kept, nextFix()]);
   if (saved.status === "rejected") return putBack(f, was, code, saved.reason, learnt).then(() => false);
   if (moved.status === "rejected") throw moved.reason;
-  if (state.fix) notice(doneOf(state.order, state.decided), shareOf(state.order, state.decided)); // AH-171; with no row left, nextFix has said it
+  // AH-171, AH-228 P-19: the foot bar says what the Dismiss taught, how many rows are done, and offers Undo
+  const t = place(state.lastScan, f.i), shown = (c) => shownAs(c, state.lastScan?.names);
+  const said = learnt.values.length ? `Dismissed. ${taughtSaid(state.lastRows[f.i]?.kinds, t.columns, state.lastScan.rows[f.i], shown)}` : `Dismissed row ${t.startRow + f.i + 2}.`;
+  f.undo = undoing(f, was, code, learnt);
+  if (!stop) notice(`${said} ${doneOf(state.order, state.decided)}${state.fix ? "" : " Click Find problems to check the whole sheet again."}`.trim(),
+    shareOf(state.order, state.decided), f.undo);
   return true;
 }
+
+// AH-228 P-01, P-19: the foot bar's Undo of a Dismiss (and of a Never check): the row back on the list as it was, and what
+// it taught taken out, the stopped check checked again
+const undoing = (f, was, code, learnt) => act(async () => {
+  await restore(f, was, code, learnt);
+  if (learnt.kinds.length) sayStopped();
+  if (state.view === "results") listRows();
+  notice(`Row ${place(state.lastScan, f.i).startRow + f.i + 2} is back on your list${learnt.kinds.length ? `, and Arcas checks ${stopSaid(learnt.kinds[0])} again` : ""}.`);
+});
 
 // AH-205: "Stop checking spelling in Glass": that check stops in that column on this sheet, the row is dismissed, and the
 // foot bar says what was learned
 export async function muteFix() {
-  const stop = state.fix?.stop;
+  const f = state.fix, stop = f?.stop;
   if (!stop || !(await dismissFix(stop))) return;
-  notice(`Arcas will not check ${stopSaid(stop)} on this sheet again. ${doneOf(state.order, state.decided)}`.trim(), shareOf(state.order, state.decided));
+  sayStopped(); // AH-228 P-01: listed under "Saved in this workbook", with Check again
+  notice(`Arcas will not check ${stopSaid(stop)} on this sheet again. ${doneOf(state.order, state.decided)}`.trim(), shareOf(state.order, state.decided), f.undo);
 }
 
-async function putBack(f, was, code, e, learnt) {
+// A Dismiss taken back: its decision, what it taught and the check it stopped; the row's highlight back on
+async function restore(f, was, code, learnt) {
   if (was) state.decided[f.i] = was;
   else delete state.decided[f.i];
   teach(f.sheet, learnt.values, true); // what this Dismiss taught goes with it
   stopKind(f.sheet, learnt.kinds, true);
   saveDecisions(f.sheet, [[code, was]]);
   await fillRow(f.i, true).catch(() => {}); // whatever came off goes back on
+}
+
+async function putBack(f, was, code, e, learnt) {
+  await restore(f, was, code, learnt);
   await openFix(f.i, false);
   $("fix-status").textContent = `Row ${place(state.lastScan, f.i).startRow + f.i + 2} was not dismissed, so it is back on your list. ${plainError(e)}`;
 }
@@ -157,7 +184,7 @@ async function putBack(f, was, code, e, learnt) {
 export async function backToList() {
   const i = state.fix?.i;
   state.fix = null;
-  const row = () => $("flagged-list").children[state.order.indexOf(i)]?.querySelector("button");
+  const row = () => [...$("flagged-list").children].find((li) => li.dataset.i === String(i))?.querySelector("button");
   await morph($("fix-title"), () => { listRows(); fadeIn($("results")); }, () => row()?.querySelector(".row-head"));
   (row() || $("list-title")).focus({ preventScroll: true }); // AH-170: back on the row it came from (or the list, row gone)
 }
@@ -171,4 +198,14 @@ export async function nextFix() {
   listRows();
   $("list-title").focus({ preventScroll: true });
   notice(`${doneOf(order, state.decided)} Click Find problems to check the whole sheet again.`.trim(), shareOf(order, state.decided));
+}
+
+// AH-228 P-08: "I fixed it" on a card with no fix to offer: the row read again from the sheet and checked again. Looking
+// right, it is Fixed and the next row opens; still wrong, the card says why
+export async function fixedIt() {
+  const f = state.fix;
+  if (!f || !(await recheckFix(f))) return;
+  const row = place(state.lastScan, f.i).startRow + f.i + 2;
+  await nextFix();
+  if (state.fix) notice(`Row ${row} looks right now. ${doneOf(state.order, state.decided)}`.trim(), shareOf(state.order, state.decided));
 }

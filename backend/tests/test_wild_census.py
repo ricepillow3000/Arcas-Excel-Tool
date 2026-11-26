@@ -59,7 +59,7 @@ def test_a_slip_still_stands_out(scanned):
 def test_an_all_nines_top_value_is_a_code(scanned):
     _, planted, out, _ = scanned
     for i in planted["99999"]:
-        assert out[i]["severity"] == "Medium" and "capital-gain 99999 looks like a code, not a real value" in out[i]["reason"]
+        assert out[i]["severity"] == "Medium" and "capital-gain 99999 is all 9s: often a stand-in for no value" in out[i]["reason"]
 
 
 def test_an_all_nines_code_written_through_the_whole_sheet_is_one_note_for_the_column():

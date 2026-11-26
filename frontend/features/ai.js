@@ -15,7 +15,8 @@ import { n } from "../utils/text.js";
 
 // Ask AI: the API client in the workflow (the engine forwards to Gemini). Optional; fixes work without it.
 // AH-151: with no key or invite of its own the engine uses John's relay ("free"), and the options say so
-const FREE_ON = "AI help is on, using a free shared AI with a few requests a day for each internet connection. For more, paste your own free Google key below.";
+// AH-228 P-10: said in one line; the steps for a key of one's own fold under "Use your own Google key"
+const FREE_ON = "AI help works now, free, with a daily limit. For more answers, use your own free Google key.";
 
 export function setAi(on, provider = state.aiProvider) {
   state.aiAvailable = !!on;
@@ -24,6 +25,7 @@ export function setAi(on, provider = state.aiProvider) {
   show("ai-off", !state.aiAvailable);
   show("odd-box", state.aiAvailable);
   show("rules-box", state.aiAvailable);
+  show("ai-checks", state.aiAvailable); // AH-228 P-18: both under "More checks with AI"
   $("fix-ask").disabled = !state.aiAvailable || !!state.fix?.asking;
   keySaid(!state.aiAvailable ? "AI help is off. It's optional; fixes work without it."
     : state.aiProvider === "free" ? FREE_ON : "AI help is on.");
