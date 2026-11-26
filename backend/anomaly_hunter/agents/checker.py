@@ -1,6 +1,9 @@
 """Agent 3: check a fix. Put it into a copy of the table and scan again with the SAME limits, so the row is judged
 exactly like the first time - by every check, not only the one that flagged it."""
+import re
 import time
+
+from openpyxl.utils import column_index_from_string
 
 from anomaly_hunter.agents.scan_agent import scan
 
@@ -70,3 +73,34 @@ def suggest(columns, rows, limits, i, col, strength=5):
             if len(ok) > 1:
                 return {}
     return {"value": ok[0][0], "kind": ok[0][1]} if ok else {}
+
+
+def _typed(old, new):
+    """The AI's text as the engine would read the cell after the write, or None when that can't be known here: a
+    formula (Excel works it out, the engine can't) or a number cell given text Excel may still read as a number."""
+    if not isinstance(new, str) or new.lstrip()[:1] == "=":
+        return None
+    try:
+        return float(new)
+    except ValueError:
+        return None if type(old) in (int, float) else new
+
+
+def unfixed(columns, rows, row_index, start_row, start_col, formulas, changes, strength=5):
+    """AH-231: the AI's cells the engine's own checks still flag once its values are in the row -> [cell]. A value no
+    check reads (a label, a formula) passes, as before. A row holding a formula is not judged: its values are the old
+    ones Excel recalculates after the write, so a right fix would look wrong beside a stale total."""
+    rows, put = [list(r) for r in rows], {}
+    for c in changes:
+        m = re.fullmatch(r"([A-Z]+)(\d+)", c["cell"])
+        k, j = int(m.group(2)) - start_row - 2, column_index_from_string(m.group(1)) - 1 - start_col
+        if 0 <= k < len(rows) and 0 <= j < len(columns) and (v := _typed(rows[k][j], c["new"])) is not None:
+            rows[k][j] = v
+            put.setdefault(k, {})[columns[j]] = c["cell"]
+    if any(isinstance(f, str) and f.startswith("=") for f in formulas or []):  # the pane sends the flagged row's only
+        put.pop(row_index, None)
+    if not put:
+        return []
+    verdicts = scan(columns, rows, strength=strength, fair=False)[1]
+    return [cell for k, at in put.items() if verdicts[k]["severity"] not in (None, "Noted")
+            for col, cell in at.items() if col in verdicts[k]["cells"]]
