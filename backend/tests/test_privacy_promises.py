@@ -78,7 +78,8 @@ def test_both_support_pages_answer_invite_kit_users_the_certificate_question_and
     for page in ("frontend/support.html", "site/support.html"):
         said = words(page)
         missing = [p for p in (
-            "With an invite kit, double-click install.bat in the kit folder instead",
+            # AH-227 W-13: "invite kit" in plain words: the folder John shares
+            "With a setup kit from John, double-click install.bat in the kit folder instead",
             "run install.bat /u in the kit folder, then delete the kit folder",
             "Like the app's uninstall, it also clears Excel's add-in cache",
             f'a certificate from "{server.CERT_NAME}". Click Yes',
@@ -252,8 +253,9 @@ def test_every_privacy_page_says_where_the_free_ai_sends_what_it_counts_and_its_
     assert "," not in caps["PUBLIC_MODELS"], "the free AI asks a backup: name every model in the three privacy pages, then here"
     promises = (
         "With no key or invite code of your own, AI help uses John's free AI",
-        f"to John's relay on Cloudflare, which passes it to Google's {caps['PUBLIC_MODELS']} with John's key",
-        "counts each network's AI calls for the day under a code made from the day and your IP address with the relay's secret key",
+        # AH-227 W-13: "John's relay" named neither a relay nor what it is to a stranger: his server on Cloudflare
+        f"to John's server on Cloudflare, which passes it to Google's {caps['PUBLIC_MODELS']} with John's key",
+        "counts each network's AI calls for the day under a code made from the day and your IP address with the server's secret key",
         "It never stores your IP address or the request",
         f"{caps['PUBLIC_DAILY_PER_NETWORK']} AI calls per network and {caps['PUBLIC_DAILY_TOTAL']} for every free user together a day",
         # AH-158: the minute's limit (BURST) and an IPv6 /48's day, as configured
@@ -359,3 +361,30 @@ def test_every_privacy_page_and_the_pane_say_ask_ai_swaps_emails_phones_ssns_and
             in words("frontend/taskpane.html"))
     from anomaly_hunter.ai import pii
     assert client.MASK is True and pii.mask(["a@example.com"])[0] == ["[EMAIL_1]"]  # on, and the stand-in the pages show
+
+
+def test_every_privacy_page_opens_with_five_lines_in_short_each_said_again_below():
+    """AH-227 P-37: the website's privacy page is 14 screens. Five plain lines come first, each one a promise the page
+    makes again further down, so the short version never says more than the long one."""
+    lines = (
+        "A scan runs on your PC and sends nothing to the internet.",
+        "Your sheet's data leaves your PC only when you click Ask AI, Check words with AI or Check subject rules with AI, and then only the part described below.",
+        "There are no accounts and no cookies, and the add-in has no analytics and no tracking.",
+        "Only this project's website may count its page views, with GoatCounter (see who else sees something).",
+        "You can delete your saved AI key with Remove key, and uninstall Arcas from Settings > Apps.",
+    )
+    for page in PAGES:
+        src = (ROOT / page).read_text(encoding="utf-8")
+        if page.endswith(".md"):
+            block = re.search(r"^## In short\n\n((?:- .*\n)+)", src, re.M)
+            said = [" ".join(re.sub(r"`|\*\*", "", x).split()) for x in re.findall(r"^- (.*)$", block[1], re.M)] if block else []
+        else:
+            block = re.search(r"<h2[^>]*>In short</h2>\s*<ul>(.*?)</ul>", src, re.S)
+            said = [" ".join(re.sub(r"<[^>]+>", "", x).replace("&gt;", ">").split()) for x in re.findall(r"<li>(.*?)</li>", block[1], re.S)] if block else []
+        assert said == list(lines), (page, said)
+        assert src.index("In short") < src.index('id="intro"' if not page.endswith(".md") else "## Always on this PC"), page
+    # each line is said again lower down: the scan, what AI help sends, the files, Remove key and the uninstall
+    for page in PAGES:
+        rest = words(page)
+        for p in ("Remove key", "Installed apps", "A scan never sends anything to the internet" if page != "PRIVACY.md" else "The scan runs in the engine"):
+            assert p in rest, (page, p)

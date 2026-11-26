@@ -2,7 +2,8 @@
 // The person reads it on GitHub and presses its button there (public, needs a GitHub account), or, with Email John
 // instead (AH-135), sends the same words from their own email app (a mailto link).
 // The support form (support.html) shows its link; the contact form (the home page, AH-133) opens it in a new tab and
-// then shows our own thank-you page, thanks.html. Each link opens one of the repo's issue forms
+// then thanks the visitor inside the form, keeping the page and what they typed (AH-227 W-14, John: "Email first, keep
+// message": thanks.html emptied the form, and Email John had nothing left to send). Each link opens one of the repo's issue forms
 // (.github/ISSUE_TEMPLATE/support_request.yml, contact.yml), which adds its label and the public warning itself, and
 // fills its fields by their ids: a labels= parameter needs triage rights askers lack.
 // Every page loads it once (AH-73): it wires the forms of the page it finds, and again each time transition.js swaps
@@ -37,14 +38,14 @@
 
   const FORMS = [
     { form: "ticket", missing: "missing", result: "result", ready: "ready", cut: "cut", open: "open", thanks: "thanks",
-      needed: [["summary", "a short summary"], ["details", "what happened"], ["clean", "the box that says it contains no key or private data"]],
+      needed: [["summary", "write a short summary"], ["details", "say what happened"], ["clean", "tick the box that says it has no key or private data"]],
       link: (v) => prefilled("support_request.yml", [["title", "[Support]: " + v("summary")], ["category", v("topic")], ["version", v("version")]], ["details", v("details")]),
       email: "email", mailCut: "mail-cut",
       mail: (v) => mailto("[Support]: " + v("summary"), [`Topic: ${v("topic")}`, `Engine version: ${v("version")}`], v("details")) },
-    { form: "note", missing: "c-missing", result: "c-result", ready: "c-ready", cut: "c-cut", open: "c-open", next: "thanks.html",
+    { form: "note", missing: "c-missing", result: "c-result", ready: "c-ready", cut: "c-cut", open: "c-open", thanks: "c-thanks", opens: true,
       // AH-192: an issue's title is what GitHub's lists and search engines show, so it names the topic, never the person.
       // AH-197: the name is optional, the one field that names a person in public (legal review item 7)
-      needed: [["c-message", "a message"], ["c-public", "the box that says what you type will be public"]],
+      needed: [["c-message", "write a message"], ["c-public", "tick the box that says it will be public"]],
       link: (v) => prefilled("contact.yml", [["title", `[Contact]: ${v("c-topic")}`], ["name", v("c-name")], ["topic", v("c-topic")]], ["message", v("c-message")]),
       email: "c-email", mailCut: "c-mail-cut",
       mail: (v) => mailto(`[Contact]: ${v("c-topic")}`, [v("c-name") && `Name: ${v("c-name")}`, `Topic: ${v("c-topic")}`].filter(Boolean), v("c-message")) },
@@ -70,18 +71,18 @@
     form.addEventListener("input", recheck);
     form.addEventListener("change", recheck);
     // AH-126: once the link to GitHub is followed, say what happens next (nothing reaches John until Submit is pressed on
-    // GitHub), as a status a screen reader announces; preparing the question again takes it back. The contact form says
-    // it on a page of its own (AH-133), reached the way a link reaches a page (transition.js), or loaded if that can't
-    const thanks = F.thanks && $(F.thanks);
-    const onward = () => { if (document.dispatchEvent(new CustomEvent("ah:go", { detail: F.next, cancelable: true }))) location.assign(F.next); };
-    $(F.open).addEventListener("click", () => { if (thanks) thanks.hidden = false; else if (F.next) setTimeout(onward); });
+    // GitHub), as a status a screen reader announces; preparing the question again takes it back
+    const thanks = $(F.thanks);
+    $(F.open).addEventListener("click", () => { thanks.hidden = false; });
     // the fields both ways need: each missing one marked, the message under the first, which takes focus -> all there?
     const complete = () => {
       const need = F.needed.filter(([id]) => empty(id));
       for (const [id] of F.needed) mark(id, need.some(([n]) => n === id));
       missing.hidden = !need.length;
       if (!need.length) return true;
-      missing.textContent = "Please add " + need.map(([, w]) => w).join(", ") + ".";
+      // AH-227 W-15: what to do, as a sentence ("Please add a message, the box that says..." read as a list of nouns)
+      const say = need.map(([, w]) => w);
+      missing.textContent = "Please " + (say.length > 1 ? say.slice(0, -1).join(", ") + " and " + say[say.length - 1] : say[0]) + ".";
       const first = $(need[0][0]);
       first.closest(".field, .confirm").after(missing);
       first.focus();
@@ -93,7 +94,7 @@
     $(F.email).addEventListener("click", (e) => {
       $(F.mailCut).hidden = true;
       $(F.result).hidden = true;
-      if (thanks) thanks.hidden = true;
+      thanks.hidden = true;
       if (!complete()) { e.preventDefault(); return; }
       const { url, cut } = F.mail(v);
       $(F.email).href = url;
@@ -101,7 +102,7 @@
     });
     form.addEventListener("submit", (e) => {
       e.preventDefault();
-      if (thanks) thanks.hidden = true;
+      thanks.hidden = true;
       $(F.mailCut).hidden = true;
       $(F.result).hidden = true;
       if (!complete()) return;
@@ -110,11 +111,11 @@
       // the link is described by what the box says above it, the cut note too when it shows (a hidden one would be read)
       $(F.open).setAttribute("aria-describedby", cut ? `${F.ready} ${F.cut}` : F.ready);
       $(F.open).href = url;
-      // the contact form opens GitHub itself, in a new tab with no way back to this one, then shows the thank-you page.
+      // the contact form opens GitHub itself, in a new tab with no way back to this one, then says thanks where it is.
       // A cut message, or a browser that keeps the tab from opening, gets the link to press instead, as the support form
-      if (F.next && !cut) {
+      if (F.opens && !cut) {
         const tab = window.open(url, "_blank");
-        if (tab) { tab.opener = null; onward(); return; }
+        if (tab) { tab.opener = null; thanks.hidden = false; return; }
       }
       $(F.result).hidden = false;
       $(F.open).focus();
