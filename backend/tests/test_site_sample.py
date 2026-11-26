@@ -108,7 +108,7 @@ def page(path=PAGE):
 
 
 def quoted(s):
-    """The words inside the outer quotes: 'In the pane: "Region "east " looks like..."' -> 'Region "east " looks like...'"""
+    """The words inside the outer quotes: 'In Excel, Arcas says: "Region "east " looks like..."' -> 'Region "east " looks like...'"""
     return s[s.index('"') + 1:s.rindex('"')]
 
 
@@ -235,18 +235,21 @@ def pane_steps():
     pct = re.search(r"busy\(`(Step 1 of 3: [^`]+?) \$\{Math\.round\(p \* 100\)\}%`, p\)", src)[1]
     second = re.search(r"busy\(`(Step 2 of 3: [^`]*?)\$\{n\(s\.rows\.length\)\}([^`]*)`\)", src)
     auto = re.search(r'busy\("(Fixing [^"]+)"\)', src)[1]
-    return first, pct, lambda rows: f"{second[1]}{rows}{second[2]}", auto
+    # AH-227 W-26: step 3 too, the words the pane says as it highlights (frontend/features/highlight.js paint), up to its count
+    third = re.search(r"busy\(`(Step 3 of 3: [^`$]*?) \$\{n\(k\)\}", (ROOT / "frontend/features/highlight.js").read_text(encoding="utf-8"))[1]
+    return first, pct, lambda rows: f"{second[1]}{rows}{second[2]}", auto, third
 
 
 def test_the_scanning_tab_shows_the_panes_own_progress_words_for_this_sheet():
     """It showed stage names the pane never says ("Scanning: reading sheet data", "Testing each column's limits")."""
     ws, _ = page()
-    first, pct, second, auto = pane_steps()
+    first, pct, second, auto, third = pane_steps()
     n = len(sample())
     panel = ws.one("div", id="p-busy")
     steps = [li for li in panel.one("ol", cls="stages").all("li")]
-    assert [li.text() for li in steps[:2]] == [first, second(n)]
-    assert steps[2].text() == f"{auto} only with Auto-fix on" and steps[2].one("span", cls="small").text() == "only with Auto-fix on"
+    # AH-227 W-26: it said "Step 2 of 3" and never showed a step 3; the pane's own step 3 now plays, then Auto-fix's last
+    assert [li.text() for li in steps[:3]] == [first, second(n), third]
+    assert steps[3].text() == f"{auto} only with Auto-fix on" and steps[3].one("span", cls="small").text() == "only with Auto-fix on"
     assert ">Auto-fix (optional)</summary>" in (ROOT / "frontend/taskpane.html").read_text(encoding="utf-8")
     # the ticker's words (site/home.js STAGES): what the pane shows for this sheet, in its order. Step 1 as it starts, then
     # step 1 once after each slice it reads (frontend/services/excel.js readSheet: READ_CELLS cells a slice, the header
@@ -256,7 +259,7 @@ def test_the_scanning_tab_shows_the_panes_own_progress_words_for_this_sheet():
     cells = int(re.search(r"export const READ_CELLS = (\d+);", (ROOT / "frontend/constants/index.js").read_text(encoding="utf-8"))[1])
     total, step = n + 1, max(1, cells // len(COLUMNS))
     slices = [f"{pct} {math.floor(100 * min(k + step, total) / total + 0.5)}%" for k in range(0, total, step)]
-    assert stages == [first, *slices, second(n)]
+    assert stages == [first, *slices, second(n), third]
     assert panel.one("p", cls="ticker").text() == stages[0]
 
 
@@ -283,6 +286,8 @@ def test_every_finding_on_the_website_says_what_the_pane_says_and_offers_its_fix
         assert box.one("div", cls="m-head").one("b").text() == f"Row {n} · {severity}"
         dl = dict(zip([dt.text() for dt in box.all("dt")], [dd.text() for dd in box.all("dd")]))
         assert quoted(box.one("p", cls="m-said").text()) == said, f"row {n}: the quote is not the pane's words"
+        # AH-227 W-13: said where a person sees it, in Excel ("In the pane:" named a part of Excel few people know)
+        assert box.one("p", cls="m-said").text().startswith('In Excel, Arcas says: "'), f"row {n}: the quote's lead-in"
         if rec["changes"]:
             (cell, new), = rec["changes"]
             col = COLUMNS[LETTERS.index(cell[0])]
@@ -445,16 +450,18 @@ def test_the_checks_table_says_what_the_sample_shows_or_that_it_has_none():
     what = {tr.one("th").text(): tr.all("td")[0].text() for tr in table.one("tbody").all("tr")}
     # the cycles the series check leaves alone, named as it holds them (detectors.CYCLES) and no other: the row said
     # "Repeating cycles are left alone" over a sample whose four Temporal flags are a 4-day price cycle's peaks
-    m = re.search(r"a cycle of ([\d, ]+ or \d+) rows", what["Dates and jumps"])
-    assert m and [int(x) for x in re.findall(r"\d+", m[1])] == list(CYCLES), what["Dates and jumps"]
-    assert "Repeating cycles" not in what["Dates and jumps"]
+    m = re.search(r"a cycle of ([\d, ]+ or \d+) rows", what["Dates"])
+    assert m and [int(x) for x in re.findall(r"\d+", m[1])] == list(CYCLES), what["Dates"]
+    assert "Repeating cycles" not in what["Dates"]
     # AH-135: the site's own names for three checks in plain words (Temporal, Completeness, Plausibility were jargon); AH-171:
     # one vocabulary, the home page's check names and the sample's filters', and the Formulas check the home page lists
-    assert list(checks) == ["Totals that don't add up", "Formulas", "Typing slips", "Spelling", "Dates and jumps", "Blanks and duplicates", "Numbers that can't be right", "Fairness", "Ask AI, optional"]
-    assert root.one("p", cls="fact").text() == f"{len(checks)} checks · {len(flagged)} rows flagged in the sample"
+    # AH-227 W-07: the rulebook's W13 names, one each (it said "Dates and jumps" here, "Odd jumps over time" in the filters)
+    assert list(checks) == ["Totals that don't add up", "Formulas", "Typing slips", "Spelling", "Dates", "Blanks and duplicates", "Numbers", "Fairness", "Ask AI, optional"]
+    # AH-227 W-24: eight checks read every row; Ask AI, the table's last row, runs only when asked, so it is not counted
+    assert root.one("p", cls="fact").text() == f"{len(checks) - 1} checks · {len(flagged)} rows flagged in the sample"
     filters = {b.attrs["data-kind"]: b.text().rstrip("0123456789") for b in home.one("nav", cls="typology").all("button")}
-    assert {filters["recon"], filters["keying"]} <= set(checks) and what["Spelling"].startswith(f"{filters['label']}:"), (filters, what["Spelling"])
-    kind = {"Totals that don't add up": "recon", "Typing slips": "keying", "Spelling": "label", "Dates and jumps": "time"}
+    assert {filters["recon"], filters["keying"], filters["label"], filters["time"]} <= set(checks), filters
+    kind = {"Totals that don't add up": "recon", "Typing slips": "keying", "Spelling": "label", "Dates": "time"}
     for name, cell in checks.items():
         links = cell.all("a", cls="to-row")
         if name not in kind:  # none in this sample, said in so many words
@@ -473,7 +480,7 @@ def test_the_checks_table_says_what_the_sample_shows_or_that_it_has_none():
     assert "a figure far past its column's usual range" in what["Typing slips"], what["Typing slips"]
     n, row, r, eg = checks["Spelling"]
     assert eg == f'"{row[1]}" to "{r["likely"]["Region"]}"'
-    n, row, r, eg = checks["Dates and jumps"]
+    n, row, r, eg = checks["Dates"]
     assert eg == f"a jump in Total on {row[0]}" and f"Total jumped sharply near {row[0]}" in plain_reason(r["reason"])
     # the sample has no people column: no fairness test runs and the pane shows no fairness line, so the example is the
     # engine's sentence on an illustrative people sheet, never "Region: even" (which read like this sample's result)
@@ -486,7 +493,7 @@ def test_the_checks_table_says_what_the_sample_shows_or_that_it_has_none():
     fair = checks["Fairness"].one("span", cls="other-sheet").one("span", cls="say").text()
     assert fair in said and fair.split(":")[0] not in COLUMNS, f"{fair} is not what the engine says: {said}"
     # the rest are general forms on another sheet, not claims about this one (a change here is a change to re-check by hand)
-    assert [checks[k].one("span", cls="other-sheet").text() for k in ("Blanks and duplicates", "Numbers that can't be right", "Ask AI, optional")] == [
+    assert [checks[k].one("span", cls="other-sheet").text() for k in ("Blanks and duplicates", "Numbers", "Ask AI, optional")] == [
         "On another sheet: #N/A, a repeated row", "On another sheet: Month 13, 99999", 'A request: "Use the usual spelling"']
     # AH-171: the Formulas example is the engine's own sentence for a Total typed over a column of =Qty*Price formulas
     # (the pane sends each cell's R1C1 formula, AH-152); the sample has no formulas, said so

@@ -35,7 +35,7 @@
 </head>
 <body id="home">
 <a class="skip-link" href="#page">Skip to content</a>
-<aside class="notice-bar" aria-label="Announcement"><p>Free for Windows · a scan never leaves your PC · <a href="#download">Download</a></p></aside>
+<aside class="notice-bar" aria-label="Announcement"><p>Free for Windows<span class="wide-only"> · a scan never leaves your PC</span></p></aside>
 <header class="bar">
   <div class="wrap cols">
     <a class="brand" href="#home" aria-label="Arcas home"><svg class="logo" viewBox="0 0 41 41" aria-hidden="true"><defs><radialGradient id="c41-d" cx="50%" cy="42%" r="62%"><stop offset="0" stop-color="#F7F5F0"/><stop offset="1" stop-color="#E3DBCA"/></radialGradient><filter id="c41-g" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".8" numOctaves="3" seed="3" stitchTiles="stitch"/><feColorMatrix values="0 0 0 0 .05 0 0 0 0 .1 0 0 0 0 .22 0 0 0 -2 1.25"/><feComponentTransfer><feFuncA type="linear" slope=".07"/></feComponentTransfer><feComposite in2="SourceGraphic" operator="in"/></filter><clipPath id="c41-r"><rect x="21" width="20" height="41"/></clipPath><clipPath id="c41-l"><rect width="20" height="41"/></clipPath><mask id="c41-m"><g clip-path="url(#c41-r)"><path class="sweep-a" d="M20.5 0 A20.5 20.5 0 0 1 20.5 41 Z" fill="#fff"/></g><g clip-path="url(#c41-l)"><path class="sweep-b" d="M20.5 41 A20.5 20.5 0 0 1 20.5 0 Z" fill="#fff"/></g></mask></defs><g><circle cx="20.5" cy="20.5" r="18.5" fill="url(#c41-d)"/><circle cx="20.5" cy="20.5" r="18.5" fill="#000" filter="url(#c41-g)"/><circle class="ring-sweep" cx="20.5" cy="20.5" r="19.5" fill="none" stroke="#997D3A" stroke-width="2" mask="url(#c41-m)"/><circle class="ring-whole" cx="20.5" cy="20.5" r="19.5" fill="none" stroke="#997D3A" stroke-width="2"/><path d="M15.5 9 L18.3 9 L18.1 12 L14.7 12Z" fill="#6B1E2E"/><path d="M19.3 9 L21.7 9 L21.9 12 L19.1 12Z" fill="#6B1E2E"/><path d="M22.7 9 L25.5 9 L26.3 12 L22.9 12Z" fill="#6B1E2E"/><path d="M14.5 13 L18 13 L17.7 16 L13.7 16Z" fill="#5B1E30"/><path d="M23 13 L26.5 13 L27.3 16 L23.3 16Z" fill="#5B1E30"/><path d="M13.5 17 L17.7 17 L17.4 20 L12.7 20Z" fill="#4B1C35"/><path d="M23.3 17 L27.5 17 L28.3 20 L23.6 20Z" fill="#4B1C35"/><path d="M12.5 21 L17.3 21 L17.1 24 L11.7 24Z" fill="#371C3A"/><path d="M18.3 21 L22.7 21 L22.9 24 L18.1 24Z" fill="#371C3A"/><path d="M23.7 21 L28.5 21 L29.3 24 L23.9 24Z" fill="#371C3A"/><path d="M11.4 25 L17 25 L16.7 28 L10.7 28Z" fill="#211B3C"/><path d="M24 25 L29.6 25 L30.3 28 L24.3 28Z" fill="#211B3C"/><path d="M10.4 29 L16.6 29 L16.4 32 L9.7 32Z" fill="#0C1938"/><path d="M24.4 29 L30.6 29 L31.3 32 L24.6 32Z" fill="#0C1938"/></g></svg><span>Arcas</span></a>
@@ -51,7 +51,7 @@
         <p>Arcas reads every cell of your Excel sheet, finds the typos, broken formulas and numbers that don't add up, and suggests a fix.</p>
         <div class="hero-cta"><a class="btn btn-primary" href="#download">Download for Windows</a><a class="btn btn-ghost" href="#preview" data-glide="frame">See a sample scan</a><a class="btn btn-plain" href="#contact" data-glide="top">Contact John</a></div>
         <p class="phone-only">Arcas runs on a Windows computer. Open this page on that computer to download it, or <a href="mailto:?subject=Arcas%20for%20Excel&amp;body=https%3A%2F%2Fricepillow3000.github.io%2Fexcel-anomaly-hunter%2F%23download">email yourself the link</a>.</p>
-        <span class="note">Free for Windows with desktop Excel.</span>
+        <span class="note">Free. It opens inside desktop Excel on Windows.</span>
       </div>
 
       <!-- The engine's real result on this sample sheet (60 orders, 3 planted errors): 3 probably wrong, 4 worth a check. 13 of its
@@ -63,6 +63,7 @@
           <!-- AH-183: the whole sheet at a glance, one mark a row (rows 2 to 61; the table shows 13): wine where the engine
                says probably wrong, outlined where worth a check (test_site_sample.py holds each to the scan) -->
           <div class="sheet-map" aria-hidden="true" title="Each mark is one row of the sheet: filled is probably wrong, outlined is worth a check."><i></i><i></i><i></i><i class="q" data-kind="time"></i><i></i><i></i><i></i><i></i><i></i><i class="w" data-kind="recon keying"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i class="q" data-kind="time"></i><i class="w" data-kind="recon keying time"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i class="w" data-kind="label"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i class="q" data-kind="time"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i class="q" data-kind="time"></i><i></i><i></i><i></i><i></i></div>
+          <p class="ws-how">Click a flagged row, then Accept its fix.</p>
           <div class="tabs" role="tablist" aria-label="Scan state" hidden>
             <button type="button" role="tab" id="t-found" aria-selected="true" aria-controls="p-found">Findings</button>
             <button type="button" role="tab" id="t-busy" aria-selected="false" aria-controls="p-busy" tabindex="-1">Scanning</button>
@@ -75,8 +76,8 @@
             <button type="button" data-kind="all" aria-pressed="true">All findings<span class="n" data-n="7" data-after="4">7</span></button>
             <button type="button" data-kind="recon" aria-pressed="false">Totals that don't add up<span class="n" data-n="2" data-after="0">2</span></button>
             <button type="button" data-kind="keying" aria-pressed="false">Typing slips<span class="n" data-n="2" data-after="0">2</span></button>
-            <button type="button" data-kind="label" aria-pressed="false">Same word, typed two ways<span class="n" data-n="1" data-after="0">1</span></button>
-            <button type="button" data-kind="time" aria-pressed="false">Odd jumps over time<span class="n" data-n="5" data-after="4">5</span></button>
+            <button type="button" data-kind="label" aria-pressed="false">Spelling<span class="n" data-n="1" data-after="0">1</span></button>
+            <button type="button" data-kind="time" aria-pressed="false">Dates<span class="n" data-n="5" data-after="4">5</span></button>
             <p class="overlap">A row can be flagged by more than one type.</p>
             <p class="key"><span><i aria-hidden="true"></i>Probably wrong: <b class="kcount" data-n="3" data-after="0">3</b></span><span><i class="q" aria-hidden="true"></i>Worth a check: <b class="kcount" data-n="4" data-after="4">4</b></span></p>
           </nav>
@@ -123,19 +124,19 @@
                   <dt>Usual limit</dt><dd>Units 0 or more</dd>
                   <dt>Proposed fix</dt><dd>Units 57, from the row's own numbers: <span class="nb">170.43 ÷ 2.99</span></dd>
                 </dl>
-                <p class="m-said">In the pane: "Total 170.43 does not add up: Units × UnitCost = -14.95
+                <p class="m-said">In Excel, Arcas says: "Total 170.43 does not add up: Units × UnitCost = -14.95
 Units is -5, below its usual limit of 0"</p>
               </div>
               <div class="matrix" id="m22" role="dialog" aria-label="Row 22 detail" hidden>
                 <div class="m-head"><b>Row 22 · Probably wrong</b><button type="button" class="btn btn-primary m-accept">Accept</button><button type="button" class="m-close" aria-label="Close">Close</button></div>
                 <dl>
-                  <dt>Checks</dt><dd>Totals that don't add up, typing slips, odd jumps over time</dd>
+                  <dt>Checks</dt><dd>Totals that don't add up, typing slips, dates</dd>
                   <dt>Rule</dt><dd><span class="nb">Total = Units × UnitCost</span></dd>
                   <dt>Found</dt><dd><span class="nb">7777 × 1.99 = 15476.23,</span> but Total is 83.58</dd>
                   <dt>Usual limit</dt><dd>Units 105 or less</dd>
                   <dt>Proposed fix</dt><dd>Units 42, from the row's own numbers: <span class="nb">83.58 ÷ 1.99</span></dd>
                 </dl>
-                <p class="m-said">In the pane: "Total 83.58 does not add up: Units × UnitCost = 15476.23
+                <p class="m-said">In Excel, Arcas says: "Total 83.58 does not add up: Units × UnitCost = 15476.23
 Units is 7777, above its usual limit of 105
 Units breaks its usual pattern near <span class="iso-date">2026-01-26</span>
 Units jumped sharply near <span class="iso-date">2026-01-26</span>"</p>
@@ -143,56 +144,56 @@ Units jumped sharply near <span class="iso-date">2026-01-26</span>"</p>
               <div class="matrix" id="m31" role="dialog" aria-label="Row 31 detail" hidden>
                 <div class="m-head"><b>Row 31 · Probably wrong</b><button type="button" class="btn btn-primary m-accept">Accept</button><button type="button" class="m-close" aria-label="Close">Close</button></div>
                 <dl>
-                  <dt>Check</dt><dd>Same word, typed two ways</dd>
+                  <dt>Check</dt><dd>Spelling</dd>
                   <dt>Found</dt><dd>Region "east " (lower case, a trailing space)</dd>
                   <dt>Usual spelling</dt><dd>"East", in 20 other rows</dd>
                   <dt>Proposed fix</dt><dd>East</dd>
                 </dl>
-                <p class="m-said">In the pane: "Region "east " looks like "East" (same word, different capitals/spaces)"</p>
+                <p class="m-said">In Excel, Arcas says: "Region "east " looks like "East" (same word, different capitals/spaces)"</p>
               </div>
               <div class="matrix" id="m5" role="dialog" aria-label="Row 5 detail" hidden>
                 <div class="m-head"><b>Row 5 · Worth a check</b><button type="button" class="m-close" aria-label="Close">Close</button></div>
                 <dl>
-                  <dt>Check</dt><dd>Odd jumps over time</dd>
+                  <dt>Check</dt><dd>Dates</dd>
                   <dt>Found</dt><dd>Total 304.39 on 2026-01-09, a sharp jump from the dates around it</dd>
                   <dt>What to check</dt><dd>Nothing here is clearly broken, but the values are unusual together. Check them against the source; if they're right, leave them.</dd>
                   <dt>Behind it</dt><dd>UnitCost 4.99: the price peaks every 4 days, and Total jumps with it</dd>
                   <dt>Total, rows 2 to 61</dt><dd class="m-chart"><svg viewBox="0 0 240 56" aria-hidden="true"><use href="#totals"/><circle cx="15.8" cy="5" r="3.5"/></svg></dd>
                 </dl>
-                <p class="m-said">In the pane: "Total jumped sharply near <span class="iso-date">2026-01-09</span>"</p>
+                <p class="m-said">In Excel, Arcas says: "Total jumped sharply near <span class="iso-date">2026-01-09</span>"</p>
               </div>
               <div class="matrix" id="m21" role="dialog" aria-label="Row 21 detail" hidden>
                 <div class="m-head"><b>Row 21 · Worth a check</b><button type="button" class="m-close" aria-label="Close">Close</button></div>
                 <dl>
-                  <dt>Check</dt><dd>Odd jumps over time</dd>
+                  <dt>Check</dt><dd>Dates</dd>
                   <dt>Found</dt><dd>Total 289.42 on 2026-01-25, a sharp jump from the dates around it</dd>
                   <dt>What to check</dt><dd>Nothing here is clearly broken, but the values are unusual together. Check them against the source; if they're right, leave them.</dd>
                   <dt>Behind it</dt><dd>UnitCost 4.99: the price peaks every 4 days, and Total jumps with it</dd>
                   <dt>Total, rows 2 to 61</dt><dd class="m-chart"><svg viewBox="0 0 240 56" aria-hidden="true"><use href="#totals"/><circle cx="78.7" cy="8.2" r="3.5"/></svg></dd>
                 </dl>
-                <p class="m-said">In the pane: "Total jumped sharply near <span class="iso-date">2026-01-25</span>"</p>
+                <p class="m-said">In Excel, Arcas says: "Total jumped sharply near <span class="iso-date">2026-01-25</span>"</p>
               </div>
               <div class="matrix" id="m41" role="dialog" aria-label="Row 41 detail" hidden>
                 <div class="m-head"><b>Row 41 · Worth a check</b><button type="button" class="m-close" aria-label="Close">Close</button></div>
                 <dl>
-                  <dt>Check</dt><dd>Odd jumps over time</dd>
+                  <dt>Check</dt><dd>Dates</dd>
                   <dt>Found</dt><dd>Total 299.40 on 2026-02-14, a sharp jump from the dates around it</dd>
                   <dt>What to check</dt><dd>Nothing here is clearly broken, but the values are unusual together. Check them against the source; if they're right, leave them.</dd>
                   <dt>Behind it</dt><dd>UnitCost 4.99: the price peaks every 4 days, and Total jumps with it</dd>
                   <dt>Total, rows 2 to 61</dt><dd class="m-chart"><svg viewBox="0 0 240 56" aria-hidden="true"><use href="#totals"/><circle cx="157.4" cy="6.1" r="3.5"/></svg></dd>
                 </dl>
-                <p class="m-said">In the pane: "Total jumped sharply near <span class="iso-date">2026-02-14</span>"</p>
+                <p class="m-said">In Excel, Arcas says: "Total jumped sharply near <span class="iso-date">2026-02-14</span>"</p>
               </div>
               <div class="matrix" id="m57" role="dialog" aria-label="Row 57 detail" hidden>
                 <div class="m-head"><b>Row 57 · Worth a check</b><button type="button" class="m-close" aria-label="Close">Close</button></div>
                 <dl>
-                  <dt>Check</dt><dd>Odd jumps over time</dd>
+                  <dt>Check</dt><dd>Dates</dd>
                   <dt>Found</dt><dd>Total 284.43 on 2026-03-02, a sharp jump from the dates around it</dd>
                   <dt>What to check</dt><dd>Nothing here is clearly broken, but the values are unusual together. Check them against the source; if they're right, leave them.</dd>
                   <dt>Behind it</dt><dd>UnitCost 4.99: the price peaks every 4 days, and Total jumps with it</dd>
                   <dt>Total, rows 2 to 61</dt><dd class="m-chart"><svg viewBox="0 0 240 56" aria-hidden="true"><use href="#totals"/><circle cx="220.3" cy="9.2" r="3.5"/></svg></dd>
                 </dl>
-                <p class="m-said">In the pane: "Total jumped sharply near <span class="iso-date">2026-03-02</span>"</p>
+                <p class="m-said">In Excel, Arcas says: "Total jumped sharply near <span class="iso-date">2026-03-02</span>"</p>
               </div>
             </div>
 
@@ -204,6 +205,7 @@ Units jumped sharply near <span class="iso-date">2026-01-26</span>"</p>
                 <ol class="stages">
                   <li>Step 1 of 3: reading your sheet…</li>
                   <li>Step 2 of 3: checking 60 rows…</li>
+                  <li>Step 3 of 3: highlighting rows to check…</li>
                   <li>Fixing exact mistakes… <span class="small">only with Auto-fix on</span></li>
                 </ol>
                 <p class="small">On your PC, a sheet this size takes moments and needs no internet.</p>
@@ -246,7 +248,7 @@ Units jumped sharply near <span class="iso-date">2026-01-26</span>"</p>
             </div>
           </div>
         </div>
-        <figcaption class="ws-foot" id="ws-cap">A sample sheet with the engine's own findings, at level 5 of 10, the recommended one. Click a flagged row for its detail, and Accept its fix: each fix comes from the row's own numbers or the column's usual spelling.</figcaption>
+        <figcaption class="ws-foot" id="ws-cap">A sample sheet with the engine's own findings, at level 5 of 10, the recommended one. Each fix comes from the row's own numbers or the column's usual spelling.</figcaption>
       </figure>
       <p class="next-up"><a class="btn btn-ghost" href="#checks" data-glide="top">See what it checks</a></p>
     </div>
@@ -268,7 +270,7 @@ Units jumped sharply near <span class="iso-date">2026-01-26</span>"</p>
       <!-- AH-156: the real pane, captured by the e2e after a scan of its own 300-row sales sheet, not the sample above -->
       <figure class="shot reveal-item">
         <img src="assets/pane-after-scan.webp" width="360" height="900" alt="The Arcas pane after a scan: 5 of 300 rows look wrong, and the rows to check start with Row 22 and Row 11, each with its reason" loading="lazy" decoding="async">
-        <figcaption>The Arcas pane after a scan of a 300-row sales sheet: it lists the rows to check, worst first.</figcaption>
+        <figcaption>The Arcas pane after a scan of a longer sales sheet of 300 rows, not the sample above: it lists the rows to check, worst first.</figcaption>
       </figure>
       <p class="all-checks reveal-item"><a href="checks.html">See every check</a></p>
     </div>
@@ -287,7 +289,7 @@ Units jumped sharply near <span class="iso-date">2026-01-26</span>"</p>
             <p>Hi, I'm John Nguyen. I made Arcas.</p>
             <p>In business class we used Excel every week. I saw that the longer I typed, the more mistakes I made. Everyone gets tired. Arcas does not. It checks every row the same way and shows you what to fix.</p>
           </div>
-          <p>Call me at <a href="tel:+17702659930">(770) 265-9930</a>, email me at <a href="mailto:john4000.nguyen@gmail.com">john4000.nguyen@gmail.com</a>, or write with the form below.</p>
+          <p>Call me at <a href="tel:+17702659930">(770) 265-9930</a>, email me at <a href="mailto:john4000.nguyen@gmail.com">john4000.nguyen@gmail.com</a>, or write with <a href="#contact">the form below</a>.</p>
           <nav class="profiles" aria-label="John Nguyen elsewhere">
             <a class="btn btn-plain" href="https://www.linkedin.com/in/johnnguyen3000/" aria-label="John Nguyen on LinkedIn"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M1.5 0h13A1.5 1.5 0 0 1 16 1.5v13a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 0 14.5v-13A1.5 1.5 0 0 1 1.5 0Zm1 6v7.5h2.5V6Zm1.25-3.75a1.45 1.45 0 1 0 0 2.9 1.45 1.45 0 0 0 0-2.9ZM6.5 6v7.5H9V9.6c0-1 .2-1.95 1.45-1.95 1.2 0 1.25 1.15 1.25 2V13.5h2.5V9.1C14.2 6.95 13.7 5.8 11.25 5.8c-1.15 0-1.95.65-2.25 1.25V6Z"/></svg>LinkedIn</a>
             <a class="btn btn-plain" href="https://app.joinhandshake.com/profiles/74fwhv" aria-label="John Nguyen on Handshake"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M1.5 0h13A1.5 1.5 0 0 1 16 1.5v13a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 0 14.5v-13A1.5 1.5 0 0 1 1.5 0ZM4 3v10h2.4V9.1c0-1.1.55-1.75 1.5-1.75s1.3.6 1.3 1.6V13h2.4V8.5c0-2.1-1.05-3.2-2.85-3.2-1.05 0-1.85.45-2.35 1.15V3Z"/></svg>Handshake</a>
@@ -306,10 +308,10 @@ Units jumped sharply near <span class="iso-date">2026-01-26</span>"</p>
       <dl class="proof calm" data-reveal-group="rows">
         <div class="reveal-item"><span class="rule" aria-hidden="true"></span><dt>51 of 51</dt><dd>planted mistakes found in 27 test sheets</dd></div>
         <div class="reveal-item"><span class="rule" aria-hidden="true"></span><dt>199 of 201</dt><dd>found in 42 more test sheets it had never seen</dd></div>
-        <div class="reveal-item"><span class="rule" aria-hidden="true"></span><dt>0</dt><dd>correct rows called probably wrong in those test sheets, out of 2,724 and 6,954 clean rows</dd></div>
+        <div class="reveal-item"><span class="rule" aria-hidden="true"></span><dt>0</dt><dd>correct rows called probably wrong in those 69 test sheets, out of 9,678 clean rows</dd></div>
       </dl>
       <p class="proof-note calm reveal-item">Real sheets are messier than test sheets. When Arcas misses something, <a href="#contact">tell John</a>, and the next version learns from it.</p>
-      <p class="proof-from calm reveal-item">From the <a href="https://github.com/ricepillow3000/excel-anomaly-hunter/blob/main/docs/proof/2026-11-05-stress-test.md">stress test of 5 November 2026</a>.</p>
+      <p class="proof-from calm reveal-item">From the <a href="https://github.com/ricepillow3000/excel-anomaly-hunter/blob/main/docs/proof/2026-11-05-stress-test.md">stress test of 5 November 2026</a>, when the download was version 0.1.276.</p>
       <p class="to-cases calm reveal-item"><a href="cases.html">See what it found in three public tables</a></p>
     </div>
   </section>
@@ -321,14 +323,14 @@ Units jumped sharply near <span class="iso-date">2026-01-26</span>"</p>
       <div class="stage reveal-item">
         <!-- the mark: John's A of tiles in its gold ring (docs/design/logo/coin-157.svg, AH-203), one unit a pixel at its 157 px height so every row's flat edge lands on a whole pixel; nothing here carries a transform at rest -->
         <svg class="logo logo-lg" viewBox="0 0 157 157" aria-hidden="true"><defs><radialGradient id="c157-d" cx="50%" cy="42%" r="62%"><stop offset="0" stop-color="#F7F5F0"/><stop offset="1" stop-color="#E3DBCA"/></radialGradient><filter id="c157-g" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".8" numOctaves="3" seed="3" stitchTiles="stitch"/><feColorMatrix values="0 0 0 0 .05 0 0 0 0 .1 0 0 0 0 .22 0 0 0 -2 1.25"/><feComponentTransfer><feFuncA type="linear" slope=".07"/></feComponentTransfer><feComposite in2="SourceGraphic" operator="in"/></filter></defs><g><circle data-part="disc" cx="78.5" cy="78.5" r="72.5" fill="url(#c157-d)"/><circle cx="78.5" cy="78.5" r="72.5" fill="#000" filter="url(#c157-g)"/><circle data-part="ring" cx="78.5" cy="78.5" r="75.5" fill="none" stroke="#997D3A" stroke-width="6"/><path data-part="tile" data-row="0" d="M59.623 35 L70.708 35 L69.689 47 L56.566 47Z" fill="#6B1E2E"/><path data-part="tile" data-row="0" d="M73.708 35 L83.292 35 L84.311 47 L72.689 47Z" fill="#6B1E2E"/><path data-part="tile" data-row="0" d="M86.292 35 L97.377 35 L100.434 47 L87.311 47Z" fill="#6B1E2E"/><path data-part="tile" data-row="1" d="M55.802 50 L69.434 50 L68.415 62 L52.745 62Z" fill="#5B1E30"/><path data-part="tile" data-row="1" d="M87.566 50 L101.198 50 L104.255 62 L88.585 62Z" fill="#5B1E30"/><path data-part="tile" data-row="2" d="M51.981 65 L68.16 65 L67.142 77 L48.925 77Z" fill="#4B1C35"/><path data-part="tile" data-row="2" d="M88.84 65 L105.019 65 L108.075 77 L89.858 77Z" fill="#4B1C35"/><path data-part="tile" data-row="3" d="M48.16 80 L66.887 80 L65.868 92 L45.104 92Z" fill="#371C3A"/><path data-part="tile" data-row="3" d="M69.887 80 L87.113 80 L88.132 92 L68.868 92Z" fill="#371C3A"/><path data-part="tile" data-row="3" d="M90.113 80 L108.84 80 L111.896 92 L91.132 92Z" fill="#371C3A"/><path data-part="tile" data-row="4" d="M44.34 95 L65.613 95 L64.594 107 L41.283 107Z" fill="#211B3C"/><path data-part="tile" data-row="4" d="M91.387 95 L112.66 95 L115.717 107 L92.406 107Z" fill="#211B3C"/><path data-part="tile" data-row="5" d="M40.519 110 L64.34 110 L63.321 122 L37.462 122Z" fill="#0C1938"/><path data-part="tile" data-row="5" d="M92.66 110 L116.481 110 L119.538 122 L93.679 122Z" fill="#0C1938"/></g></svg>
+        <a class="btn btn-primary phone-dl" href="mailto:?subject=Arcas%20for%20Excel&amp;body=https%3A%2F%2Fricepillow3000.github.io%2Fexcel-anomaly-hunter%2F%23download">Email yourself the link</a>
         <a class="btn btn-primary" href="https://github.com/ricepillow3000/excel-anomaly-hunter/releases/latest/download/Arcas.exe"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Download for Windows</a>
         <p class="license-line">Free for any number of people. Open source under the <a href="https://github.com/ricepillow3000/excel-anomaly-hunter/blob/main/LICENSE">MIT License</a>.</p>
-        <p class="stage-note">Your browser may say Arcas.exe isn't commonly downloaded. Click the three dots beside it, then Keep, then Keep anyway. It says this because the file is new and not signed yet.</p>
       </div>
       <div class="steps calm" data-reveal-group>
         <span class="label reveal-item">Install it in four steps</span>
         <ol data-reveal-group="rows">
-          <li class="reveal-item"><span class="rule" aria-hidden="true"></span><div>Open your Downloads folder and double-click <b>Arcas.exe</b>.</div></li>
+          <li class="reveal-item"><span class="rule" aria-hidden="true"></span><div>If your browser says Arcas.exe isn't commonly downloaded, click the three dots beside it, then <b>Keep</b>, then <b>Keep anyway</b>. Then double-click <b>Arcas.exe</b> in your Downloads folder.</div></li>
           <li class="reveal-item"><span class="rule" aria-hidden="true"></span><div>A blue "Windows protected your PC" box appears. Click <b>More info</b>, then <b>Run anyway</b>, or <b>Run</b> on some PCs.</div></li>
           <li class="reveal-item"><span class="rule" aria-hidden="true"></span><div>Windows asks to install a certificate named Anomaly Hunter local CA, Arcas's old name. It only lets Excel talk to Arcas on this computer. Click <b>Yes</b>.</div></li>
           <li class="reveal-item"><span class="rule" aria-hidden="true"></span><div>Excel opens a "Start here" workbook. The first time, it shows 5 clicks that add Arcas to Excel. Then try its Practice tab and press <b>Find problems</b>.</div></li>
@@ -348,6 +350,7 @@ Units jumped sharply near <span class="iso-date">2026-01-26</span>"</p>
             <p>In PowerShell, in your Downloads folder, run the line below and compare the result with the <span class="nb">SHA-256</span> in the list above. If they differ, delete the file and download it again.<code class="line" tabindex="0">Get-FileHash .\Arcas.exe -Algorithm SHA256</code><button type="button" class="copy-btn" hidden><span class="icons"><span class="ico" aria-hidden="true"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 1.75h8.75v9.5M1.75 4.75h8.5v9.5h-8.5z" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></span><span class="ico" aria-hidden="true"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.25 8.5l3.75 3.75 7.75-8.5" fill="none" stroke="currentColor" stroke-width="1.75"/></svg></span></span><span class="copy-label"><span class="copy-said" aria-live="polite">Copy</span></span></button></p>
             <p>To skip the blue box, right-click the file before you open it, click <b>Properties</b>, tick <b>Unblock</b> and click <b>OK</b>.</p>
             <p>No Trusted Locations or macro settings to change: the add-in has no macros. The installer registers its add-in folder as a trusted catalog for your account, and uninstall removes it. To update, download again and double-click; settings and key stay.</p>
+            <p>Who looks after your computers? <a href="support.html#it">More for your IT team</a> is on the support page.</p>
           </div>
         </details>
         <!-- every released Arcas.exe's notes link to #code-signing (AH-100): it lands here. AH-168: the SignPath application
@@ -359,7 +362,7 @@ Units jumped sharply near <span class="iso-date">2026-01-26</span>"</p>
 
   <!-- five questions (AH-133) in the support page's markup: a <details> opens without a script; the FAQPage block in
        <head> says the same words. Beside them the contact form: support.js opens a prefilled GitHub issue
-       (.github/ISSUE_TEMPLATE/contact.yml) in a new tab, then shows thanks.html -->
+       (.github/ISSUE_TEMPLATE/contact.yml) in a new tab, then thanks the visitor inside the form (AH-227) -->
   <section class="section" id="faq" aria-labelledby="faq-title">
     <div class="wrap cols" data-reveal-group>
       <h2 class="sec-title reveal-item" data-depth="0.03" id="faq-title">Questions people ask before installing</h2>
@@ -390,8 +393,8 @@ Units jumped sharply near <span class="iso-date">2026-01-26</span>"</p>
         <h2 id="note-title">Contact John</h2>
         <p class="reply">John usually replies within 2 business days.</p>
         <form id="note" novalidate>
-          <p class="notice">This is public: GitHub gets what you typed as soon as its tab opens; nothing is posted until you press Submit there. You need a free GitHub account. Never paste client data, your AI key or your invite code.</p>
-          <p class="form-note">GitHub is a free website where John keeps Arcas and answers questions. No account? Use Email John instead.</p>
+          <p class="notice">This is public: GitHub gets what you typed as soon as its tab opens; nothing is posted until you press Submit there. You need a free GitHub account. Never paste client data, your own AI key, or any key or code John gave you.</p>
+          <p class="form-note">GitHub is a free website where John keeps Arcas and answers questions. No account? Use Email John.</p>
           <div class="field">
             <label for="c-name">Name (optional)</label>
             <input id="c-name" name="name" type="text" maxlength="80" autocomplete="name">
@@ -410,8 +413,8 @@ Units jumped sharply near <span class="iso-date">2026-01-26</span>"</p>
           </div>
           <label class="confirm"><input id="c-public" type="checkbox" required><span>I understand what I type here will be public on GitHub.</span></label>
           <div class="form-actions">
-            <button class="btn btn-primary" type="submit">Open my message on GitHub</button>
-            <a class="btn btn-plain" id="c-email" href="mailto:john4000.nguyen@gmail.com">Email John instead</a>
+            <a class="btn btn-primary" id="c-email" href="mailto:john4000.nguyen@gmail.com">Email John</a>
+            <button class="btn btn-plain" type="submit">Open my message on GitHub</button>
           </div>
           <p class="notice" id="c-mail-cut" role="status" hidden>Your message is too long for one email link, so the email holds only its start. Copy the rest from the box above and paste it into the email.</p>
           <div class="result" id="c-result" hidden>
@@ -419,6 +422,7 @@ Units jumped sharply near <span class="iso-date">2026-01-26</span>"</p>
             <span id="c-cut" hidden>Your message is too long for one link, so the link holds only its start. Copy the rest from the box above and paste it on GitHub.</span>
             <a class="btn btn-plain" id="c-open" href="https://github.com/ricepillow3000/excel-anomaly-hunter/issues/new?template=contact.yml" target="_blank" rel="noopener" aria-describedby="c-ready">Open on GitHub</a>
           </div>
+          <p id="c-thanks" role="status" hidden>Thanks. Your message is open on GitHub in a new tab. If it asks you to sign in, make a free account or sign in, then press the green button at the bottom to send it. Nothing reaches John until you do. Rather not make an account? Your message is still here: press Email John.</p>
           <p class="error" id="c-missing" hidden role="alert"></p>
         </form>
         <noscript><p class="notice">Without JavaScript, use the <a href="https://github.com/ricepillow3000/excel-anomaly-hunter/issues/new?template=contact.yml">GitHub contact form</a>.</p></noscript>
@@ -436,6 +440,7 @@ Units jumped sharply near <span class="iso-date">2026-01-26</span>"</p>
       <a href="code-signing.html">Code signing policy</a>
       <a href="privacy.html">Privacy &amp; security</a>
       <a href="terms.html">Terms</a>
+      <a href="cases.html">Real examples</a>
       <a href="support.html">Support</a>
       <a href="https://github.com/ricepillow3000/excel-anomaly-hunter">Source</a>
     </nav>

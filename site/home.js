@@ -12,7 +12,9 @@
   const API = "https://api.github.com/repos/ricepillow3000/excel-anomaly-hunter/releases/latest";
   // the pane's own progress line for this 60-row sheet (frontend/features/scan.js; test_site_sample.py holds them to it):
   // its 305 cells are one slice of READ_CELLS, so the pane goes from the first words straight to 100% (it never says 40%)
-  const STAGES = ["Step 1 of 3: reading your sheet…", "Step 1 of 3: reading your sheet… 100%", "Step 2 of 3: checking 60 rows…"];
+  // ... and its step 3 as it starts highlighting (frontend/features/highlight.js), up to its count (AH-227 W-26: "Step 2 of 3"
+  // with no step 3 read as a step left out)
+  const STAGES = ["Step 1 of 3: reading your sheet…", "Step 1 of 3: reading your sheet… 100%", "Step 2 of 3: checking 60 rows…", "Step 3 of 3: highlighting rows to check…"];
   const html = document.documentElement;
   const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const tokens = getComputedStyle(html);
@@ -152,9 +154,11 @@
     // footer after it, not as its top passing the screen's: a jump (a footer link, End) crosses no threshold of its own
     const nears = new Set([dl, ...root.querySelectorAll("#contact, form")]), seen = new Set();
     const afters = new Set([...root.querySelectorAll("#download ~ section"), document.querySelector(".foot")].filter(Boolean)), beyond = new Set();
-    let past = false, near = false, typing = false, rise = null;
+    // AH-227 W-10: and while the sample covers more than 30% of the screen (or of itself), where it lay over the table
+    const sample = root.querySelector("#preview");
+    let past = false, near = false, typing = false, rise = null, onSample = false;
     const set = () => {
-      const on = phone.matches && past && !near && !beyond.size && !typing;
+      const on = phone.matches && past && !near && !beyond.size && !typing && !onSample;
       if (on === !bar.hidden) return;
       bar.hidden = !on;
       if (rise) { rise.cancel(); rise = null; }
@@ -163,12 +167,14 @@
     const io = new IntersectionObserver((entries) => {
       for (const e of entries) {
         const bag = afters.has(e.target) ? beyond : seen;
-        if (e.target === cta) past = !e.isIntersecting && e.boundingClientRect.top < 0; else if (e.isIntersecting) bag.add(e.target); else bag.delete(e.target);
+        if (e.target === cta) past = !e.isIntersecting && e.boundingClientRect.top < 0;
+        else if (e.target === sample) onSample = e.intersectionRect.height > 0.3 * Math.min(e.boundingClientRect.height, e.rootBounds ? e.rootBounds.height : innerHeight);
+        else if (e.isIntersecting) bag.add(e.target); else bag.delete(e.target);
       }
       near = seen.size > 0;
       set();
-    });
-    io.observe(cta); for (const el of [...nears, ...afters]) io.observe(el);
+    }, { threshold: Array.from({ length: 21 }, (_, i) => i / 20) });
+    io.observe(cta); for (const el of [...nears, ...afters, sample].filter(Boolean)) io.observe(el);
     const focus = () => { const a = document.activeElement; typing = !!(a && a.closest && root.contains(a) && a.closest("form")); set(); };
     const later = () => setTimeout(focus);
     root.addEventListener("focusin", focus); root.addEventListener("focusout", later);
@@ -283,7 +289,7 @@
         ticker.textContent = STAGES[k];
         // reading is done the moment its bar is full and says 100%: the list marked it under way for that 0.4 s, checking
         // still waiting, beside a full bar (AH-193 fix round F2, the blind judge)
-        const at = k ? 1 : 0;
+        const at = [0, 1, 1, 2][k];
         steps.forEach((li, i) => { if (i === at) li.setAttribute("aria-current", "step"); else li.removeAttribute("aria-current"); li.toggleAttribute("data-done", i < at); });
       };
       const stop = () => { timers.forEach(clearTimeout); if (fill) fill.cancel(); lights.forEach((a) => a.cancel()); if (run === stop) run = null; };
@@ -292,6 +298,7 @@
         if (fill) { fill.cancel(); fill = null; }
         step(1);
         later(() => step(2), 400);
+        later(() => step(3), 1000);
         later(() => { const from = document.activeElement === byId("t-busy"); stop(); pick(tabs[0]); if (from) tabs[0].focus(); }, 1600);
       };
       run = stop;
@@ -472,7 +479,15 @@
       // they leave. Only where even that is too narrow does it sit on the findings' bottom, as it did before.
       // Positions are read from the findings, then set in .ws-main's own (on a phone it holds the swipe hint above them,
       // AH-148 fix round 1)
-      const tr = btn.closest("tr"), row = tr.getBoundingClientRect(), sheet = main.getBoundingClientRect();
+      const tr = btn.closest("tr");
+      // AH-227 W-08: its first flagged cell in the table's view, sideways only (a phone opens the table at its end, and
+      // row 31's Region lay 192 px off to the left, under the pinned Row number)
+      const cell = tr.querySelector("td.flag, td.q"), sc = cell && cell.closest(".scroll");
+      if (sc) {
+        const c = cell.getBoundingClientRect(), v = sc.getBoundingClientRect(), left = Math.max(v.left, tr.querySelector("th").getBoundingClientRect().right);
+        if (c.left < left) sc.scrollLeft -= left - c.left; else if (c.right > v.right) sc.scrollLeft += Math.min(c.right - v.right, c.left - left);
+      }
+      const row = tr.getBoundingClientRect(), sheet = main.getBoundingClientRect();
       box.style.left = box.style.width = "";
       box.hidden = false;
       const at = box.offsetParent.getBoundingClientRect(); // a hidden box has none
@@ -500,8 +515,11 @@
       if (moving() && box.animate) settle(box, back && back.q < 1 ? back : null);
       // the box is a dialog that sits after the whole table in the page: without this a keyboard or screen-reader user
       // reached it only after every other row; Escape and Close bring focus back to the row (focus scrolls nothing: the
-      // line above has placed the page)
-      box.querySelector(".m-close").focus({ preventScroll: true });
+      // line above has placed the page). AH-227 W-05: on its title, so Tab goes on to Accept, then Close (on Close, Tab
+      // left the box), and an Enter that opened the box never lands on Accept
+      const title = box.querySelector(".m-head b");
+      title.tabIndex = -1;
+      title.focus({ preventScroll: true });
     }
     for (const btn of ws.querySelectorAll(".rowbtn")) {
       btn.addEventListener("click", (e) => { e.stopPropagation(); openMatrix(btn); });

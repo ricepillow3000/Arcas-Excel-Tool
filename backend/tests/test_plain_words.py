@@ -471,3 +471,20 @@ def test_the_praise_reader_catches_what_a_fake_testimonial_looks_like():
 def test_no_page_carries_a_testimonial_a_rating_or_a_user_count():
     found = praise()
     assert found == [], "made-up praise:\n" + "\n".join(found)
+
+
+# ---- AH-227 W-13 (John: "I hate technical terms"): the engine room's words, taken out of what a stranger reads on the
+# website and the privacy and support pages. "The pane" is a part of Excel few people know, a relay and a kit are ours ----
+JARGON = ("John's relay", "invite kit", "In the pane:", "keep an invite code to yourself", "your AI key or your invite code")
+
+
+def jargon(src):
+    flat = " ".join(html.unescape(re.sub(r"<[^>]+>", " ", re.sub(r"<!--.*?-->", "", src, flags=re.S))).split())
+    return [w for w in JARGON if w.lower() in flat.lower()]
+
+
+def test_the_website_and_the_privacy_and_support_pages_never_use_the_engine_rooms_words():
+    assert jargon("<p>Through <b>John's relay</b> on Cloudflare</p><!-- an invite kit -->") == ["John's relay"]
+    pages = [*ROOT.glob("site/*.html"), ROOT / "frontend/privacy.html", ROOT / "frontend/support.html", ROOT / "PRIVACY.md"]
+    found = [f"{p.relative_to(ROOT).as_posix()}: {w}" for p in sorted(pages) for w in jargon(p.read_text(encoding="utf-8"))]
+    assert found == [], "\n".join(found)

@@ -126,7 +126,7 @@ p { margin: 0; }
 p, li, dd, .faq summary { text-wrap: pretty; }
 /* a long address or code (github.com/ricepillow3000/..., aistudio.google.com/apikey) breaks where it must: with the text
    at 200% on a 320 px phone it pushed the privacy page 267 px sideways, and a list item never got narrower than it (AH-112) */
-a, code, li, h1, h2, h3 { overflow-wrap: anywhere; } /* a headline's long word too ("something" at 66 px beside its §) */
+a, code, li, h1, h2, h3 { overflow-wrap: anywhere; } /* a headline's long word too, where nothing else fits (AH-227 W-04 shrinks them first) */
 body { overflow-wrap: break-word; }
 /* AH-148 (John: "x-height"): the system's mono font is scaled to Plus Jakarta Sans's x-height (536 of 1000, OS/2
    sxHeight), so a code beside a word is as tall as the word's small letters. Said again after each font shorthand below
@@ -193,6 +193,8 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .links a[aria-current="page"] { border-bottom-color: var(--wine); }
 .links .btn-trim { padding: 12px 16px; background: var(--ink); color: var(--paper); border: 0; }
 .links .btn-trim:hover { background: var(--wine); color: var(--on-wine); }
+/* AH-227 W-01: its ring was currentColor, the paper, on the bar's paper: no ring a keyboard could see */
+.links .btn-trim:focus-visible { outline-color: var(--ink); }
 .logo { display: block; color: inherit; }
 /* the phone's menu (AH-126): a Menu button that opens the links, shown only on a phone and only once boot.js has marked
    the page (data-js), so with no script the links show as before; transition.js opens and closes it */
@@ -235,8 +237,10 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .section { padding-block: var(--s7) var(--s8); border-top: 1px solid var(--ink); }
 /* the home page told in about five screens (AH-159, John: "the website feels so long I got bored scrolling"): its
    sections closer together, the same rhythm a phone already has */
-#home .section { padding-block: var(--s5); }
-.sec-title { grid-column: 1 / span 10; font-size: clamp(var(--fs-3), 5.4vw, var(--fs-7)); }
+#home .section { padding-block: var(--s4); } /* AH-227 W-12: 32 px, paying (with the headings) for its reading text at body size */
+/* AH-227 W-12: smaller, paying for the home page's reading text at body size; W-04: never above 11vw, so at 320 px with
+   text at 200% no word of a heading is cut in two, and still over the body's size there (35 px against 34) */
+.sec-title { grid-column: 1 / span 10; font-size: clamp(min(var(--fs-3), 11vw), 4.4vw, var(--fs-6)); }
 /* a fact in the lede's row, from column 1: what the section holds, counted (the checks: 8, and the sample's 7 rows) */
 .fact { grid-column: 1 / span 5; grid-row: 2; margin-top: var(--s4); padding-top: 12px; border-top: 1px solid currentColor; justify-self: start;
   font: 600 var(--fs--1)/1.4 var(--sans); font-variant-numeric: tabular-nums; color: var(--ink); }
@@ -256,7 +260,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 
 /* hero: a huge headline over ten columns, the text from column 7, then the sample sheet as the picture */
 .hero { padding-block: var(--s7) var(--s6); background: var(--grain), var(--grid), var(--paper); }
-.hero-head { grid-column: 1 / span 7; font-size: clamp(var(--fs-4), 9.2vw, 8.5rem); line-height: 1.04; }
+.hero-head { grid-column: 1 / span 7; font-size: clamp(min(var(--fs-4), 12.5vw), 9.2vw, 8.5rem); line-height: 1.04; } /* AH-227 W-04 */
 /* its one word in the wine, in the headline's own font (AH-159, John: "remove the underline and fancy work on consistent,
    just keep it wine red") */
 .hero-head em { font-style: normal; color: var(--wine); }
@@ -283,6 +287,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .ws-top { display: flex; flex-wrap: wrap; gap: var(--s1) var(--s3); align-items: center; padding: 0 var(--s3); min-height: 52px; background: var(--ink); color: var(--paper); }
 .ws-top b { font: 800 var(--fs-0)/1.3 var(--sans); letter-spacing: normal; }
 .ws-top > span { font-size: var(--fs--1); color: var(--on-dark-2); font-variant-numeric: tabular-nums; }
+.ws-how { font-size: var(--fs--1); color: var(--on-dark); } /* AH-227 W-06: the how-to was under the table, 1,165 px down */
 /* AH-183 (John, 2026-11-17: "add the fun stuff, keep the colours and look"): the whole sheet at a glance, one mark a row on
    a strip of the sheet's own paper, beside its title (the title's line has the room: the bar keeps its height). A flagged
    row's colour is its ::before, wine filled or outlined as the key says, and shows while the row is flagged
@@ -399,6 +404,7 @@ table.grid { width: 100%; border-collapse: collapse; font: 400 var(--fs--1)/1.3 
 .matrix, [data-pop-copy] { position: absolute; left: var(--s2); z-index: 2; width: min(440px, calc(100% - 32px)); background: var(--paper); border: 1px solid var(--ink); font-size: var(--fs--1); color: var(--ink); }
 .m-head { display: flex; justify-content: space-between; align-items: center; gap: var(--s2); padding: 8px 12px; background: var(--ink); color: var(--paper); }
 .m-head b { font: 700 var(--fs--1)/1.3 var(--sans); }
+.m-head .btn-primary:focus-visible { outline-color: var(--gold-hi); } /* AH-227 W-02: navy on the navy head showed no ring */
 .m-head button { flex: none; white-space: nowrap; } /* AH-200: a button keeps its word whole and its width: squeezed by the title, "Close" broke as "Clos" over "e" on any phone, and Accept, held to 44 px at 200% text, laid its word on the title */
 .m-close { min-height: 28px; font: 700 var(--fs--1)/1 var(--sans); color: var(--paper); background: none; border: 1px solid var(--paper); border-radius: 0; padding: 6px 8px; cursor: pointer; } /* 28 px: its height before the trim (AH-148) */
 .m-close:hover { background: var(--paper); color: var(--ink); }
@@ -463,6 +469,8 @@ td.why i.ok { display: inline-block; width: 10px; height: 10px; margin-right: 8p
 .ws-foot { padding: 12px var(--s3); border-top: 1px solid var(--ink); font-size: var(--fs--1); color: var(--ink-2); }
 /* the way on to the checks, right under the sheet (AH-91) */
 .next-up { grid-column: 1 / -1; margin-top: var(--s3); display: flex; justify-content: center; }
+.next-step { grid-column: 1 / -1; margin-top: var(--s5); } /* AH-227 W-17 */
+.band-dark .btn-primary:focus-visible { outline-color: var(--gold-hi); } /* its navy ring on the navy band */
 /* the real pane after a scan (AH-156: a page with no picture of its product reads as made up), beside the checks on the
    band, a hairline round it, its caption under it. AH-171: drawn 1:1 (at 180 px its words were 4 to 6 px tall), a 360 x
    364 window of it, from "5 of 300 rows look wrong." (y 475) to row 11's reason (y 827), no taller: the phone's home page
@@ -470,7 +478,7 @@ td.why i.ok { display: inline-block; width: 10px; height: 10px; margin-right: 8p
 /* the checks in a line each (AH-159): two columns of three beside the pane, each under a gold hairline */
 #checks .sec-title { grid-column: 1 / span 7; grid-row: 1; }
 .check-list { grid-column: 1 / span 7; grid-row: 2; margin: var(--s5) 0 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s4) var(--gutter); }
-.check-list li { position: relative; display: grid; gap: 6px; padding-top: var(--s2); font-size: var(--fs--1); color: var(--on-dark-2); }
+.check-list li { position: relative; display: grid; gap: 6px; padding-top: var(--s2); font-size: var(--fs-0); color: var(--on-dark-2); } /* AH-227 W-12: reading text at body size */
 .check-list .rule { background: var(--gold-hi); }
 .check-list .to-row { white-space: nowrap; }
 .all-checks { grid-column: 1 / span 7; grid-row: 3; margin-top: var(--s4); font-weight: 700; }
@@ -514,13 +522,14 @@ td.why i.ok { display: inline-block; width: 10px; height: 10px; margin-right: 8p
 /* the download, on a panel: the logo and the button over five columns, the facts from column 7, then the steps */
 .band-panel { background: var(--grain), var(--grid), var(--paper-2); }
 #download .sec-lede { grid-column: 1 / span 5; grid-row: 2; }
+#download .wrap { grid-template-rows: auto auto 1fr; } /* AH-227: steps taller than the lede and the download take their extra height under the download, never between them */
 /* the logo rises beside the lede and the facts, not under them */
 .stage { grid-column: 1 / span 5; grid-row: 3; margin-top: var(--s4); display: grid; gap: var(--s3); justify-items: start; }
 .logo-lg { width: auto; height: 157px; aspect-ratio: 1; margin-block-end: 3px; color: var(--ink); } /* coin-157.svg, 1 unit a pixel */
 .stage .btn { min-height: 64px; width: min(100%, 22rem); font-size: var(--fs-0); }
-/* the browser's "isn't commonly downloaded" warning, said under the button it follows (AH-135) */
-.stage-note { max-width: 22rem; font-size: var(--fs--1); color: var(--ink-2); }
 /* the MIT License, right under the download it covers (AH-159, John: "the MIT License is under the wrong spot") */
+/* AH-227 W-09: a phone can't run Arcas.exe: there the download section's main button emails the link, as the dock does */
+.phone-dl { display: none; }
 .license-line { max-width: 22rem; font-size: var(--fs--1); font-weight: 600; color: var(--ink); }
 dl.anchor { position: relative; margin: 0; display: grid; grid-template-columns: minmax(0, 120px) minmax(0, 1fr); column-gap: var(--gutter); font-size: var(--fs--1); line-height: 1.5; border-top: 1px solid var(--ink); }
 .anchor dt, .anchor dd { margin: 0; padding: 12px 0; border-bottom: 1px solid var(--rule); }
@@ -562,7 +571,7 @@ dl.anchor { position: relative; margin: 0; display: grid; grid-template-columns:
 .steps { grid-column: 7 / -1; grid-row: 2 / span 2; margin-top: var(--s4); display: grid; grid-template-columns: minmax(0, 1fr); row-gap: var(--s4); }
 .steps > * { grid-column: 1 / -1; }
 .steps ol { margin: 0; padding: 0; list-style: none; counter-reset: step; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s4) var(--gutter); }
-.steps li { position: relative; counter-increment: step; display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: var(--s2); padding-top: var(--s2); font-size: var(--fs--1); color: var(--ink-2); }
+.steps li { position: relative; counter-increment: step; display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: var(--s2); padding-top: var(--s2); font-size: var(--fs-0); color: var(--ink-2); } /* AH-227 W-12 */
 .steps li::before { content: counter(step, decimal-leading-zero); font: 800 var(--fs-5)/.9 var(--sans); letter-spacing: normal; color: var(--wine); font-variant-numeric: tabular-nums; }
 .steps li b { color: var(--ink); }
 .steps .line { display: block; margin-top: 12px; font-size: var(--fs--1); word-break: normal; overflow-x: auto; white-space: nowrap; }
@@ -606,8 +615,9 @@ dl.anchor { position: relative; margin: 0; display: grid; grid-template-columns:
 .steps .aside { font-size: var(--fs--1); color: var(--ink-2); padding-top: var(--s2); padding-right: max(0px, 100% - var(--measure)); border-top: 1px solid var(--rule); }
 
 /* reading pages: the same headline, then the text over seven columns beside its contents */
-.page-head { padding-block: var(--s7); }
-.page-head h1 { grid-column: 1 / span 11; font-size: clamp(var(--fs-4), 6.4vw, var(--fs-8)); }
+.page-head { padding-block: var(--s6) var(--s5); }
+.page-head + .section { padding-top: var(--s4); } /* AH-227 W-18: 192 px of paper between a page's lede and its first content */
+.page-head h1 { grid-column: 1 / span 11; font-size: clamp(min(var(--fs-4), 11vw), 6.4vw, var(--fs-8)); } /* AH-227 W-04 */
 .page-head p { grid-column: 7 / span 5; margin-top: var(--s4); font-size: var(--fs-1); line-height: 1.45; color: var(--ink-2); }
 table.card { grid-column: 1 / -1; margin-top: var(--s7); width: 100%; border-collapse: collapse; background: var(--grain), var(--paper-2); border: 1px solid var(--ink); font-size: var(--fs--1); color: var(--ink-2); }
 .card th, .card td { padding: 16px var(--s3); border-bottom: 1px solid var(--rule); vertical-align: top; text-align: left; }
@@ -623,11 +633,12 @@ table.card { grid-column: 1 / -1; margin-top: var(--s7); width: 100%; border-col
 .toc a::before { content: ""; position: absolute; left: 0; top: calc(10px + .775em - 5px); width: 10px; height: 10px; background: var(--wine); transform: scale(0); }
 .toc a:is(:hover, :focus-visible) { color: var(--ink); text-decoration: underline; } /* AH-148: a link says it is one under the pointer and the keyboard */
 .toc a:hover::before { transform: none; }
-.prose { grid-column: 5 / span 7; min-width: 0; counter-reset: sec; color: var(--ink-2); }
-.prose section { counter-increment: sec; padding: var(--s5) 0; border-top: 1px solid var(--ink); }
-/* the sections are numbered because the text points to them ("the parts listed in §3") */
-.prose h2 { font-size: var(--fs-3); line-height: 1.05; margin-bottom: var(--s3); display: flex; gap: var(--s2); align-items: baseline; } /* AH-148: at .95 a § heading's two lines touched */
-.prose h2::before { content: "§" counter(sec); font: 800 var(--fs-1)/1 var(--sans); letter-spacing: 0; color: var(--wine); flex: none; font-variant-numeric: tabular-nums; }
+.prose { grid-column: 5 / span 7; min-width: 0; color: var(--ink-2); }
+.prose section { padding: var(--s5) 0; border-top: 1px solid var(--ink); }
+/* AH-227 W-31: no section numbers (the card links its section by name); W-04: never above 11vw. AH-148: at .95 a heading's
+   two lines touched */
+.prose h2 { font-size: min(var(--fs-3), 11vw); line-height: 1.05; margin-bottom: var(--s3); }
+.prose .short h2 { font-size: var(--fs-1); margin-bottom: var(--s1); } /* P-37: In short, over its five lines */
 .prose h3 { margin: var(--s4) 0 var(--s1); color: var(--ink); }
 .prose p { margin: 0 0 12px; }
 /* AH-148 (John: "line length"): running text stops at --measure, about 63 letters, wherever its column is wider; the
@@ -708,13 +719,13 @@ table.card { grid-column: 1 / -1; margin-top: var(--s7); width: 100%; border-col
 .proof { grid-column: 1 / -1; margin: var(--s6) 0 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s5) var(--gutter); }
 .proof > div { position: relative; padding-top: var(--s2); }
 .proof dt { font: 800 var(--fs-4)/1 var(--sans); color: var(--wine); font-variant-numeric: tabular-nums; margin-bottom: 12px; }
-.proof dd { margin: 0; font-size: var(--fs--1); color: var(--ink-2); }
+.proof dd { margin: 0; font-size: var(--fs-0); color: var(--ink-2); } /* AH-227 W-12 */
 .proof > div:nth-child(2) .rule { --col: 1; }
 .proof > div:nth-child(3) .rule { --col: 2; }
 /* the way on to the case studies (AH-159: they have a page of their own) */
 .to-cases { grid-column: 1 / -1; margin-top: var(--s4); font-weight: 700; }
 /* the figures were measured on test sheets: a line under them says real ones can hold what they missed (AH-167) */
-.proof-note { grid-column: 1 / -1; margin-top: var(--s4); max-width: var(--measure); font-size: var(--fs--1); color: var(--ink-2); }
+.proof-note { grid-column: 1 / -1; margin-top: var(--s4); max-width: var(--measure); font-size: var(--fs-0); color: var(--ink-2); } /* AH-227 W-12 */
 .proof-from { grid-column: 1 / -1; margin-top: var(--s2); font-size: var(--fs--1); color: var(--ink-2); } /* AH-171: the record, linked once, under the figures */
 /* a link alone on its line is a thumb's target, 44 px, its padding taken back by a margin so no line moves (AH-148) */
 :is(.all-checks, .to-cases) a { display: inline-block; padding-block: 11px; margin-block: -11px; }
@@ -998,6 +1009,9 @@ html[data-moving] #field { z-index: 2; }
   /* two columns of filters, or one when the text is so large (200%, AH-112) that two 8rem columns don't fit */
   .typology { grid-template-columns: repeat(auto-fit, minmax(min(100%, 8rem), 1fr)); border-right: 0; border-bottom: 1px solid var(--ink); }
   .typology .label, .typology .overlap, .typology .key { grid-column: 1 / -1; }
+  /* AH-227 W-28: on a phone the key is one line and the note on overlaps goes (the filters' counts are under it) */
+  .typology .overlap { display: none; }
+  .typology .key { display: flex; flex-wrap: wrap; gap: 6px var(--s3); }
   .typology button:nth-of-type(even) { border-left: 1px solid var(--rule); }
   .busy { min-height: 320px; padding: var(--s3); }
   /* a phone's map has under 2 px a row: no gaps, and a row worth a check as a half-height mark (an outline needs 3 px) */
@@ -1010,6 +1024,8 @@ html[data-moving] #field { z-index: 2; }
      the picture's own 4:5 from the start (CLS 0) */
   .maker img { width: min(33%, 240px); height: auto; aspect-ratio: 4 / 5; }
   .phone-only { display: block; }
+  .phone-dl { display: inline-flex; }
+  #download .stage > a.btn-primary:not(.phone-dl) { display: none; }
   .hero .note { display: none; } /* AH-193: the notice bar and the phone line already say Windows; a third time was noise */
   .ask { margin-top: var(--s5); }
   /* the home form's gaps on a phone (AH-192: its public-post box and every footer's trademark line put the page 51 px past
@@ -1019,9 +1035,10 @@ html[data-moving] #field { z-index: 2; }
   /* each step's number beside its words (AH-159: the home page in ten phone screens); the pane over its caption, 300 px
      wide in one set column (AH-171: the phone's home page within its 8,397 px) */
   .shot { grid-template-columns: minmax(0, 1fr); }
-  .shot img { width: 300px; }
+  /* AH-227 W-35: a window of the pane at 1:1, its left edge kept (at 300 px wide it was drawn at 83%) */
+  .shot img { width: calc(100% - 2px); max-width: 360px; height: 364px; aspect-ratio: auto; object-fit: none; object-position: 0 87%; }
   .steps li { grid-template-columns: auto minmax(0, 1fr); column-gap: var(--s2); }
-  .steps ol { margin-top: 0; }
+  .steps ol { margin-top: 0; gap: var(--s2); } /* AH-227 W-12 */
   .stage { margin-top: var(--s5); }
   .shot { margin-top: var(--s5); }
   .check-list { grid-template-columns: minmax(0, 1fr); gap: var(--s2); }
@@ -1035,6 +1052,11 @@ html[data-moving] #field { z-index: 2; }
   .checks-table tbody td.in-sample { margin-top: 4px; padding-top: 10px; border-top: 1px solid var(--rule-dark); }
   .checks-table .rule { top: -1px; }
   .steps { margin-top: var(--s6); }
+  /* AH-227 W-12: the home page's reading text at body size, paid for on a phone by 8 to 16 px less between its blocks */
+  #home :is(.proof, .maker, .ask, .stage, .shot, .ws) { margin-top: var(--s4); }
+  #home .proof { gap: var(--s3); }
+  #home .check-list { gap: var(--s1); }
+  #home .steps { margin-top: var(--s5); }
   .toc { position: relative; margin-bottom: var(--s5); }
   /* the field's paper under the text reaches only as far as the 16 px margin, so it never makes the page scroll sideways */
   .calm::before { inset: -24px -16px; mask-image: linear-gradient(90deg, transparent, #000 16px, #000 calc(100% - 16px), transparent), linear-gradient(transparent, #000 24px, #000 calc(100% - 24px), transparent); }
@@ -1077,6 +1099,9 @@ html[data-moving] #field { z-index: 2; }
   .foot nav a, .in-sample .to-row { padding-block: 11.5px; margin-block: -11.5px; }
 }
 @media (min-width: 761px) { .dock { display: none; } }
+/* AH-227 W-23: on the narrowest phones (320 px, text at 200%) the notice line took 3 lines and Menu wrapped under the
+   brand: the line says less, and the bar's gap and Menu's padding give up 16 px */
+@media (max-width: 359px) { .wide-only { display: none; } html[data-js] .bar .cols { column-gap: var(--s1); } html[data-js] .menu-btn { padding: 0 var(--s1); } }
 /* the measure in the two tables of running text (AH-148): a cell cannot take a max-width, so its right padding grows to
    leave the text --measure wide. A cell's percentage padding is of the table's width: the checks' second column is 42.45%
    of it, privacy's middle one 50% (its first and last are 25%). Their columns stay where they are. The checks' text runs
