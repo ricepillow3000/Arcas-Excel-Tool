@@ -2726,7 +2726,8 @@ def score(df, column_types, errors_log, limits, order_by, strength=5, saved=(), 
     for g, run, a, b, _, ta, tb in _balanced(df, column_types, skip, records, computed):
         agree = (ta - tb).round(6).abs() < 0.005
         confirm(held, len(df), np.flatnonzero(np.isin(run, agree.index[agree])), f"{g}'s {a} and {b} agree", (a, b))
-    in_step(df, column_types, skip, limits, _reads(grid, list(df.columns)), held)  # AH-208: a big row, not a slip
+    reads = _reads(grid, list(df.columns))
+    in_step(df, column_types, skip, limits, reads, held)  # AH-208: a big row, not a slip
     # saved: the columns whose limits the user set - their limits win, so nothing is listed past the data's own band
     lim = limits_detector(df, column_types, limits, typos_only=s < 1, listing=s >= ALONE,
                           quiet=set(fairness.protected(column_types)) | set(saved), held=held, computed=computed)
@@ -2764,8 +2765,16 @@ def score(df, column_types, errors_log, limits, order_by, strength=5, saved=(), 
     # ...never a cell the limits named, nor one its row's arithmetic or its record's balance confirms (`held`): a real
     # entry 100x its account's usual size, its debits equal to its credits, was "a slip of zeros" (AH-223)
     named = [{c for r in said for c in r.cols} for said in lim["reasons"]]
+    # AH-224: ...but a rule one of whose columns is a formula reading the cell is no witness for it, which repeats the
+    # slip: a bill of quantities' Amount =Qty*Rate agreed with a Qty typed 7000 for 700 m2 (complex bench, granite BOQ)
+    within = {}
     for c, rules in held.items():
-        for m, _ in rules:
+        for _, rule in rules:
+            within.setdefault(rule, set()).add(c)
+    for c, rules in held.items():
+        for m, rule in rules:
+            if any(c in reads.get(d, ()) for d in within[rule]):
+                continue
             for i in np.flatnonzero(m):
                 named[i].add(c)
     scaled, normal = by_scale(df, column_types, skip, k, computed, named)
