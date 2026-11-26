@@ -871,8 +871,8 @@ def _bounds(col):
 
 
 # A share of a whole by its name: "Percent", "cocoa_percent", "Rate (%)". Never a percentile (a wage), "Tax 5%" (an
-# amount), or one the CLAUDE.md list says can pass 100: a change, a return, attendance, occupancy, utilization, markup,
-# ROI, CPU, debt of GDP, a % of a target or a limit (AH-30 review)
+# amount), or one the feature map (docs/MAP.md) says can pass 100: a change, a return, attendance, occupancy,
+# utilization, markup, ROI, CPU, debt of GDP, a % of a target or a limit (AH-30 review)
 PERCENT = re.compile(r"percent(?:age)?\b|\bper cent\b|\bpct\b|(?<![\d.\s])\s*%|\(%\)|^%")
 NOT_SHARE = re.compile(r"chang|growth|increas|decreas|diff|return|\broi\b|markup|margin|gain|loss|yoy|\bvar|attend|occupan|"
                        r"utili[sz]|cpu|gdp|debt|limit|speed|target|goal|budget|quota|plan\b|capacity|over|above|error")

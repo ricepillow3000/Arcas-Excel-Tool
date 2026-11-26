@@ -5,7 +5,7 @@ setting changed. Every plant is found, no clean row is called Medium or worse at
 level 10, the strictest), the limits each column is judged by
 come from that column alone (scale a column x1000 and its limits scale x1000, its flags stay), and the flags do not
 depend on what the headers say. The checks that DO read a header (Month 13, Age 310, the fairness report's people
-columns, a signed Profit) are listed in CLAUDE.md's feature map; meaningless headers switch them off here on purpose."""
+columns, a signed Profit) are listed in the feature map (docs/MAP.md); meaningless headers switch them off here on purpose."""
 import numpy as np
 import pytest
 
