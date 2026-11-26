@@ -1,7 +1,7 @@
 """Scans every .xlsx in eval/ with the engine, as the pane sends a sheet (values, plus each cell's formula in R1C1),
 and grades the flagged cells against ground_truth.json. A cell counts as flagged when a row's severity is set (not
 "Noted") and its reasons name that cell; the Medium+ line leaves out Low ("worth a check").
-Usage: python eval/run_eval.py"""
+Exit 1 when a score goes backwards (CI, tools/check.py). Usage: python eval/run_eval.py"""
 import json
 import re
 import sys
@@ -14,6 +14,9 @@ HERE = Path(__file__).parent
 sys.path.insert(0, str(HERE.parent / "backend"))
 from anomaly_hunter.agents.scan_agent import scan  # noqa: E402
 
+# AH-229: the baseline of 2026-11-25. A change that misses a planted error or adds a false alarm fails; one that
+# removes a false alarm lowers these in the same commit, so the gain is kept.
+FALSE_ALARMS, MEDIUM_FALSE_ALARMS = 9, 2
 REF = re.compile(r"(\$?)([A-Z]{1,3})(\$?)(\d+)")
 
 
@@ -53,7 +56,12 @@ def main():
           f"  ({tp} caught, {fn} missed, {fp} false alarms)")
     print(f"Medium+ only: Precision {loud_tp / (loud_tp + loud_fp) if loud_tp + loud_fp else 0:.2f}"
           f"  ({loud_tp} caught, {loud_fp} false alarms; Low is \"worth a check\")")
+    if fn or fp > FALSE_ALARMS or loud_fp > MEDIUM_FALSE_ALARMS:
+        print(f"EVAL fail: at most 0 missed, {FALSE_ALARMS} false alarms and {MEDIUM_FALSE_ALARMS} Medium+ allowed")
+        return 1
+    print("EVAL pass")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

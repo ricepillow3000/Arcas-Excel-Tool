@@ -381,8 +381,20 @@ def create_app(scan_csv=None):
             return {"error": "'memory' must be a list of at most 20 past fixes, each {h, k, o, n} texts of at most 60 characters"}, 400
         if care.distress(intent):  # AH-125: helpline numbers from the engine itself, before any key check or AI call
             return {"explanation": care.MESSAGE, "changes": [], "care": True}
-        return ai(lambda: client.suggest_fix(body["columns"], body["rows"], body["row_index"], body["start_row"],
-                                             body["start_col"], reason, intent, formulas, memory=memory))
+        def verified():
+            # AH-231: the guards in suggest_fix only say a change is SAFE; an AI can still offer a wrong value with a
+            # confident explanation. The engine's own checks judge the value in the row first (no AI); one they still
+            # flag is left out, said the way suggest_fix says every other cell it leaves out
+            fix = client.suggest_fix(body["columns"], body["rows"], body["row_index"], body["start_row"],
+                                     body["start_col"], reason, intent, formulas, memory=memory)
+            bad = checker.unfixed([str(c) for c in body["columns"]], body["rows"], body["row_index"], body["start_row"],
+                                  body["start_col"], formulas, fix["changes"], _strength(body))
+            if bad:
+                fix = {**fix, "changes": [c for c in fix["changes"] if c["cell"] not in bad],
+                       "explanation": fix["explanation"] + f" (Left out {', '.join(bad)}: Arcas checked this value "
+                                      "and the row still does not look right, so it is not sure. Please fix it by hand.)"}
+            return fix
+        return ai(verified)
 
     @app.post("/odd-text")
     def odd_text_route():
