@@ -21,15 +21,15 @@ const INDEXED = PAGES.filter((p) => !NOINDEX.includes(p));
 // sitemap, and every link on it root-absolute, since it is served at whatever depth the missing address had
 const MISSING = "404.html";
 const SCRIPTS = ["boot.js", "motion.js", "field.js", "home.js", "support.js", "transition.js", "count.js"];
-const REPO = "https://github.com/ricepillow3000/excel-anomaly-hunter";
-const API = "https://api.github.com/repos/ricepillow3000/excel-anomaly-hunter/releases/latest";
+const REPO = "https://github.com/ricepillow3000/Arcas-Excel-Tool";
+const API = "https://api.github.com/repos/ricepillow3000/Arcas-Excel-Tool/releases/latest";
 // where GitHub Pages publishes each page (pages.yml uploads site/ whole): the canonical, og:url and sitemap.xml say these
-const SITE_URL = "https://ricepillow3000.github.io/excel-anomaly-hunter/";
+const SITE_URL = "https://ricepillow3000.github.io/Arcas-Excel-Tool/";
 const PUBLIC = Object.fromEntries(PAGES.map((p) => [p, p === "index.html" ? SITE_URL : SITE_URL + p]));
 // the CSP of every page. img-src names GoatCounter for the visit counter's one pixel (count.js, AH-126), which sends
 // nothing until John sets his code there; the 404 page loads no script, so it keeps the stricter policy
 const CSP = (counter) => `default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:${counter ? " https://*.goatcounter.com" : ""}; font-src 'self'; connect-src 'self' ${new URL(API).origin}; base-uri 'none'; form-action 'none'`;
-const ROOT_PATH = new URL(SITE_URL).pathname; // "/excel-anomaly-hunter/"
+const ROOT_PATH = new URL(SITE_URL).pathname; // "/Arcas-Excel-Tool/"
 const read = (f) => fs.readFileSync(path.join(SITE, f), "utf8");
 const html = Object.fromEntries(PAGES.map((p) => [p, read(p)]));
 const TITLE = Object.fromEntries(PAGES.map((p) => [p, (/<title>([^<]*)<\/title>/.exec(html[p]) || [])[1]]));
@@ -334,7 +334,7 @@ for (const m of css.matchAll(/letter-spacing\s*:\s*([^;}]+)/g)) assert.ok(!/^-/.
 // AH-119: each page names itself to search engines and to a shared link: its own title (Arcas first, then what the page
 // is), a description, a canonical at its public address, and the basic Open Graph tags (the 1200 x 630 card since AH-126,
 // checked above). sitemap.xml lists exactly the indexable pages at those addresses, never the 404 or the thank-you page.
-// No robots.txt: a project site lives under /excel-anomaly-hunter/ and crawlers read robots.txt only at the domain's
+// No robots.txt: a project site lives under /Arcas-Excel-Tool/ and crawlers read robots.txt only at the domain's
 // root, so one here would do nothing; the sitemap is what gets submitted to a search console
 {
   const meta = (src, key, name) => [...src.matchAll(/<meta ([a-z]+)="([^"]+)" content="([^"]*)">/g)].filter((m) => m[1] === key && m[2] === name).map((m) => m[3]);
@@ -540,7 +540,7 @@ for (const f of SCRIPTS) {
   assert.ok(text((/<p class="sec-lede[^"]*">([\s\S]*?)<\/p>/.exec(dl) || [])[1] || "").startsWith("On a work computer, ask your IT team first. Arcas installs only on a Windows account that is an administrator on that PC."), "the install's first line");
   const stage = (/<div class="stage[\s\S]*?<\/div>/.exec(dl) || [""])[0];
   // ... with the MIT sentence right under the button since AH-159 (John: "the MIT License is under the wrong spot")
-  assert.ok(/Download for Windows<\/a>\s*<p class="license-line">Free for any number of people\. Open source under the <a href="https:\/\/github\.com\/ricepillow3000\/excel-anomaly-hunter\/blob\/main\/LICENSE">MIT License<\/a>\.<\/p>\s*$/.test(stage.slice(0, -"</div>".length)), "the MIT sentence is not the last thing under the download button");
+  assert.ok(/Download for Windows<\/a>\s*<p class="license-line">Free for any number of people\. Open source under the <a href="https:\/\/github\.com\/ricepillow3000\/Arcas-Excel-Tool\/blob\/main\/LICENSE">MIT License<\/a>\.<\/p>\s*$/.test(stage.slice(0, -"</div>".length)), "the MIT sentence is not the last thing under the download button");
   const steps = [...((/<div class="steps[\s\S]*?<\/ol>/.exec(dl) || [""])[0]).matchAll(/<li\b[^>]*>([\s\S]*?)<\/li>/g)].map((m) => text(m[1]));
   assert.equal(steps.length, 4, `the install has ${steps.length} steps, not 4`);
   // AH-227 W-11: the browser's warning, the first hurdle, was a note beside the button and outside the steps; it is step 1
@@ -921,10 +921,10 @@ const req = createRequire(import.meta.url);
 const pw = await import(process.env.PLAYWRIGHT || "playwright").catch(() => import(pathToFileURL(req.resolve("playwright", { paths: [process.env.NODE_PATH || ""] })).href));
 const { chromium } = pw.default || pw;
 const TYPES = { ".html": "text/html", ".css": "text/css", ".js": "text/javascript", ".png": "image/png", ".webp": "image/webp", ".woff2": "font/woff2" };
-// GitHub Pages serves the site under /excel-anomaly-hunter/ and answers any missing path there with 404.html and a 404
+// GitHub Pages serves the site under /Arcas-Excel-Tool/ and answers any missing path there with 404.html and a 404
 // status (AH-126); this server does both, and keeps serving the pages at its root as the checks above always had them
 const server = http.createServer((q, s) => {
-  const f = path.join(SITE, decodeURIComponent(new URL(q.url, "http://x").pathname).replace(/^\/excel-anomaly-hunter(?=\/)/, "").replace(/\/$/, "/index.html"));
+  const f = path.join(SITE, decodeURIComponent(new URL(q.url, "http://x").pathname).replace(/^\/Arcas-Excel-Tool(?=\/)/, "").replace(/\/$/, "/index.html"));
   if (!f.startsWith(SITE) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) {
     const missing = path.join(SITE, "404.html");
     if (!fs.existsSync(missing)) { s.writeHead(404); return s.end(); }
@@ -992,8 +992,8 @@ const done = async ({ ctx, problems, outside }, label, allowed = []) => {
   const overflow = (p) => p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   const { contrastProblems } = await import(pathToFileURL(path.join(SITE, "..", "e2e", "contrast.mjs")).href);
   // the 404 page: Pages serves it, with a 404 status, for any missing path under the site's own; every link on it is
-  // root-absolute, so it works at any depth (/excel-anomaly-hunter/a/b/c too), and it reads at 320 px with text at 200%
-  for (const at of ["excel-anomaly-hunter/no-such-page", "excel-anomaly-hunter/a/b/c.html"]) for (const [width, size] of [[320, "200%"], [1280, "100%"]]) {
+  // root-absolute, so it works at any depth (/Arcas-Excel-Tool/a/b/c too), and it reads at 320 px with text at 200%
+  for (const at of ["Arcas-Excel-Tool/no-such-page", "Arcas-Excel-Tool/a/b/c.html"]) for (const [width, size] of [[320, "200%"], [1280, "100%"]]) {
     let status = 0;
     const t = await open("", { width, height: 800, motion: "reduce", url: BASE + at, setup: (p) => p.on("response", (r) => { if (r.url() === BASE + at) status = r.status(); }) });
     const p = t.page;
@@ -1004,7 +1004,7 @@ const done = async ({ ctx, problems, outside }, label, allowed = []) => {
     want(status === 404, `AH-126 404 at /${at}: answered ${status}, not 404`);
     want(/^Arcas\b/.test(r.title) && r.h1.length > 5 && r.robots === "noindex" && r.scripts === 0, `AH-126 404 at /${at}: ${JSON.stringify(r)}`);
     want(/Plus Jakarta Sans/.test(r.font), `AH-126 404 at /${at}: the site's styles did not load (${r.font})`);
-    for (const href of ["/excel-anomaly-hunter/", "/excel-anomaly-hunter/index.html#download", "/excel-anomaly-hunter/support.html", "/excel-anomaly-hunter/privacy.html"])
+    for (const href of ["/Arcas-Excel-Tool/", "/Arcas-Excel-Tool/index.html#download", "/Arcas-Excel-Tool/support.html", "/Arcas-Excel-Tool/privacy.html"])
       want(r.hrefs.includes(href), `AH-126 404 at /${at}: no link to ${href}`);
     for (const href of r.hrefs.filter((h) => h.startsWith("/"))) {
       const got = await p.request.get(BASE + href.slice(1).split("#")[0]);
@@ -1133,7 +1133,7 @@ const done = async ({ ctx, problems, outside }, label, allowed = []) => {
     const visit = async ({ code, url = null, init = null, file = "index.html" }) => {
       const hits = [];
       const t = await open(file, { motion: "reduce", init, url, setup: async (p) => {
-        await p.route(/^https:\/\/ricepillow3000\.github\.io\/excel-anomaly-hunter\//, (r) => { const f = path.join(SITE, new URL(r.request().url()).pathname.replace(/^\/excel-anomaly-hunter/, "").replace(/\/$/, "/index.html"));
+        await p.route(/^https:\/\/ricepillow3000\.github\.io\/Arcas-Excel-Tool\//, (r) => { const f = path.join(SITE, new URL(r.request().url()).pathname.replace(/^\/Arcas-Excel-Tool/, "").replace(/\/$/, "/index.html"));
           return fs.existsSync(f) ? r.fulfill({ status: 200, contentType: TYPES[path.extname(f)] || "application/octet-stream", body: fs.readFileSync(f) }) : r.fulfill({ status: 404, body: "" }); });
         // the code is set here, never in the file: the same checks hold before and after John puts his own code there
         await p.route(/\/count\.js$/, (r) => { const src = read("count.js"), set = src.replace(/const COUNTER = "[a-z0-9-]*";/, `const COUNTER = "${code}";`);
@@ -1150,10 +1150,10 @@ const done = async ({ ctx, problems, outside }, label, allowed = []) => {
     want(none.hits.length === 0 && !none.problems.length, `AH-126 counter with no code: ${JSON.stringify(none)}`);
     const one = await visit({ code: "arcas-test", url: SITE_INDEX });
     const u = one.hits[0] ? new URL(one.hits[0].url) : null;
-    want(one.hits.length === 1 && u && u.origin === "https://arcas-test.goatcounter.com" && u.pathname === "/count" && [...u.searchParams.keys()].join() === "p" && u.searchParams.get("p") === "/excel-anomaly-hunter/"
+    want(one.hits.length === 1 && u && u.origin === "https://arcas-test.goatcounter.com" && u.pathname === "/count" && [...u.searchParams.keys()].join() === "p" && u.searchParams.get("p") === "/Arcas-Excel-Tool/"
       && one.hits[0].type === "image" && one.hits[0].referer === "" && !one.problems.length, `AH-126 counter with a code: ${JSON.stringify(one)}`);
     const terms = await visit({ code: "arcas-test", url: SITE_URL + "terms.html" });
-    want(terms.hits.length === 1 && new URL(terms.hits[0].url).searchParams.get("p") === "/excel-anomaly-hunter/terms.html", `AH-126 counter on terms.html: ${JSON.stringify(terms)}`);
+    want(terms.hits.length === 1 && new URL(terms.hits[0].url).searchParams.get("p") === "/Arcas-Excel-Tool/terms.html", `AH-126 counter on terms.html: ${JSON.stringify(terms)}`);
     for (const [label, opts] of [["on 127.0.0.1", {}], ["with Do Not Track", { url: SITE_INDEX, init: () => Object.defineProperty(Navigator.prototype, "doNotTrack", { get: () => "1" }) }],
       ["with Global Privacy Control", { url: SITE_INDEX, init: () => Object.defineProperty(Navigator.prototype, "globalPrivacyControl", { get: () => true }) }]]) {
       const r = await visit({ code: "arcas-test", ...opts });
@@ -1161,10 +1161,10 @@ const done = async ({ ctx, problems, outside }, label, allowed = []) => {
     }
   }
   // no cookie banner is needed because no page sets a cookie: none in the document, no Set-Cookie on any answer
-  for (const file of [...PAGES, "excel-anomaly-hunter/no-such-page"]) {
+  for (const file of [...PAGES, "Arcas-Excel-Tool/no-such-page"]) {
     const set = [];
     const t = await open(file, { motion: "reduce", setup: (p) => p.on("response", async (r) => { const h = await r.allHeaders().catch(() => ({})); if (h["set-cookie"]) set.push(r.url()); }) });
-    t.problems.splice(0, t.problems.length, ...t.problems.filter((x) => !x.startsWith("404 " + BASE + "excel-anomaly-hunter/")));
+    t.problems.splice(0, t.problems.length, ...t.problems.filter((x) => !x.startsWith("404 " + BASE + "Arcas-Excel-Tool/")));
     const cookie = await t.page.evaluate(() => document.cookie);
     want(cookie === "" && !set.length, `AH-126 ${file}: a cookie (${JSON.stringify(cookie)}, Set-Cookie on ${set})`);
     await done(t, `no cookie on ${file}`, [API]);
@@ -2546,7 +2546,7 @@ for (const width of [1280, 390]) {
   let checked = 0;
   // AH-126 added the terms page, the 404 page, the phone's open menu, the home page's download bar and the support
   // form's thank-you
-  const LOST = "excel-anomaly-hunter/no-such-page";
+  const LOST = "Arcas-Excel-Tool/no-such-page";
   for (const width of [1280, 390]) for (const file of [...PAGES, LOST]) {
     const t = await open(file, { width, motion: "reduce" });
     if (file === LOST) t.problems.splice(0, t.problems.length, ...t.problems.filter((x) => x !== `404 ${BASE + LOST}`));

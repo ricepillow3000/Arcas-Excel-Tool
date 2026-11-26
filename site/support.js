@@ -9,7 +9,7 @@
 // Every page loads it once (AH-73): it wires the forms of the page it finds, and again each time transition.js swaps
 // a page in ("ah:page"); the old form's listener leaves with the old page.
 (() => {
-  const NEW = "https://github.com/ricepillow3000/excel-anomaly-hunter/issues/new?template=";
+  const NEW = "https://github.com/ricepillow3000/Arcas-Excel-Tool/issues/new?template=";
   // Measured 2026-10-20: GitHub answers 414 past 8,190 characters, and a signed-out person's login page keeps the way
   // back only while the link still fits once encoded again (7,600 plain characters, 4,600 of emoji); past that, all
   // they typed is lost. So the long field is cut, at a whole character, until the encoded link fits with room to spare.

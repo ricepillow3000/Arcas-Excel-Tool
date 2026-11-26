@@ -9,7 +9,7 @@
 // to tab, and the PowerShell line has a Copy button. AH-148 (John 2026-11-09): figures count to their values, a box
 // or a menu cut short goes on from where it is, and a checks-table "Row N" link and its row in the sample share one mark.
 (() => {
-  const API = "https://api.github.com/repos/ricepillow3000/excel-anomaly-hunter/releases/latest";
+  const API = "https://api.github.com/repos/ricepillow3000/Arcas-Excel-Tool/releases/latest";
   // the pane's own progress line for this 60-row sheet (frontend/features/scan.js; test_site_sample.py holds them to it):
   // its 305 cells are one slice of READ_CELLS, so the pane goes from the first words straight to 100% (it never says 40%)
   // ... and its step 3 as it starts highlighting (frontend/features/highlight.js), up to its count (AH-227 W-26: "Step 2 of 3"

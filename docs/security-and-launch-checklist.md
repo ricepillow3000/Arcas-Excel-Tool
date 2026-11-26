@@ -232,7 +232,7 @@ Arcas.exe): `docs/proof/2026-11-04-before-after.md`.
 | Password recovery, confirmation emails | N/A | No accounts and no email. |
 | Keyboard navigation, labels on every field, alt text | Enforced | See "Add keyboard navigation" and "Add accessibility alt text" above; every field has a label or a name. |
 | Unique page titles and descriptions | Fixed in AH-119 | Each site page has its own title, description, canonical link and sharing tags (`tools/test_site.mjs`). |
-| A sitemap | Fixed in AH-119 | `site/sitemap.xml` lists the three pages. No robots.txt: the site lives under `/excel-anomaly-hunter/` and crawlers read robots.txt only at a domain's root. |
+| A sitemap | Fixed in AH-119 | `site/sitemap.xml` lists the three pages. No robots.txt: the site lives under `/Arcas-Excel-Tool/` and crawlers read robots.txt only at a domain's root. |
 | Privacy information | Enforced | PRIVACY.md and its two twins, held to the code by tests. |
 | HTTPS everywhere | Enforced | See "Force HTTPS". |
 | Analytics tracking | Not added, deliberately | The privacy promise is that nothing is tracked. What John can read without tracking anyone: GitHub's own traffic page (Insights, Traffic) for the site and repo, and each release's download count. |
@@ -334,7 +334,7 @@ one, and it now holds that.
 | 25. What to do if the checksum differs | Built | Step 1: "If they differ, delete the file and download it again." |
 | 26. Visit counting without cookies | Built, inert | `site/count.js`: one image request per page view to GoatCounter with the page's path alone, no referrer; silent with no code, on a PC's own copy, under Do Not Track and under Global Privacy Control. The CSP allows `https://*.goatcounter.com` as an image only, on the four pages that load it. Tested with the code empty (nothing sent) and with a code put in by the test (one request, only `p`). The privacy pages say so, and that the pane and the engine never contact it (`test_every_privacy_page_says_the_website_alone_may_count_page_views_and_what_the_counter_sends`). |
 | 27. A cookie banner | Not needed | No page sets a cookie: `document.cookie` is empty and no answer carries Set-Cookie on every page, the 404 too (`--browser`). GoatCounter's pixel sets none either. A banner asks consent for cookies or tracking a site does; this one does neither. |
-| 28. robots.txt | Skipped on purpose | Crawlers read robots.txt only at a domain's root, and this site lives under `/excel-anomaly-hunter/`, so one here would do nothing (a static check keeps it out). Add it when the site gets its own domain; until then the 404 page says `noindex` itself and the sitemap goes to a search console. |
+| 28. robots.txt | Skipped on purpose | Crawlers read robots.txt only at a domain's root, and this site lives under `/Arcas-Excel-Tool/`, so one here would do nothing (a static check keeps it out). Add it when the site gets its own domain; until then the 404 page says `noindex` itself and the sitemap goes to a search console. |
 | 29. A privacy policy | Proven | `site/privacy.html` and its twins (AH-125), in every footer. |
 | 30. HTTPS and a strict CSP | Proven | GitHub Pages serves HTTPS; each page's CSP is checked word for word. |
 | 31. WCAG AA contrast | Proven | 31 page states measured in the browser, the new ones included: terms, 404, the open menu, the download bar and the thank-you. |

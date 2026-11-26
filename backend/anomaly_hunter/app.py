@@ -27,7 +27,7 @@ RUN = r"Software\Microsoft\Windows\CurrentVersion\Run"
 # AH-136: listed under Settings > Apps > Installed apps, where people look for a program to remove; the per-user key
 # needs no administrator prompt and runs the installed copy's own uninstall
 UNINSTALL = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\Arcas"
-SITE = "https://ricepillow3000.github.io/excel-anomaly-hunter/"
+SITE = "https://ricepillow3000.github.io/Arcas-Excel-Tool/"
 QUIET = 0x08000000  # CREATE_NO_WINDOW: no black window flashing up for a tool
 # install.bat and site/support.html say the same words (test_product_name.py)
 NOT_ADMIN = ("Arcas could not finish. Your Windows account is not an administrator on this PC. "

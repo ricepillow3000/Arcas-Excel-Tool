@@ -271,9 +271,9 @@ def test_the_daily_probe_checks_the_public_website_and_the_download_link():
     root = pathlib.Path(__file__).resolve().parents[2]
     flow = yaml.safe_load((root / ".github" / "workflows" / "relay-live.yml").read_text(encoding="utf-8"))
     assert "schedule" in flow[True]  # PyYAML reads the key `on` as True
-    site = "https://ricepillow3000.github.io/excel-anomaly-hunter/"
+    site = "https://ricepillow3000.github.io/Arcas-Excel-Tool/"
     urls = [site, site + "privacy.html", site + "support.html", site + "terms.html",
-            "https://github.com/ricepillow3000/excel-anomaly-hunter/releases/latest/download/Arcas.exe"]
+            "https://github.com/ricepillow3000/Arcas-Excel-Tool/releases/latest/download/Arcas.exe"]
     runs = [" ".join(str(step.get("run", "")).split()) for job in flow["jobs"].values() for step in job["steps"]]
     for url in urls:
         probe = [r for r in runs if "curl -fsSIL" in r and url in r.split()]
