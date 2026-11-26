@@ -484,7 +484,7 @@ td.why i.ok { display: inline-block; width: 10px; height: 10px; margin-right: 8p
 .all-checks { grid-column: 1 / span 7; grid-row: 3; margin-top: var(--s4); font-weight: 700; }
 .all-checks a { color: var(--on-dark); text-decoration-color: var(--gold-hi); }
 .shot { grid-column: 9 / -1; grid-row: 1 / span 3; margin: 0; display: grid; gap: var(--s2); justify-items: start; align-content: start; }
-.shot img { display: block; box-sizing: content-box; width: 360px; max-width: calc(100% - 2px); height: auto; aspect-ratio: 360 / 364; object-fit: cover; object-position: 50% 87%; border: 1px solid var(--on-dark-2); background: var(--paper-2); }
+.shot img { display: block; box-sizing: content-box; width: 360px; max-width: calc(100% - 2px); height: auto; aspect-ratio: 360 / 364; object-fit: cover; object-position: 50% 45%; border: 1px solid var(--on-dark-2); background: var(--paper-2); }
 .shot figcaption { max-width: 22rem; font-size: var(--fs--1); color: var(--on-dark-2); }
 #preview:focus, #checks:focus { outline: none; } /* a glide's target takes focus for the keyboard and screen readers; the region itself shows no ring */
 
@@ -1036,7 +1036,7 @@ html[data-moving] #field { z-index: 2; }
      wide in one set column (AH-171: the phone's home page within its 8,397 px) */
   .shot { grid-template-columns: minmax(0, 1fr); }
   /* AH-227 W-35: a window of the pane at 1:1, its left edge kept (at 300 px wide it was drawn at 83%) */
-  .shot img { width: calc(100% - 2px); max-width: 360px; height: 364px; aspect-ratio: auto; object-fit: none; object-position: 0 87%; }
+  .shot img { width: calc(100% - 2px); max-width: 360px; height: 364px; aspect-ratio: auto; object-fit: none; object-position: 0 45%; }
   .steps li { grid-template-columns: auto minmax(0, 1fr); column-gap: var(--s2); }
   .steps ol { margin-top: 0; gap: var(--s2); } /* AH-227 W-12 */
   .stage { margin-top: var(--s5); }
