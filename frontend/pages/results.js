@@ -86,7 +86,7 @@ function filters(kinds) {
   const box = $("kind-filter"), all = state.order.length;
   show("kind-filter", kinds.length > 0);
   box.replaceChildren(...(kinds.length ? [[null, all], ...kinds] : []).map(([k, count]) => {
-    const b = Object.assign(document.createElement("button"), { className: "secondary", textContent: `${k ? kindLabel(k) : "All"} ${n(count)}` });
+    const b = Object.assign(document.createElement("button"), { className: "try", textContent: `${k ? kindLabel(k) : "All"} ${n(count)}` });
     b.setAttribute("aria-pressed", String(state.kind === k));
     b.addEventListener("click", () => {
       state.kind = k;

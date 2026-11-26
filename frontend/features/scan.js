@@ -94,7 +94,7 @@ async function scan(auto, held, t0, stop) {
   renderResults(body.rows, s, body.fairness);
   // AH-228 P-32: how long it took, in the summary's own line ("Done in 1 second." stood in a box over the results)
   const secs = Math.max(1, Math.round((Date.now() - t0) / 1000));
-  $("summary").append(` ${checkedIn(secs)}`);
+  $("summary").append(" ", Object.assign(document.createElement("span"), { className: "summary-time", textContent: checkedIn(secs) })); // a quiet fact after the finding
   $("book-notes").replaceChildren(...notes.map((line) => Object.assign(document.createElement("p"), { className: "notice", textContent: line })));
   // AH-228 P-04 (John, 2026-11-25): a scan pressed for lands where its summary is: at 200% text the first row was at
   // 1,418 px, out of sight. Once, only for Find problems (held), never a quiet re-check or a redraw after a decision
@@ -254,8 +254,11 @@ export function legendOf(rows) {
 }
 
 // Pure (AH-228 P-21): the kinds of check behind the list's rows, [kind, rows], most rows first, a row counted once a kind;
-// [] when fewer than two kinds: one kind needs no filter. rows: the engine's, each with its [kind, column] pairs
+// [] when fewer than two kinds, or fewer than KIND_MIN rows listed: a short list needs no filter, and 7 buttons over 5 rows
+// put the first row about 470 px lower (fix round 1). rows: the engine's, each with its [kind, column] pairs
+export const KIND_MIN = 11;
 export function kindsOf(order, rows) {
+  if (order.length < KIND_MIN) return [];
   const count = new Map();
   for (const i of order) for (const k of new Set((rows[i]?.kinds || []).map(([k]) => k))) if (Object.hasOwn(KIND_WORDS, k)) count.set(k, (count.get(k) || 0) + 1);
   const out = [...count].sort((a, b) => b[1] - a[1]);

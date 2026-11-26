@@ -118,8 +118,8 @@ export function recommendFix(columns, rows, i, limits, reason, startRow, startCo
   const notes = [];
   if (calcCells.length) notes.push(`${calcCells.join(", ")} ${calcCells.length > 1 ? "are" : "is"} calculated by a formula. ` +
     "Fix the cells it uses rather than typing over it.");
-  if (typos.length) notes.push(`${typos.join("; ")}. ${words === typos.length ? "Same word as the rest of the column."
-    : "Check it against the original receipt, invoice or report before you click Accept."}`);
+  // P-39, fix round 1: a capitals/spaces fix says "same word, different capitals/spaces" already: nothing after it
+  if (typos.length) notes.push(`${typos.join("; ")}.${words === typos.length ? "" : " Check it against the original receipt, invoice or report before you click Accept."}`);
   const dup = /Duplicate of row (\d+)/.exec(reason); // engine counts from a header in row 1 (o: AH-212, a table's offset in the sheet's rows)
   // which copy is the stray one the sheet's order says, not the engine: 5 of 14 blind pairs had the copy first
   if (dup) notes.push(`This row repeats row ${+dup[1] + startRow + o} in every column. If one of them is a double entry, delete ` +

@@ -112,6 +112,8 @@ the empty state, and held at its usual height while it reads, so nothing moves w
 
 /* results: the summary as a bold headline, the legend in two columns, then the rows as a ruled ledger */
 .summary { margin: var(--s2) 0 var(--s3); font: 800 var(--fs-2)/1.2 var(--sans); font-variant-numeric: tabular-nums; color: var(--navy); text-wrap: balance; }
+/* AH-228 fix round 1: how long it took, a supporting fact, in the hint's quiet text after the finding */
+.summary .summary-time { font: 400 13px/1.5 var(--sans); font-variant-numeric: tabular-nums; color: var(--muted); }
 /* AH-149: the summary's flagged numbers count up once when a scan ends (components/motion.js countUp). The text itself is the
    final number all along, kept but unseen, so its width never changes and a screen reader reads the result; the count is
    drawn over it from a counter, hidden from screen readers by its empty alt text */
@@ -182,6 +184,7 @@ the empty state, and held at its usual height while it reads, so nothing moves w
 .flagged-list .sev-Low .swatch, .legend .swatch.sev-Low { background: none; outline: 2px solid var(--navy); outline-offset: -2px; }
 /* AH-228 P-21: one kind of check at a time; the kind shown is pressed in navy */
 #kind-filter { margin: 0 0 var(--s2); }
+#kind-filter .try { flex: 0 0 auto; padding: var(--s2); } /* side by side, each as wide as its words (fix round 1: stacked full width, 7 took 470 px) */
 #kind-filter .try[aria-pressed="true"] { background: var(--navy); color: var(--paper); border-color: var(--navy); }
 #highlight-hint { margin: 0 0 var(--s2); }
 

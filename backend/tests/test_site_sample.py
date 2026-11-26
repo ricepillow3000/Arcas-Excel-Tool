@@ -156,11 +156,11 @@ def recommend_fix(row, sheet_row, r):
             changes.append((cell, js(likely[c])))
             solved.add(c)
             typos.append(f"{c} is {js(v)}, but the row's own numbers say {js(likely[c])} ({s['total']} = {s['rule']})")
-    # AH-228 P-39: a capitals or spaces fix is the column's own word, so there is no receipt to check it against
+    # AH-228 P-39: a capitals or spaces fix is the column's own word, so there is no receipt to check it against, and its
+    # sentence already says "same word" (fix round 1: said twice)
     words = sum("different capitals/spaces" in t for t in typos)
-    tail = "Same word as the rest of the column." if typos and words == len(typos) else \
-        "Check it against the original receipt, invoice or report before you click Accept."
-    notes = [f"{'; '.join(typos)}. {tail}"] if typos else []
+    tail = "" if typos and words == len(typos) else " Check it against the original receipt, invoice or report before you click Accept."
+    notes = [f"{'; '.join(typos)}.{tail}"] if typos else []
     notes += [f"{s['text']}, so one of these numbers is wrong. Check them against the source." for s in sums if not set(s["cols"]) & solved]
     notes = notes or ["Nothing here is clearly broken, but the values are unusual together. Check them against the source; if they're right, leave them."]
     return {"explanation": " ".join(notes), "changes": changes, "label": "Suggested fix" if changes else "What to check"}

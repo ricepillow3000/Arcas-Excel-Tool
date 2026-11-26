@@ -21,7 +21,7 @@ import { measures, copiedTabs, copiedSaid, lastRowSaid } from "./features/tabs.j
 import { tablesFromGrid, sentOf, unreadSaid, errorsSaid, formatRows, asSheet, place, local, biggest, rowAt, areaOf, invalidIn, INVALID } from "./utils/layout.js";
 import { findingsAt, inRange, ignored, liveable, liveOn, soundOn, noteSaid, wrongAt, inList, checkedSaid, LIVE_ROWS, onRow, heldBack, ROW_KINDS, HOLD, reopens, leftAlone, NOT_AGAIN } from "./features/live.js";
 import { stopWords, taughtSaid, stoppedOf } from "./features/learned.js";
-import { kindsOf, kindLabel, listed, shownCount, MORE, SHOWN_MAX } from "./features/scan.js";
+import { kindsOf, kindLabel, listed, shownCount, MORE, SHOWN_MAX, KIND_MIN } from "./features/scan.js";
 import { spaceParts, spaceNote } from "./components/fix-preview.js";
 import { asLearned, learnIn, taught, learnedOf, stoppable, KIND_WORDS, ONE_CELL, PER_SHEET as LEARN_CAP, SENT, TEXT } from "./features/learned.js";
 import { ruleOf, heldOf, asRules, keepIn, MAX as RULES_MAX, SHEETS as RULE_SHEETS, HEADER } from "./features/rules.js";
@@ -1404,11 +1404,16 @@ assert.ok(KIND_WORDS.group && !ONE_CELL.has("group"), "AH-214: a row's group is 
     ["Spelling in Region on S", "Duplicates on T", "Totals in Total on T"]);
   assert.deepEqual(stoppedOf({ S: [["spelling", "Region"]] })[0].pair, ["spelling", "Region"]);
   assert.deepEqual(stoppedOf(null), []);
-  // P-21: the kinds over the list, each with its rows, only when 2+ are present
-  const rows = [{ kinds: [["sum", "Total"], ["limits", "Units"]] }, { kinds: [["spelling", "Region"]] }, { kinds: [["sum", "Total"]] }, { kinds: [] }, { kinds: [["nonsense", "X"]] }];
-  assert.deepEqual(kindsOf([0, 1, 2, 3, 4], rows), [["sum", 2], ["limits", 1], ["spelling", 1]], "P-21: most rows first, a row counted once a kind");
-  assert.deepEqual(kindsOf([0, 2], rows), [["sum", 2], ["limits", 1]]);
-  assert.deepEqual(kindsOf([2], rows), [], "P-21: one kind: no filter");
+  // P-21: the kinds over the list, each with its rows, only when 2+ are present and the list holds more than 10 rows
+  // (fix round 1: 7 buttons over a list of 5 put its first row about 470 px lower)
+  const rows = [{ kinds: [["sum", "Total"], ["limits", "Units"]] }, { kinds: [["spelling", "Region"]] }, { kinds: [["sum", "Total"]] }, { kinds: [] }, { kinds: [["nonsense", "X"]] },
+    ...Array.from({ length: 7 }, () => ({ kinds: [] }))];
+  assert.equal(KIND_MIN, 11);
+  const twelve = rows.map((_, i) => i);
+  assert.deepEqual(kindsOf(twelve, rows), [["sum", 2], ["limits", 1], ["spelling", 1]], "P-21: most rows first, a row counted once a kind");
+  assert.deepEqual(kindsOf(twelve.slice(0, KIND_MIN), rows), [["sum", 2], ["limits", 1], ["spelling", 1]], "P-21: 11 rows, the very limit: the filter shows");
+  assert.deepEqual(kindsOf(twelve.slice(0, KIND_MIN - 1), rows), [], "fix round 1: 10 rows listed: no filter, the rows come up");
+  assert.deepEqual(kindsOf([2, ...twelve.slice(5)], rows), [], "P-21: one kind: no filter");
   assert.equal(kindLabel("sum"), "Totals");
   assert.equal(kindLabel("limits"), "Usual range");
   assert.deepEqual(listed([0, 1, 2, 3], rows, "sum"), [0, 2]);
@@ -1431,7 +1436,11 @@ assert.ok(KIND_WORDS.group && !ONE_CELL.has("group"), "AH-214: a row's group is 
   // P-39: a capitals or spaces fix is the column's own word: no receipt to check it against
   const caps = recommendFix(["Region", "Units"], [["east ", 5]], 0, {}, 'Region "east " looks like "East"', 0, 0, { Region: "East" });
   assert.deepEqual(caps.changes, [{ cell: "A2", new: "East" }]);
-  assert.ok(caps.explanation.endsWith("Same word as the rest of the column.") && !caps.explanation.includes("receipt"), "P-39: " + caps.explanation);
+  assert.equal(caps.explanation, 'Region says "east " where the rest of the column says "East": same word, different capitals/spaces.',
+    "P-39, fix round 1: the column's own word, said once, with no receipt line - " + caps.explanation);
+  // fix round 1: how long a scan took is the hint's quiet text in the summary's line, never its bold heading
+  assert.ok(/\.summary \.summary-time \{ font: 400 13px\/1\.5 var\(--sans\); font-variant-numeric: tabular-nums; color: var\(--muted\); \}/.test(readFileSync(new URL("styles/components.css", import.meta.url), "utf8"))
+    && readFileSync(new URL("features/scan.js", import.meta.url), "utf8").includes('className: "summary-time", textContent: checkedIn(secs)'), "the summary's time is hint text");
 }
 // ---- AH-228 B (the UX study, measured in a browser): Options, notes, the footer, start-up words ----
 {

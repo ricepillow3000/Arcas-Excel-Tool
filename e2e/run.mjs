@@ -325,6 +325,13 @@ if (mode === "flow") {
     ok(end.notice === "" && /^5 of 300 rows look wrong\..* Checked in \d+ seconds?\.$/.test(end.summary) && end.inFlow < 1 && end.gap < 40 && end.shift === 0,
       "AH-228 P-32: how long it took is said in the summary's line, no band over the results, nothing moved after they landed - " + JSON.stringify(end)); }
   { const l = await line(); ok(!l.shown, "AH-184: no finish line before the first decision - " + JSON.stringify(l)); }
+  // AH-228 fix round 1: how long it took is a quiet fact after the finding, never as loud as it; and a short list has no
+  // kind buttons over it, so its first row comes up (7 full-width buttons put it at about 1,000 px)
+  { const m = await page.evaluate(() => { const t = document.querySelector("#summary .summary-time"), c = t && getComputedStyle(t), row = document.querySelector("#flagged-list li[data-i]");
+      return { time: t?.textContent, weight: c?.fontWeight, size: c && parseFloat(c.fontSize), muted: c?.color === getComputedStyle(document.querySelector("#list-hint")).color,
+        filter: document.getElementById("kind-filter").checkVisibility(), first: Math.round(row.getBoundingClientRect().top + scrollY) }; });
+    ok(/^Checked in \d+ seconds?\.$/.test(m.time) && m.weight === "400" && m.size >= 13 && m.size <= 14 && m.muted, "AH-228 fix round 1: Checked in N seconds is hint text after the finding - " + JSON.stringify(m));
+    ok(!m.filter && m.first <= 560, "AH-228 fix round 1: 5 rows listed: no kind buttons, the first row at most 560 px down at 360 px - " + JSON.stringify(m)); }
   const listed = await page.$$eval("#flagged-list button", (bs) => bs.slice(0, 5).map((b) => b.innerText.split("\n")[0]));
   ok(["11", "22", "51", "81", "121"].every((r) => listed.some((l) => l.startsWith(`Row ${r}`))), "all 5 planted problems listed first - " + listed);
   ok(!(await text("#flagged-list")).includes("weird limit"), "no jargon in the list");
@@ -350,7 +357,7 @@ if (mode === "flow") {
     await shot("podium-row");
     ok(before[0] === "matrix(0, 0, 0, 1, 0, 0)" && after[0] === "matrix(1, 0, 0, 1, 0, 0)" && scaleOf(before[1]) === 1 && scaleOf(after[1]) > 1.01 && +after[2] === 1 && after[3] === "2" && after[4] === before[4],
       "a hovered row: the fill sweeps from scaleX(0) to scaleX(1), the row lifts above its neighbours on a shadow, its words unchanged - " + JSON.stringify([before.slice(0, 4), after.slice(0, 4)]));
-    await page.mouse.move(1, 1); await page.focus("#kind-filter button:last-child"); await page.keyboard.press("Tab"); await page.waitForTimeout(600); // from the control before the list: since AH-228, the last kind button (AH-175: the folded slider's summary)
+    await page.mouse.move(1, 1); await page.focus("#strength-box > summary"); await page.keyboard.press("Tab"); await page.waitForTimeout(600); // from the control before the list: since AH-175, the folded slider's summary (a list of 5 has no kind buttons, AH-228 fix round 1)
     const keyed = await page.evaluate(() => { const b = document.activeElement; return [b.matches("#flagged-list button:focus-visible"), getComputedStyle(b, "::before").transform, getComputedStyle(b).transform]; });
     ok(keyed[0] && keyed[1] === "matrix(1, 0, 0, 1, 0, 0)" && scaleOf(keyed[2]) > 1.01, "keyboard focus gets the same fill and lift - " + keyed);
     await page.evaluate(() => document.activeElement.blur()); }
@@ -2198,7 +2205,11 @@ if (mode === "live") {
 // AH-228 (the UX study, measured in a browser): the list, the row card and what Arcas learns, on a sheet of their own
 // ("UX", the same planted rows) so nothing decided here reaches the steps above
 if (mode === "flow2") {
-  await page.evaluate((rows) => { __load("UX", rows, [0]); __activate("UX"); }, rows);
+  // fix round 1: more than 10 rows listed, so the kind buttons show: 3 more negative Units (a total each breaks too) and 3
+  // more blank Units beside the planted rows
+  const ux = rows.map((r) => [...r]);
+  for (const [r, v] of [[31, -7], [41, -9], [141, -4], [61, ""], [71, ""], [91, ""]]) ux[r - 1][2] = v;
+  await page.evaluate((ux) => { __load("UX", ux, [0]); __activate("UX"); }, ux);
   await page.evaluate(() => { scrollTo(0, 0); document.activeElement?.blur(); });
   // P-04: a scan pressed for lands where its summary is, once, when it would be out of sight (a short pane stands in for
   // text at 200%, where the first row was at 1,418 px)
@@ -2229,8 +2240,11 @@ if (mode === "flow2") {
   const kinds = () => page.$$eval("#kind-filter button", (bs) => bs.map((b) => [b.textContent, b.getAttribute("aria-pressed"), b.getBoundingClientRect().height]));
   const all = await kinds(), rowsListed = () => page.$$eval("#flagged-list button", (bs) => bs.map((b) => +/^Row (\d+)/.exec(b.innerText)[1]));
   const every = await rowsListed();
-  ok(all.length >= 3 && /^All \d+$/.test(all[0][0]) && all[0][1] === "true" && all.every(([, , h]) => h >= 44) && all.some(([t]) => t === "Duplicates 1"),
-    "AH-228 P-21: kind buttons over the list, All pressed - " + JSON.stringify(all));
+  ok(all.length >= 3 && /^All \d+$/.test(all[0][0]) && +all[0][0].slice(4) > 10 && all[0][1] === "true" && all.every(([, , h]) => h >= 44) && all.some(([t]) => t === "Duplicates 1"),
+    "AH-228 P-21: kind buttons over the list of more than 10 rows, All pressed - " + JSON.stringify(all));
+  // fix round 1: side by side, each as wide as its words, on 3 lines at most at 360 px
+  const lines = await page.$$eval("#kind-filter button", (bs) => new Set(bs.map((b) => Math.round(b.getBoundingClientRect().top))).size);
+  ok(lines <= 3, "AH-228 fix round 1: the kind buttons wrap side by side, on at most 3 lines - " + lines);
   await page.click('#kind-filter button:has-text("Duplicates")');
   const dups = await rowsListed();
   ok(dups.length === 1 && dups[0] === 51 && (await page.getAttribute('#kind-filter button:has-text("Duplicates")', "aria-pressed")) === "true"
@@ -2258,7 +2272,7 @@ if (mode === "flow2") {
   // P-09, P-39: "east " to "East": the space drawn as a dot a screen reader says, and the column's own word needs no receipt
   await openRow(81);
   const east = await page.evaluate(() => ({ dots: document.querySelectorAll('#fix-changes .old .space[aria-label="space"]').length, said: document.getElementById("fix-explanation").textContent }));
-  ok(east.dots === 1 && east.said.endsWith("Same word as the rest of the column.") && !east.said.includes("receipt"), "AH-228 P-09, P-39: " + JSON.stringify(east));
+  ok(east.dots === 1 && east.said.endsWith("same word, different capitals/spaces.") && !east.said.includes("Same word as the rest") && !east.said.includes("receipt"), "AH-228 P-09, P-39: " + JSON.stringify(east));
   // P-36: Escape on an open card goes back to the list
   await page.keyboard.press("Escape"); await page.waitForSelector("#results", { state: "visible" }); await idle();
   ok(await page.isVisible("#flagged-list"), "AH-228 P-36: Escape goes back to the list");
