@@ -83,7 +83,7 @@ def test_the_old_product_name_appears_only_where_an_install_or_a_link_depends_on
 def test_the_guard_catches_the_old_name_and_lets_the_kept_ones_through():
     assert left("Open the Anomaly Hunter panel.") and left("Double-click AnomalyHunter.exe again")
     assert not left(r'paste "%LOCALAPPDATA%\AnomalyHunter\Arcas.exe" uninstall')
-    assert not left("https://github.com/ricepillow3000/excel-anomaly-hunter/releases/latest/download/Arcas.exe")
+    assert not left("https://github.com/ricepillow3000/Arcas-Excel-Tool/releases/latest/download/Arcas.exe")
     assert not left("anomaly-hunter.pbids, Anomaly Hunter Severity, Anomaly Hunter local CA, anomalyHunterAutoFix")
     assert not left('find((a) => a.name === "AnomalyHunter.exe")', "site/home.js")
 
@@ -243,7 +243,7 @@ def test_install_lists_arcas_in_installed_apps_and_uninstall_takes_it_out(tmp_pa
     assert entry["UninstallString"] == f'"{exe}" uninstall' and entry["DisplayIcon"] == f"{exe},0"
     assert entry["InstallLocation"] == str(home) and entry["DisplayVersion"] == "v0.1.300 (2026-11-05)"
     assert entry["NoModify"] == 1 and entry["NoRepair"] == 1 and entry["EstimatedSize"] >= 4
-    assert entry["URLInfoAbout"] == "https://ricepillow3000.github.io/excel-anomaly-hunter/"
+    assert entry["URLInfoAbout"] == "https://ricepillow3000.github.io/Arcas-Excel-Tool/"
     # install() lists it, and uninstall() takes the whole key out again
     import inspect
     assert "list_in_installed_apps(home, exe)" in inspect.getsource(app.install)

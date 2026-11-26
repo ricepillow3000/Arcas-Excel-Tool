@@ -165,5 +165,5 @@ John's server on Cloudflare is for help with Excel fixes only. John can turn off
 cap (as set today: 10 AI calls per invite and 20 for everyone together a day), and there is no promise it is up.
 The same goes for the free AI, and John can turn it off at any time.
 Questions or problems: the pane's Support page, or
-https://github.com/ricepillow3000/excel-anomaly-hunter/issues (public, needs a free GitHub account; never post your own AI
+https://github.com/ricepillow3000/Arcas-Excel-Tool/issues (public, needs a free GitHub account; never post your own AI
 key, any key or code John gave you, or real data).

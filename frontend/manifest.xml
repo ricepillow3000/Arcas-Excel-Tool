@@ -17,7 +17,7 @@
   <Description DefaultValue="Flags abnormal rows in a sheet. Never deletes data."/>
   <IconUrl DefaultValue="https://127.0.0.1:5055/assets/crest4-32.png"/>
   <HighResolutionIconUrl DefaultValue="https://127.0.0.1:5055/assets/crest4-64.png"/>
-  <SupportUrl DefaultValue="https://github.com/ricepillow3000/excel-anomaly-hunter"/>
+  <SupportUrl DefaultValue="https://github.com/ricepillow3000/Arcas-Excel-Tool"/>
   <Hosts>
     <Host Name="Workbook"/>
   </Hosts>
