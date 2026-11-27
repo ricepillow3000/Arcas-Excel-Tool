@@ -13,13 +13,21 @@ export async function showFix(f, label, out) {
   f.changes = out.changes;
   f.label = label;
   f.said = shownAs(out.explanation, state.lastScan?.names); // "Units (column E)", never "Units.1"
-  f.recheck = !out.changes.length; // AH-228 P-08: no fix to write: "I fixed it" reads the row again instead
+  f.choices = out.choices; // AH-238: two answers the user picks from, each one cell: Accept has no one fix to write
+  f.recheck = !out.changes.length && !f.choices; // AH-228 P-08: no fix to write: "I fixed it" reads the row again instead
   $("fix-label").textContent = label;
   $("fix-explanation").textContent = f.said;
   $("fix-changes").replaceChildren(...changeItems(out.changes, olds));
   show("fix-apply");
-  $("fix-dismiss").textContent = out.changes.length ? "Dismiss" : "Looks right"; // no fix offered: the only question left
+  $("fix-dismiss").textContent = out.changes.length || f.choices ? "Dismiss" : "Looks right"; // no fix offered: the only question left
+  (f.choices || []).forEach((c, k) => ($(`fix-pick-${k}`).textContent = `Make ${c.col} ${c.new}`));
   setApplied(!!state.undos[f.i]);
+}
+
+// AH-238: the answer picked is the card's one fix, shown as any fix is, then written by Accept's own path
+export async function pickChoice(f, k) {
+  f.changes = [f.choices[k]];
+  $("fix-changes").replaceChildren(...changeItems(f.changes, await readCells(f.sheet, [f.changes[0].cell])));
 }
 
 // A row whose fix was accepted, opened again: what changed (old -> new) and Undo
@@ -67,6 +75,10 @@ const changeItems = (changes, olds) => changes.map((c, k) => {
 // The card's buttons: Accept / Dismiss before, Undo / Next row after.
 export function setApplied(applied) {
   const f = state.fix;
+  const picking = !applied && !!f?.choices; // AH-238: the two answers stand where Accept would, until one is picked or after Undo
+  [0, 1].forEach((k) => show(`fix-pick-${k}`, picking));
+  show("fix-apply", !picking);
+  if (picking) $("fix-changes").replaceChildren();
   $("fix-apply").disabled = applied || state.working;
   $("fix-apply").textContent = applied ? "Accepted" : f?.recheck ? "I fixed it" : "Accept";
   show("fix-undo", applied);

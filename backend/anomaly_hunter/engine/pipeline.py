@@ -1441,9 +1441,8 @@ def pairs(df, column_types, skip, limits=None, held=None, grid=None):
             def written(i, j):
                 """Cell j of row i has an answer that is a usual value written like its column and makes the row add up: exactly,
                 or, where the rule itself only holds within rounding, within it (so a rounded cell cannot hide a second answer)."""
-                v, d = answer(i, j), _decimals(a[:, j])
-                w = np.round(v, d)
-                return bool(np.isfinite(v) and usual(j, w) and (exactly(i, j) or loose and fits_with(i, j, w)))
+                v = answer(i, j)
+                return exactly(i, j) or bool(loose and np.isfinite(v) and usual(j, np.round(v, _decimals(a[:, j]))) and fits_with(i, j, np.round(v, _decimals(a[:, j]))))
 
             for i in np.flatnonzero(ok & ~good & ~_left_out(a, y - got, [t, *cs]) & ~restated((t, *cs))):
                 out[index[i]].append(Why(f"{cols[t]} {say(y[i])} does not add up: {said} = {got[i]:.10g}", cols[t], *(cols[c] for c in cs)))

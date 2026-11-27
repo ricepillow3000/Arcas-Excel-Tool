@@ -1729,6 +1729,57 @@ if (mode === "flow2") {
     await lay.close();
   }
 
+  // AH-238: a row that adds up wrong where two cells could each be the slip (Qty 10 for 1, Total 7.99 = 1 x 7.99): the card
+  // offers both answers as two buttons, the numbers cannot say which, so Arcas never picks. Each writes only its own cell,
+  // Undo puts the row back and both buttons return. At 320 px the two buttons fit and clear AA. Made-up shop sheet
+  {
+    const two = await browser.newPage({ ignoreHTTPSErrors: true, viewport: { width: 320, height: 900 } });
+    const slipped = [];
+    two.on("pageerror", (e) => slipped.push(e.message));
+    await two.route("https://appsforoffice.microsoft.com/**", (r) => r.fulfill({ contentType: "text/javascript", body: fs.readFileSync(DIR + "fake-office.js", "utf8") }));
+    await two.goto("https://127.0.0.1:5055/taskpane.html");
+    await two.waitForSelector("#main-ui", { state: "visible" });
+    const prices = [3.49, 5.99, 7.99, 8.75, 12.5, 24, 6.25, 2.99], shop = [["Order", "Qty", "Unit Price", "Total"]];
+    for (let i = 0; i < 80; i++) { const q = 1 + ((i * 5) % 12), p = prices[(i * 3) % 8]; shop.push([`SO-${1000 + i}`, q, p, +(q * p).toFixed(2)]); }
+    shop[12] = ["SO-1012", 10, 7.99, 7.99]; // B13 should be 1 (or D13 79.9)
+    await two.evaluate((rows) => __load("Shop", rows), shop);
+    await two.click("#scan");
+    await two.waitForFunction(() => !document.getElementById("scan").disabled && !__state.working);
+    await two.click('#flagged-list button:has-text("Row 13 ")');
+    await two.waitForFunction(() => !__state.working && document.getElementById("fix-title").textContent.startsWith("Row 13") && !document.getElementById("fix-view").hasAttribute("data-opening"));
+    const card = () => two.evaluate(() => ({ picks: [0, 1].map((k) => { const b = document.getElementById(`fix-pick-${k}`); return b && b.checkVisibility() ? b.textContent : null; }),
+      accept: document.getElementById("fix-apply").checkVisibility(), label: document.getElementById("fix-label").textContent, aiOpen: document.getElementById("ai-fold").open,
+      aiSummary: document.getElementById("ai-fold").querySelector("summary").textContent, said: document.getElementById("fix-explanation").textContent,
+      cells: [__cell("Shop", "B13").v, __cell("Shop", "D13").v] }));
+    const c1 = await card();
+    ok(JSON.stringify(c1.picks) === '["Make Qty 1","Make Total 79.9"]' && !c1.accept && !c1.aiOpen && c1.aiSummary === "Want a different fix? Ask AI"
+      && c1.label === "Two possible fixes" && c1.said.includes("Qty should be 1 or Total should be 79.9") && !/[\u2013\u2014]/.test(c1.said) && JSON.stringify(c1.cells) === "[10,7.99]",
+      "AH-238: a row where two cells could each be the slip shows both answers as buttons, no Accept, Ask AI folded, nothing written - " + JSON.stringify(c1));
+    const tall = await two.$$eval("#fix-pick-0, #fix-pick-1", (bs) => bs.map((b) => [Math.round(b.getBoundingClientRect().height), b.scrollWidth > b.clientWidth, Math.round(b.getBoundingClientRect().right)]));
+    ok(tall.every(([h, over, right]) => h >= 44 && !over && right <= 320) && (await two.evaluate(() => document.documentElement.scrollWidth <= 320)),
+      "AH-238: at 320 px each button is a finger tall, its words fit, and nothing scrolls sideways - " + JSON.stringify(tall));
+    await two.waitForFunction(() => document.getAnimations().every((a) => a.timeline !== document.timeline || a.playState !== "running"), null, { timeout: 5000 });
+    const bad = await two.evaluate(contrastProblems);
+    ok(bad.length === 0, "AH-238: the two-choice card clears WCAG AA at 320 px - " + JSON.stringify(bad));
+    if (process.env.SHOTS) await two.screenshot({ path: `${process.env.SHOTS}/pane-two-choices-320.png` });
+    await two.click("#fix-pick-1");
+    await two.waitForFunction(() => !__state.working && document.getElementById("fix-undo").checkVisibility());
+    const c2 = await card();
+    ok(JSON.stringify(c2.cells) === "[10,79.9]" && JSON.stringify(c2.picks) === "[null,null]" && c2.label === "Accepted fix",
+      "AH-238: Make Total 79.9 writes only the Total, and the card says it is fixed - " + JSON.stringify(c2));
+    if (process.env.SHOTS) await two.screenshot({ path: `${process.env.SHOTS}/pane-two-choices-picked-320.png` });
+    await two.click("#fix-undo");
+    await two.waitForFunction(() => !__state.working && document.getElementById("fix-pick-0").checkVisibility());
+    const c3 = await card();
+    ok(JSON.stringify(c3.cells) === "[10,7.99]" && JSON.stringify(c3.picks) === '["Make Qty 1","Make Total 79.9"]' && !c3.accept,
+      "AH-238: Undo puts the row back and both choices return - " + JSON.stringify(c3));
+    await two.click("#fix-pick-0");
+    await two.waitForFunction(() => !__state.working && document.getElementById("fix-undo").checkVisibility());
+    const c4 = await card();
+    ok(JSON.stringify(c4.cells) === "[1,7.99]" && slipped.length === 0, "AH-238: Make Qty 1 writes only the Qty - " + JSON.stringify({ ...c4, slipped }));
+    await two.close();
+  }
+
   // AH-218 (John's master spec): "Changes Arcas made" lists every fix accepted in the workbook, newest first, each with
   // its own Undo, and outlives a reload: two fixes accepted, the pane reloaded, the older one undone from the list puts
   // its cell back and leaves the newer; a cell changed by hand since is left alone and said; with a scan showing, the

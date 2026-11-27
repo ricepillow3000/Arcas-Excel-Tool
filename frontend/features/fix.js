@@ -40,7 +40,7 @@ const addUps = (reason) => String(reason || "").replace(/^Flagged by \d+ of \d+:
 // limits = {col: [baseLo, baseHi, weirdLo, weirdHi]}.
 // calc = this row's formulas: a cell holding a formula is never overwritten - its inputs are what's wrong.
 // formula = {column: R1C1}: the column's own formula for a cell that broke it (AH-152), written back ahead of anything else.
-export function recommendFix(columns, rows, i, limits, reason, startRow, startCol, likely, calc, maybe, formula, o = 0) {
+export function recommendFix(columns, rows, i, limits, reason, startRow, startCol, likely, calc, maybe, formula, o = 0, choices = null) {
   const row = startRow + 2 + i;
   const changes = [], typos = [], slips = [], calcCells = [], seen = new Set(); // seen: columns already explained
   let words = 0; // AH-228 P-39: the capitals/spaces fixes: the column's own word, no receipt to check it against
@@ -143,8 +143,16 @@ export function recommendFix(columns, rows, i, limits, reason, startRow, startCo
   for (const [, err, col] of reason.matchAll(/Excel error (#\S+) in ([^;]+)/g))
     notes.push(`${col} shows ${err}: ${EXCEL_ERRORS[err] || "its formula failed"}. Fix the formula or its inputs ` +
       `(or wrap it in IFERROR(...)) rather than typing a number over it.`);
+  // AH-238: two cells that could each be the slip, offered as two buttons that each write one cell. Only where no fix is
+  // known, both cells are numbers the card may write over (no formula) and the sum names both
+  const named = columns.map((c, j) => ({ c, j })).filter(({ c }) => typeof choices?.[c] === "number");
+  const offered = !changes.length && named.length === 2 && named.every(({ j }) => !String(calc?.[j]).startsWith("="))
+    && sums.some((s) => named.every(({ c }) => s.cols.includes(c)))
+    ? named.map(({ c, j }) => ({ cell: `${colLetter(startCol + j)}${row}`, new: String(choices[c]), col: c })) : undefined;
   for (const s of sums.filter((s) => !s.cols.some((c) => solved.has(c))))
-    notes.push(`${s.text}, so one of these numbers is wrong. Check them against the source.`);
+    notes.push(offered && offered.every(({ col }) => s.cols.includes(col))
+      ? `${s.text}. Either ${offered[0].col} should be ${offered[0].new} or ${offered[1].col} should be ${offered[1].new}. Check your source to see which, then pick it.`
+      : `${s.text}, so one of these numbers is wrong. Check them against the source.`);
   for (const { text } of issuesOf(reason)) // worth-a-check reasons with no value to write: say what to look for
     for (const [rx, hint] of HINTS) {
       const m = rx.exec(text); // a hint may quote what the reason names: the word to filter the column for (AH-45 review)
@@ -152,7 +160,7 @@ export function recommendFix(columns, rows, i, limits, reason, startRow, startCo
     }
   if (!notes.length)
     notes.push("Nothing here is clearly broken, but the values are unusual together. Check them against the source; if they're right, leave them.");
-  return { explanation: notes.join(" "), changes, guess: guessed, unsure }; // guess = a misspelling's fix, or a typo the numbers cannot prove
+  return { explanation: notes.join(" "), changes, guess: guessed, unsure, choices: offered }; // guess = a misspelling's fix, or a typo the numbers cannot prove
 }
 
 // a far-off date got "Nothing here is clearly broken" (12 of 12 on 40 real sheets, 2026-10-16)

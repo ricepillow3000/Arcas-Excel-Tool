@@ -6817,8 +6817,8 @@
   "id": "only-cell-exact-tighten",
   "guard": "A broken row with no odd cell is solved when exactly one cell has a usual answer written like its column (AH-237)",
   "file": "backend/anomaly_hunter/engine/pipeline.py",
-  "old": "abs(v - w) < 0.01 * 10.0 ** -d + 1e-9 * abs(v) or loose",
-  "new": "abs(v - w) < -1 or loose",
+  "old": "abs(v - w) < 0.01 * 10.0 ** -d + 1e-9 * abs(v))",
+  "new": "abs(v - w) < -1)",
   "kind": "tighten",
   "tests": [
    "backend/tests/test_only_one_cell_fits.py::test_a_total_that_only_the_total_can_explain_gets_its_fix"
@@ -6828,8 +6828,8 @@
   "id": "only-cell-near-cent-tighten",
   "guard": "A broken row with no odd cell is solved when exactly one cell has a usual answer written like its column (AH-237)",
   "file": "backend/anomaly_hunter/engine/pipeline.py",
-  "old": "abs(v - w) < 0.01 * 10.0 ** -d + 1e-9 * abs(v) or loose",
-  "new": "abs(v - w) < 10.0 ** -d or loose",
+  "old": "abs(v - w) < 0.01 * 10.0 ** -d + 1e-9 * abs(v))",
+  "new": "abs(v - w) < 10.0 ** -d)",
   "kind": "tighten",
   "tests": [
    "backend/tests/test_only_one_cell_fits.py::test_a_total_that_only_the_total_can_explain_gets_its_fix"
@@ -6839,8 +6839,8 @@
   "id": "only-cell-rounded-loosen",
   "guard": "A broken row with no odd cell is solved when exactly one cell has a usual answer written like its column (AH-237)",
   "file": "backend/anomaly_hunter/engine/pipeline.py",
-  "old": " or loose and fits_with(i, j, w)))\n",
-  "new": ")\n",
+  "old": "return exactly(i, j) or bool(loose and np.isfinite(v) and usual(j, np.round(v, _decimals(a[:, j]))) and fits_with(i, j, np.round(v, _decimals(a[:, j]))))",
+  "new": "return exactly(i, j)",
   "kind": "loosen",
   "tests": [
    "backend/tests/test_only_one_cell_fits.py::test_a_sheet_that_only_adds_up_within_its_rounding_keeps_a_rounded_cell_as_a_second_choice"
@@ -6850,8 +6850,8 @@
   "id": "only-cell-usual-tighten",
   "guard": "A broken row with no odd cell is solved when exactly one cell has a usual answer written like its column (AH-237)",
   "file": "backend/anomaly_hunter/engine/pipeline.py",
-  "old": "return bool(np.isfinite(v) and usual(j, w) and (",
-  "new": "return bool(np.isfinite(v) and (",
+  "old": "return bool(np.isfinite(v) and usual(j, w) and abs(v - w)",
+  "new": "return bool(np.isfinite(v) and abs(v - w)",
   "kind": "tighten",
   "tests": [
    "backend/tests/test_only_one_cell_fits.py::test_an_answer_outside_the_columns_usual_values_is_no_second_choice"
@@ -6889,5 +6889,84 @@
   "tests": [
    "backend/tests/test_two_choices.py::test_a_cell_that_only_fits_within_the_sheets_rounding_is_no_choice_to_offer"
   ]
+ },
+ {
+  "id": "choices-pane-nofix-loosen",
+  "guard": "A two-choice card is offered only where no fix is known, for exactly two numbers neither a formula, beside the sum that names both (AH-238)",
+  "file": "frontend/features/fix.js",
+  "old": "const offered = !changes.length && named.length === 2",
+  "new": "const offered = named.length === 2",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "choices-pane-one-loosen",
+  "guard": "A two-choice card is offered only where no fix is known, for exactly two numbers neither a formula, beside the sum that names both (AH-238)",
+  "file": "frontend/features/fix.js",
+  "old": "named.length === 2 && named.every",
+  "new": "named.length >= 1 && named.every",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "choices-pane-two-tighten",
+  "guard": "A two-choice card is offered only where no fix is known, for exactly two numbers neither a formula, beside the sum that names both (AH-238)",
+  "file": "frontend/features/fix.js",
+  "old": "named.length === 2 && named.every",
+  "new": "named.length === 3 && named.every",
+  "kind": "tighten",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "choices-pane-formula-loosen",
+  "guard": "A two-choice card is offered only where no fix is known, for exactly two numbers neither a formula, beside the sum that names both (AH-238)",
+  "file": "frontend/features/fix.js",
+  "old": "named.every(({ j }) => !String(calc?.[j]).startsWith(\"=\"))\n    && sums.some",
+  "new": "true\n    && sums.some",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "choices-pane-sum-loosen",
+  "guard": "A two-choice card is offered only where no fix is known, for exactly two numbers neither a formula, beside the sum that names both (AH-238)",
+  "file": "frontend/features/fix.js",
+  "old": "\n    && sums.some((s) => named.every(({ c }) => s.cols.includes(c)))\n    ?",
+  "new": "\n    ?",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "choices-pane-applied-loosen",
+  "guard": "A two-choice card shows its two answers where Accept would until one is picked, and keeps Ask AI folded as a card with a fix does (AH-238)",
+  "file": "frontend/components/fix-preview.js",
+  "old": "const picking = !applied && !!f?.choices;",
+  "new": "const picking = !!f?.choices;",
+  "kind": "loosen",
+  "tests": [
+   "e2e"
+  ],
+  "modes": "flow2"
+ },
+ {
+  "id": "choices-pane-fold-tighten",
+  "guard": "A two-choice card shows its two answers where Accept would until one is picked, and keeps Ask AI folded as a card with a fix does (AH-238)",
+  "file": "frontend/pages/fix.js",
+  "old": "const fixed = !!rec.changes.length || !!rec.choices;",
+  "new": "const fixed = !!rec.changes.length;",
+  "kind": "tighten",
+  "tests": [
+   "e2e"
+  ],
+  "modes": "flow2"
  }
 ]
