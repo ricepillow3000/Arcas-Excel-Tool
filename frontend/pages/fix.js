@@ -90,6 +90,7 @@ async function openRow(i, selectInSheet, from, focus) { // from: the list's butt
   // AH-228 P-02: the check named under Dismiss is the one about the column the fix changes, never only the row's first
   f.stop = stoppable(r.kinds, rec.changes.map((c) => columns[cellAt(c.cell)?.col - startCol]).filter(Boolean));
   $("fix-mute").textContent = f.stop ? `Never check ${stopSaid(f.stop)} on this sheet` : "";
+  $("fix-tries").children[1].hidden = !!rec.changes.length && !rec.guess; // AH-235: the engine already knows this value
   $("ai-fold").open = !rec.changes.length; // no fix to offer: the way to ask for one shows
   // AH-228 P-33: with no fix on the card, Ask AI is the way to one, said as such
   $("ai-fold").querySelector("summary").textContent = rec.changes.length ? "Want a different fix? Ask AI" : "Ask AI for a fix";
