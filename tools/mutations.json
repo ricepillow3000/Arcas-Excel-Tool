@@ -6757,5 +6757,49 @@
   "tests": [
    "backend/tests/test_fix_verified.py::test_a_text_value_the_spelling_check_still_flags_is_not_offered"
   ]
+ },
+ {
+  "id": "pairs-rounded-solve-tighten",
+  "guard": "A factor the row's arithmetic pins within its columns' rounding is solved, not left to a typo pattern (AH-236)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": " or j != t and fit(np.round(v, d))):",
+  "new": "):",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_math_beats_guess.py::test_a_ctr_typed_as_a_whole_percent_is_solved_from_its_clicks_and_impressions"
+  ]
+ },
+ {
+  "id": "pairs-rounded-solve-total-loosen",
+  "guard": "A factor the row's arithmetic pins within its columns' rounding is solved, not left to a typo pattern (AH-236)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": " or j != t and fit(np.round(v, d))):",
+  "new": " or fit(np.round(v, d))):",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_math_beats_guess.py::test_a_total_is_never_solved_from_rounded_factors"
+  ]
+ },
+ {
+  "id": "rival-step-loosen",
+  "guard": "A slip two powers of ten could undo, both landing in the usual band among the column's own values, is a guess, never likely (AH-236)",
+  "file": "backend/anomaly_hunter/engine/detectors.py",
+  "old": " or (fix != -v and rival_step(v, fix, st)) else",
+  "new": " else",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_math_beats_guess.py::test_a_value_that_two_steps_back_would_both_make_usual_is_a_guess_not_likely"
+  ]
+ },
+ {
+  "id": "rival-crowd-tighten",
+  "guard": "A slip two powers of ten could undo, both landing in the usual band among the column's own values, is a guess, never likely (AH-236)",
+  "file": "backend/anomaly_hunter/engine/detectors.py",
+  "old": "RIVAL_CROWD = 0.1 ",
+  "new": "RIVAL_CROWD = 0.0 ",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_math_beats_guess.py::test_a_rival_step_no_value_lives_near_is_no_rival"
+  ]
  }
 ]
