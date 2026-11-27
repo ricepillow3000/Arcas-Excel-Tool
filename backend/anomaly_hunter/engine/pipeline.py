@@ -1388,11 +1388,11 @@ def pairs(df, column_types, skip, limits=None, held=None, grid=None):
             full = ok & np.all([a[:, c] != 0 for c in cs], axis=0) if op is np.add else live
             holds = lambda good: ((good & (y != 0)).sum() >= 20 and (good & live).sum() >= 0.95 * live.sum()
                                   and (good & full).sum() >= 5 and (full & ~good).sum() <= max(1, 0.05 * full.sum()))
-            good = ok & near(y, got, cent[t])
+            good, loose = ok & near(y, got, cent[t]), False
             r = rounded(y, cs, op, slice(None))
             within = ok & (np.abs(y - got) <= r[0] + own[t] + r[1]) if r is not None else good
             if not holds(good):  # the exact rule first; then what rounding explains, never looser than that
-                good = within
+                good, loose = within, True
                 if not holds(good):
                     continue
             elif (within & ~good).sum() >= ROUNDED:
@@ -1400,7 +1400,7 @@ def pairs(df, column_types, skip, limits=None, held=None, grid=None):
                 # as _totals: FGM = FGA x FG%, FG% =ROUND(FGM/FGA,3), held to the cent on 96% of a box score's rows, and
                 # 17 rows with 20+ attempts missed by up to 0.0135 (51 valid cells, AH-211 episode 18); one or two such
                 # misses are still each a slip
-                good = within
+                good, loose = within, True
             if held is not None:
                 # a cell is pinned where no change to it alone keeps the rule: every cell of a sum; the total of a product,
                 # and a factor only where the other factors are not 0 (0 x anything is 0: Qty 0 says nothing of the price)
@@ -1411,34 +1411,49 @@ def pairs(df, column_types, skip, limits=None, held=None, grid=None):
                     for k, c in enumerate(cs):
                         others = np.all([g != 0 for m, g in enumerate(f) if m != k], axis=0)
                         confirm(held, len(df), index[np.flatnonzero(good & live & others)], rule, [cols[c]])
+            def answer(i, j):  # what cell j of row i must be for the rule to hold
+                with np.errstate(divide="ignore", invalid="ignore"):
+                    if j == t:
+                        return got[i]
+                    if op is np.add:
+                        return y[i] - a[i, cs[1] if j == cs[0] else cs[0]]
+                    if len(cs) == 3 and j == cs[2]:  # the fraction: 1 - Total / (Units x Price)
+                        return 1 - y[i] / (a[i, cs[0]] * a[i, cs[1]])
+                    return y[i] / np.prod([a[i, c] if k < 2 else 1 - a[i, c] for k, c in enumerate(cs) if c != j])  # one factor: Total / the others
+
+            def fits_with(i, j, w, t=t, cs=cs, op=op):  # the rule holds on row i with cell j set to w: to the cent, or within the columns' rounding
+                row = a[i].copy()
+                row[j] = w
+                y1, got1 = row[t], op(*(row[c] for c in cs))
+                if near(y1, got1, cent[t]):
+                    return True
+                if len(cs) != 2:
+                    return False
+                p, q = row[cs[0]], row[cs[1]]
+                slack = half[cs[0]] * abs(q) + half[cs[1]] * abs(p) if op is np.multiply else half[cs[0]] + half[cs[1]]
+                return bool(abs(y1 - got1) <= slack + own[t] + 1e-9 * abs(y1))
+
+            def written(i, j):
+                """Cell j of row i has an answer that is a usual value written like its column and makes the row add up: exactly,
+                or, where the rule itself only holds within rounding, within it (so a rounded cell cannot hide a second answer)."""
+                v, d = answer(i, j), _decimals(a[:, j])
+                w = np.round(v, d)
+                return bool(np.isfinite(v) and usual(j, w) and (abs(v - w) < 0.01 * 10.0 ** -d + 1e-9 * abs(v) or loose and fits_with(i, j, w)))
+
             for i in np.flatnonzero(ok & ~good & ~_left_out(a, y - got, [t, *cs]) & ~restated((t, *cs))):
                 out[index[i]].append(Why(f"{cols[t]} {say(y[i])} does not add up: {said} = {got[i]:.10g}", cols[t], *(cols[c] for c in cs)))
                 odd = [j for j in (t, *cs) if not usual(j, a[i, j])]
+                # no odd cell (row 42 of a shop sheet: Total 30.93 for 7 x 2.99, every cell inside its range) is still
+                # solved when exactly one cell has an answer written like its column that makes the row add up (AH-237)
+                if len(odd) != 1:
+                    odd = [j for j in (t, *cs) if written(i, j)]
                 if len(odd) != 1:
                     continue
                 j = odd[0]
-                with np.errstate(divide="ignore", invalid="ignore"):
-                    if j == t:
-                        v = got[i]
-                    elif op is np.add:
-                        v = y[i] - a[i, cs[1] if j == cs[0] else cs[0]]
-                    elif len(cs) == 3 and j == cs[2]:  # the fraction: 1 - Total / (Units x Price)
-                        v = 1 - y[i] / (a[i, cs[0]] * a[i, cs[1]])
-                    else:  # one factor: Total / the others
-                        v = y[i] / np.prod([a[i, c] if k < 2 else 1 - a[i, c] for k, c in enumerate(cs) if c != j])
+                v = answer(i, j)
                 d = _decimals(a[:, j])
 
-                def fit(w, i=i, j=j, t=t, cs=cs, op=op):
-                    row = a[i].copy()
-                    row[j] = w
-                    y1, got1 = row[t], op(*(row[c] for c in cs))
-                    if near(y1, got1, cent[t]):
-                        return True
-                    if len(cs) != 2:
-                        return False
-                    p, q = row[cs[0]], row[cs[1]]
-                    slack = half[cs[0]] * abs(q) + half[cs[1]] * abs(p) if op is np.multiply else half[cs[0]] + half[cs[1]]
-                    return bool(abs(y1 - got1) <= slack + own[t] + 1e-9 * abs(y1))
+                fit = lambda w, i=i, j=j, fw=fits_with: fw(i, j, w)
                 # the answer is the column's own rounding of the arithmetic where that holds the rule within its rounding:
                 # Clicks / Impressions = 0.04405 for a CTR written to 3 places, 0.044, never the /1000 a typo pattern guessed
                 if np.isfinite(v) and usual(j, np.round(v, d)) and (
