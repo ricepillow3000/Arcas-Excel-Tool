@@ -1,5 +1,6 @@
-"""AH-236: the engine solves with code first. The blind bench had a wrong "likely" card: a CTR typed 4.4 for 0.044 got /1000
-though Clicks / Impressions says 0.044. Synthetic sheets in that shape."""
+"""AH-236: the engine solves with code first. The blind bench had two wrong "likely" cards: a CTR typed 4.4 for 0.044 got
+/1000 though Clicks / Impressions says 0.044, and a revenue 100x too big got /10 though /100 was as usual as /10.
+Synthetic sheets in those shapes."""
 import numpy as np
 
 from anomaly_hunter.agents.scan_agent import scan
@@ -42,6 +43,40 @@ def test_honest_ctr_rows_are_not_flagged_or_changed():
     rows = ad_sheet(0, 4, 0.044)
     out = scan(["Campaign", "Impressions", "Clicks", "CTR"], rows, fair=False)[1]
     assert not any((o.get("likely") or o.get("maybe")) for o in out)
+
+
+def revenue_sheet(seed, typed):
+    # an even spread on the log scale: 29% of the values lie within a factor 2 of 1024, 1000 to 12000 in all
+    rev = np.round(np.geomspace(1000, 12000, 100) * (1 + 0.01 * seed), 2)
+    rows = [[f"2024-01-{i % 28 + 1:02d}", f"p{i}", float(v)] for i, v in enumerate(rev)]
+    rows[24][2] = typed
+    return rows
+
+
+def test_a_value_that_two_steps_back_would_both_make_usual_is_a_guess_not_likely():
+    # 102445 may be 1024.45 x100 or 10244.5 x10: both are inside the column's band, nothing says which
+    for seed in range(3):
+        out = card(revenue_sheet(seed, 102445.0), ["day", "page", "Revenue"], 24)
+        assert not out["likely"] and out["maybe"].get("Revenue") == 10244.5, out
+        assert "(likely" not in out["reason"], out
+
+
+def test_a_slip_only_one_step_can_undo_stays_likely():
+    # a narrow band 90-130: 1100 can only be 110 x10, /100 is 11, nowhere near
+    rng = np.random.default_rng(1)
+    rows = [[f"p{i}", round(float(rng.uniform(90, 130)), 1)] for i in range(60)]
+    rows[24][1] = 1100.0
+    out = card(rows, ["page", "Price"], 24)
+    assert out["likely"] == {"Price": 110.0}, out
+
+
+def test_a_rival_step_no_value_lives_near_is_no_rival():
+    # 430 may be 4.3 x100 or 43 x10, but 43 sits in the band only as the far end of a 6-value tail (5% of the column
+    # within a factor 2 of it): the usual step stays likely
+    v = np.round(np.concatenate([np.geomspace(1, 9, 100), [25, 30, 35, 40, 45, 50]]), 2)
+    rows = [[f"p{i}", float(x)] for i, x in enumerate(v)] + [["z", 430.0]]
+    out = card(rows, ["p", "Dose"], len(rows) - 1)
+    assert out["likely"] == {"Dose": 4.3}, out
 
 
 def test_a_total_is_never_solved_from_rounded_factors():
