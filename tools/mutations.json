@@ -6856,5 +6856,38 @@
   "tests": [
    "backend/tests/test_only_one_cell_fits.py::test_an_answer_outside_the_columns_usual_values_is_no_second_choice"
   ]
+ },
+ {
+  "id": "choices-two-loosen",
+  "guard": "A row where exactly two cells could each be the slip carries both answers, each exactly as its column writes it, as choices (AH-238)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if len(odd) == 2 and all(",
+  "new": "if len(odd) >= 1 and all(",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_two_choices.py::test_a_row_with_one_answer_gets_its_fix_and_no_choices"
+  ]
+ },
+ {
+  "id": "choices-two-tighten",
+  "guard": "A row where exactly two cells could each be the slip carries both answers, each exactly as its column writes it, as choices (AH-238)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "if len(odd) == 2 and all(",
+  "new": "if len(odd) == 3 and all(",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_two_choices.py::test_a_row_where_two_cells_could_each_be_the_slip_carries_both_answers"
+  ]
+ },
+ {
+  "id": "choices-exact-loosen",
+  "guard": "A row where exactly two cells could each be the slip carries both answers, each exactly as its column writes it, as choices (AH-238)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": "all(exactly(i, j) for j in odd)",
+  "new": "all(True for j in odd)",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_two_choices.py::test_a_cell_that_only_fits_within_the_sheets_rounding_is_no_choice_to_offer"
+  ]
  }
 ]
