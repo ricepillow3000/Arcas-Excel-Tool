@@ -15,8 +15,10 @@ const OFFICE = {
 };
 
 // -> the sentence to show. lead names what failed ("Accept failed"): "lead: our words", or "lead. Try again..."
-export function plainError(e, lead = "Something went wrong") {
-  if (isOurs(e)) return `${lead}: ${e.message}`;
+// AH-228 P-24: with no lead our own words come alone: "Something went wrong: Arcas has stopped." said it twice over
+export function plainError(e, lead = null) {
+  if (isOurs(e)) return lead ? `${lead}: ${e.message}` : e.message.charAt(0).toUpperCase() + e.message.slice(1);
+  lead ||= "Something went wrong";
   console.error(e);
   return Object.hasOwn(OFFICE, String(e?.code)) ? OFFICE[e.code]
     : `${lead}. Try again; if it keeps happening, close the pane and open it again.`;

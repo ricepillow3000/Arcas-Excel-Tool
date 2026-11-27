@@ -25,8 +25,8 @@ def test_two_decimals_in_a_big_column_of_whole_numbers_are_each_worth_a_check_an
     rows = weights(halves=0)
     rows[100][1], rows[9000][1] = 73.4, 81.2
     out = scan(["id", "weight"], rows, fair=False)[1]
-    assert out[100]["reason"] == "weight 73.4 is not a whole number - only 2 weight values are not", out[100]
-    assert out[9000]["severity"] == "Low" and "81.2 is not a whole number - only 2 weight values are not" in out[9000]["reason"]
+    assert out[100]["reason"] == "weight 73.4 is not a whole number: only 2 weight values are not", out[100]
+    assert out[9000]["severity"] == "Low" and "81.2 is not a whole number: only 2 weight values are not" in out[9000]["reason"]
 
 
 def study_days(n, slips, halves=0, seed=1):

@@ -1,25 +1,28 @@
 // Pane pure-logic check, no Office/fetch. Run: node frontend/selfcheck.js
 import assert from "node:assert";
-import { esc, asNumber } from "./utils/text.js";
+import { esc, asNumber, versionSaid } from "./utils/text.js";
 import { cutNote, r1c1ToA1, tableFromGrid, isDateFormat, excelDate, rowFromAddress, colLetter, cellAt, sameRow, readAs, spots } from "./utils/sheet.js";
 import { issuesOf, recommendFix, typoKind, afterFix, unusualColumn, withPast } from "./features/fix.js";
-import { plainReason, summaryOf, legendOf, flaggedRows, fairnessNote, fairnessTests, listOrder, levelChange, asLastScan, lastScanSaid, doneOf, shareOf } from "./features/scan.js";
+import { plainReason, summaryOf, legendOf, flaggedRows, fairnessNote, fairnessTests, listOrder, levelChange, asLastScan, lastScanSaid, doneOf, shareOf, checkedIn, otherTabSaid } from "./features/scan.js";
 import { MEASURED, COLOR, OLD_COLOR } from "./constants/index.js";
 import { oddLines, rulesLines } from "./features/ai.js";
 import { read as readLimit } from "./pages/limits.js";
-import { strengthHint, asStrength, levelAt, levelWord } from "./pages/strength.js";
+import { strengthHint, asStrength, levelAt, levelWord, KEY_WAIT } from "./pages/strength.js";
 import { exactFixes, safeUndo } from "./features/autofix.js";
 import { readdirSync, readFileSync } from "node:fs";
 import { inflateSync } from "node:zlib";
 import { hash, rowHash, codes, codeAt, asBook, decide, PER_SHEET, SHEETS } from "./features/decisions.js";
 import { WORKBOOK_KEYS } from "./features/forget.js";
-import { asHighlights, KEPT } from "./features/highlight.js";
+import { asHighlights, KEPT, highlightWord } from "./features/highlight.js";
 import * as K from "./constants/index.js";
 import { remember, forget, recall, clearAll, pastFix, SAME_SLIP, MAX_KEPT, OFFERED } from "./features/memory.js";
 import { historyOf, cellsSaid } from "./features/history.js";
 import { measures, copiedTabs, copiedSaid, lastRowSaid } from "./features/tabs.js";
 import { tablesFromGrid, sentOf, unreadSaid, errorsSaid, formatRows, asSheet, place, local, biggest, rowAt, areaOf, invalidIn, INVALID } from "./utils/layout.js";
-import { findingsAt, inRange, ignored, liveable, liveOn, soundOn, noteSaid, checkedSaid, LIVE_ROWS, onRow, heldBack, ROW_KINDS, HOLD, reopens, leftAlone, NOT_AGAIN } from "./features/live.js";
+import { findingsAt, inRange, ignored, liveable, liveOn, soundOn, noteSaid, wrongAt, inList, checkedSaid, LIVE_ROWS, onRow, heldBack, ROW_KINDS, HOLD, reopens, leftAlone, NOT_AGAIN } from "./features/live.js";
+import { stopWords, taughtSaid, stoppedOf } from "./features/learned.js";
+import { kindsOf, kindLabel, listed, shownCount, MORE, SHOWN_MAX, KIND_MIN } from "./features/scan.js";
+import { spaceParts, spaceNote } from "./components/fix-preview.js";
 import { asLearned, learnIn, taught, learnedOf, stoppable, KIND_WORDS, ONE_CELL, PER_SHEET as LEARN_CAP, SENT, TEXT } from "./features/learned.js";
 import { ruleOf, heldOf, asRules, keepIn, MAX as RULES_MAX, SHEETS as RULE_SHEETS, HEADER } from "./features/rules.js";
 
@@ -330,6 +333,9 @@ assert.deepEqual([0, 3, 5, 7, 10].map(levelWord), ["Basics", "Lighter", "Recomme
   assert.deepEqual([...Array(11).keys()].filter((s) => strengthHint(s).startsWith("Recommended")), [5]);
   assert.deepEqual([...Array(11).keys()].filter((s) => strengthHint(s).startsWith("Strictest")), [10]);
 }
+// AH-228 P-22: each level says what it checks in full: "Plus sudden jumps" and "A step up from 3" sent the reader to the
+// levels below to know what a level does
+for (const [s, w] of K.STRENGTH) assert.ok(!/^(Plus|A step)|\bplus\b|everything \d+ checks/i.test(w), `level ${s} leans on another level: ${w}`);
 // what a new level changed, counted from the two scans' own rows (AH-15)
 const sev = (...s) => s.map((x) => ({ severity: x, magnitude: 1 })), H = ["a", "b", "c", "d", "e"];
 const at = (level, rows, hashes = H, sheet = "Sales") => ({ level, rows, hashes, sheet });
@@ -509,7 +515,7 @@ for (const reason of ['Gene "2-Sep" is a date among gene names: Excel turns name
   rec = recommendFix(["Id", "Gene"], [["a", "2-Sep"]], 0, null, reason, 0, 0);
   assert.ok(rec.explanation.includes("format the column as Text") && !rec.explanation.includes("Nothing here") && !rec.changes.length, rec.explanation);
 }
-rec = recommendFix(["Id", "Day"], [["a", 7.3]], 0, null, "Day 7.3 is not a whole number - every other Day is", 0, 0);
+rec = recommendFix(["Id", "Day"], [["a", 7.3]], 0, null, "Day 7.3 is not a whole number: every other Day is", 0, 0);
 assert.ok(rec.explanation.includes("check the decimal point"), rec.explanation);
 // AH-55: a name's bound and a share over 100 say what to look for, and write nothing
 rec = recommendFix(["Id", "Birth month"], [["a", 13]], 0, null, "Birth month 13 is outside what Birth month can be (1 to 12)", 0, 0);
@@ -590,6 +596,17 @@ assert.equal(plainReason("A is 1; B is 2", {}, "; "), "A is 1; B is 2");
 assert.equal(plainReason("Flagged by 1 of 3: Unusual combination of values, mainly tolls; Units is unusual relative to its local trend near 2026-01-26 00:00:00"),
   "Unusual mix of values, mostly in tolls\nUnits breaks its usual pattern near 2026-01-26");
 assert.equal(plainReason(""), "");
+// AH-228 P-31: the footer says the version in plain words ("Engine dev 843936a (2026-11-25)" was a developer's line)
+assert.equal(versionSaid("v0.1.123 (2026-11-03)"), "Version 0.1.123 (3 Nov 2026)");
+assert.equal(versionSaid("1.0.10 (2026-11-25)"), "Version 1.0.10 (25 Nov 2026)");
+assert.equal(versionSaid("dev 843936a (2026-11-25)"), "Test version (25 Nov 2026)");
+assert.equal(versionSaid("dev"), "Test version");
+assert.equal(versionSaid(undefined), "An old version: update Arcas");
+// AH-228 P-11: the series check gives both words for one jump; said twice it read as two problems. Only the plainer one
+assert.equal(plainReason("Units is unusual relative to its local trend near 2026-01-26 00:00:00; Units jumped sharply near 2026-01-26 00:00:00; Units weird limit is 105; this is 9999"),
+  "Units jumped sharply near 2026-01-26\nUnits is 9999, above its usual limit of 105");
+assert.equal(plainReason("Units is unusual relative to its local trend near 2026-01-26; Price jumped sharply near 2026-01-26"),
+  "Units breaks its usual pattern near 2026-01-26\nPrice jumped sharply near 2026-01-26", "another column's jump keeps both");
 assert.equal(esc('x" autofocus onfocus="alert(1)'), "x&quot; autofocus onfocus=&quot;alert(1)", "a sheet header can't break out of an attribute");
 assert.equal(esc("<b>'&"), "&lt;b&gt;&#39;&amp;");
 assert.equal(plainReason("Flagged by 3 of 3: Units weird limit is 105; this is 9999; Units jumped sharply near 2026-01-26 00:00:00"),
@@ -648,8 +665,8 @@ assert.deepEqual({ ...asHighlights({ sheet: "S", cells: { C11: "#00B050", D2: nu
 for (const v of [null, "x", [], { sheet: 1, cells: {} }, { sheet: "S" }]) assert.equal(asHighlights(v), null);
 assert.equal(Object.keys(asHighlights({ sheet: "S", cells: Object.fromEntries(Array.from({ length: KEPT + 5 }, (_, k) => [`A${k + 1}`, null])) }).cells).length, KEPT);
 // AH-48: the note for many repeated rows gets its own advice, never "the values are just unusual together"
-assert.match(recommendFix(["hotel", "adr"], [["City", 90]], 0, {}, "600 of 3000 rows repeat an earlier row exactly, all through the sheet - the first is this one, a copy of row 5", 0, 0).explanation,
-  /^600 of 3000 rows repeat an earlier row exactly, all through the sheet - the first is this one, a copy of row 5: this many, spread out, are usually separate real records/);
+assert.match(recommendFix(["hotel", "adr"], [["City", 90]], 0, {}, "600 of 3000 rows repeat an earlier row exactly, all through the sheet: the first is this one, a copy of row 5", 0, 0).explanation,
+  /^600 of 3000 rows repeat an earlier row exactly, all through the sheet: the first is this one, a copy of row 5: this many, spread out, are usually separate real records/);
 // AH-49: amounts compared across groups are named like the other checks, and sorted by their relative width
 assert.equal(fairnessNote({ protected: { Sex: "demographic" }, tests: [even("flag"), even("amount")] }),
   `${FAIR}Sex to pick which rows look wrong. Flagged rows and amounts come out about the same in each group.`);
@@ -677,7 +694,8 @@ const fixSk = /<div class="fix-sk" aria-hidden="true">([\s\S]*?)<\/div>/.exec(ht
 assert.ok((fixSk.match(/class="sk-bar /g) || []).length >= 2 && !/\bid=/.test(fixSk) && /<div class="fix-body">\s*<div class="fix-sk"/.test(html),
   "the fix card's skeleton: still bars at the top of its fix area, no id");
 // AH-157: the last check's line sits under the empty state's heading, never before it (#empty-state p:first-child)
-assert.ok(/<section id="empty-state"[^>]*>\s*<p>Click <b>Find problems<\/b>[^<]*<\/p>\s*<p id="last-scan" hidden><\/p>/.test(html), "the empty state's heading stays first, the last check under it");
+// AH-228 P-34: and it never repeats the button above it ("Click Find problems to check the sheet that is open.")
+assert.ok(/<section id="empty-state"[^>]*>\s*<p>Arcas checks the sheet that is open\.<\/p>\s*<p id="last-scan" hidden><\/p>/.test(html), "the empty state's heading stays first, the last check under it");
 assert.ok(/toggleAttribute\("data-opening"/.test(readFileSync(new URL("pages/fix.js", import.meta.url), "utf8")), "a row's card shows its skeleton by data-opening while it opens");
 assert.ok(!/\bstyle=|<style/.test(html), "the pane CSP refuses inline styles");
 // the entrance is unhurried (John: "it seems like I'm rushing the user") and still at rest well inside launch's 2 s
@@ -709,7 +727,10 @@ assert.ok(!/iterations:\s*Infinity/.test(motion), "components/motion.js: an anim
   const quiet = console.error;
   console.error = () => {}; // plainError logs the detail for a person debugging: not this check's output
   try {
-    assert.equal(plainError(ours("Arcas has stopped.")), "Something went wrong: Arcas has stopped.");
+    // AH-228 P-24 (was "Something went wrong: Arcas has stopped."): our own sentence alone, its first letter a capital
+    assert.equal(plainError(ours("Arcas has stopped.")), "Arcas has stopped.");
+    assert.equal(plainError(ours("the checker took over 300 seconds. Try again.")), "The checker took over 300 seconds. Try again.");
+    assert.ok(plainError(new Error("x")).startsWith("Something went wrong. "), "not ours: still one plain sentence");
     assert.equal(plainError(ours("Arcas has stopped."), "Accept failed"), "Accept failed: Arcas has stopped.");
     assert.equal(plainError(Object.assign(new Error("InvalidOperationInCellEditMode"), { code: "InvalidOperationInCellEditMode" })),
       "Excel is busy editing a cell. Press Enter or Esc, then try again.");
@@ -817,10 +838,12 @@ for (const f of readdirSync(new URL(".", import.meta.url)).filter((f) => f.endsW
 {
   const flat = (s) => s.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
   const down = flat(/<section id="server-down"[^>]*>([\s\S]*?)<\/section>/.exec(html)?.[1] || "");
-  assert.equal(down, "Arcas has stopped. Wait half a minute and press Try again. If that doesn't work, open your Downloads folder, double-click Arcas.exe, then press Try again. Try again", "the engine down at start");
+  // AH-228 P-24: it says it is trying again by itself (it asks every 5 s for 2 minutes, app.js), shown only while it does
+  assert.equal(down, "Arcas has stopped. Arcas is trying again by itself. Wait half a minute and press Try again. If that doesn't work, open your Downloads folder, double-click Arcas.exe, then press Try again. Try again", "the engine down at start");
   assert.ok(readFileSync(new URL("services/api.js", import.meta.url), "utf8").includes('throw ours("Arcas has stopped. Wait half a minute and try again. If that doesn\'t work, open your Downloads folder, double-click Arcas.exe, then try again.")'), "the engine down mid-call");
-  assert.ok(/<p id="list-hint" class="hint">[^<]*The cells to check are coloured in your sheet\. This changes no values\. Remove highlights takes the colour off\.<\/p>/.test(html), "the list's hint does not say what the colours are");
-  assert.ok(html.includes('<button id="clear-highlights" class="secondary">Remove highlights</button>'), "the hint names a button that is not there");
+  // AH-228 P-17: the colours are said beside Remove highlights, where the list's hint said them first in 43 words
+  assert.ok(html.includes('<p id="list-hint" class="hint">Worst first. Click a row to see the fix. Check each one before you accept: you know your data best.</p>'), "the list's hint is its short form");
+  assert.ok(html.includes('<button id="clear-highlights" class="secondary">Remove highlights</button>\n        <p id="highlight-hint" class="hint">The cells to check are coloured in your sheet. This changes no values. Remove highlights takes the colour off.</p>'), "the colours are said beside Remove highlights");
   assert.ok(/<summary>AI help \(optional, free\)<\/summary>\s*<p class="hint">Optional\. Arcas finds problems without AI\.<\/p>/.test(html), "AI help does not open by saying it is optional");
   assert.ok(readFileSync(new URL("features/fix.js", import.meta.url), "utf8").includes("Check it against the original receipt, invoice or report before you click Accept."), "a fix card's check against the source");
 }
@@ -912,10 +935,23 @@ for (const f of readdirSync(new URL(".", import.meta.url)).filter((f) => f.endsW
   assert.deepEqual(findingsAt(rows, s, {}, ["B3:B4"]).map((f) => f.cell), ["B4", "B3"], "only in the cells changed");
   assert.deepEqual(findingsAt(rows, s, { 2: "dismissed" }, ["B3:B6"]).map((f) => f.cell), ["B6", "B3"], "never a row fixed or dismissed");
   assert.deepEqual(findingsAt(rows, s, {}, ["A5"]).map((f) => f.cell), ["A5"]);
-  assert.equal(noteSaid("Series 3", findingsAt(rows, s, {}, ["B4"])[0], 0, {}), 'Sheet "Series 3", cell B4: Very likely wrong. Units is -5, below its usual limit of 90 (likely 5).');
+  // AH-228 P-13 (was 'Sheet "Series 3", cell B4: Very likely wrong. ...'): the cell changed, then the one that looks wrong
+  assert.equal(noteSaid("Series 3", findingsAt(rows, s, {}, ["B4"])[0], 0, {}), "You changed B4 on Series 3. It looks wrong: Units is -5, below its usual limit of 90 (likely 5).");
   const two = [{ severity: "Medium", magnitude: 1, cells: ["Units", "Item"], reason: "Item 7 does not add up: Units × 2 = 1800; Units weird limit is 90; this is 900" }];
-  assert.equal(noteSaid("Sales", findingsAt(two, s, {}, ["B2"])[0], 0), 'Sheet "Sales", cell B2: Probably wrong. Units is 900, above its usual limit of 90.', "the line about the changed cell");
-  assert.equal(noteSaid("Sales", findingsAt(two, s, {}, ["A2"])[0], 0), 'Sheet "Sales", cell A2: Probably wrong. Item 7 does not add up: Units × 2 = 1800.');
+  assert.equal(noteSaid("Sales", findingsAt(two, s, {}, ["B2"])[0], 0), "You changed B2 on Sales. It looks wrong: Units is 900, above its usual limit of 90.", "the line about the changed cell");
+  assert.equal(noteSaid("Sales", findingsAt(two, s, {}, ["A2"])[0], 0), "You changed A2 on Sales. It looks wrong: Item 7 does not add up: Units × 2 = 1800.");
+  // the line about another cell of the row names that cell: Units typed 99999 in B, its Total in C changed by the edit
+  const s3 = { columns: ["Item", "Units", "Total"], startRow: 0, startCol: 0, names: {} };
+  const nines = [{ severity: "Medium", magnitude: 1, cells: ["Units", "Total"], reason: "Units 99999 is all 9s: often a stand-in for no value (over twice the next highest, 90)" }];
+  const f3 = findingsAt(nines, s3, {}, ["C2"])[0];
+  assert.deepEqual([f3.cell, wrongAt(f3)[1]], ["C2", "B2"]);
+  assert.equal(noteSaid("Sales", f3, 0), "You changed C2. B2 on Sales looks wrong: Units 99999 is all 9s: often a stand-in for no value (over twice the next highest, 90).");
+  assert.equal(noteSaid("Sales", { ...findingsAt(rows, s, {}, ["A5"])[0] }, 2), "You changed A5 on Sales. It is worth a check: Item is odd. And 2 more in what you changed.");
+  // AH-228 P-14: the note offers the row's card only when the list holds that very row of that sheet, as sized now
+  const w = { sheet: "Sales", cell: "B2", i: 0, rows: 300 };
+  assert.ok(inList(w, { sheet: "Sales", rows: 300, order: [4, 0] }));
+  assert.ok(!inList(w, { sheet: "Sales", rows: 301, order: [0] }) && !inList(w, { sheet: "Other", rows: 300, order: [0] }) && !inList(w, { sheet: "Sales", rows: 300, order: [3] }));
+  assert.ok(!inList({ sheet: "Sales" }, { sheet: "Sales", rows: 300, order: [0] }) && !inList(w, { sheet: undefined, rows: undefined, order: undefined }), "a note with no row, or no list: Check the whole sheet");
   assert.equal(checkedSaid("Series 3", ["B12"]), 'Checked B12 on "Series 3": nothing unusual.');
   assert.equal(checkedSaid("Series 3", ["B2:B500"]), 'Checked B2:B500 on "Series 3": nothing unusual.');
   assert.equal(checkedSaid("S", ["A1", "B2", "A1", "C3", "D4", "E5"]), 'Checked A1, B2, C3 and 2 more on "S": nothing unusual.', "each address once, 3 named");
@@ -1346,5 +1382,102 @@ assert.ok(KIND_WORDS.group && !ONE_CELL.has("group"), "AH-214: a row's group is 
   assert.equal(offer(), advice, "AH-219: Forget what the AI learned takes it out");
   delete globalThis.localStorage;
 }
+
+// AH-228 (the UX study, measured in a browser): the list, the row card and what Arcas learns
+{
+  // P-02: the stop link names the check on the column the card's fix changes, never only the row's first check
+  const kinds = [["sum", "Total"], ["limits", "Units"]];
+  assert.deepEqual(stoppable(kinds, ["Units"]), ["limits", "Units"], "P-02: a fix to Units offers to stop the usual range in Units, never totals in Total");
+  assert.deepEqual(stoppable(kinds, []), ["sum", "Total"], "P-02: no fix: the row's first check, as before");
+  assert.deepEqual(stoppable(kinds, ["Gone"]), ["sum", "Total"]);
+  // P-01, P-02: the reach said plainly; a duplicate is the whole row, so its stop is the sheet's (the engine keys it on the
+  // row's first column, pipeline.duplicates), never "duplicates in OrderDate"
+  assert.equal(stopWords(["sum", "Amount"]), "totals in Amount");
+  assert.equal(stopWords(["duplicate", "OrderDate"]), "duplicates");
+  assert.equal(stopWords(["spelling", "Units.1"], (c) => c === "Units.1" ? "Units (column E)" : c), "spelling in Units (column E)");
+  // P-19: what a Dismiss teaches, said
+  assert.equal(taughtSaid([["limits", "Units"], ["sum", "Total"]], ["Units", "Total"], [7777, 10]), "Units 7777 is fine on this sheet from now on.");
+  assert.equal(taughtSaid([["limits", "Units"], ["spelling", "Glass"]], ["Units", "Glass"], [7777, "Highball glass"]), "Units 7777 and Glass Highball glass are fine on this sheet from now on.");
+  assert.equal(taughtSaid([["sum", "Total"], ["blank", "Units"]], ["Units", "Total"], ["", 10]), "", "P-19: a sum or a blank teaches nothing: nothing said");
+  // P-01: each stopped check listed by its sheet, newest last, to check again
+  assert.deepEqual(stoppedOf({ S: [["spelling", "Region"]], T: [["duplicate", "Date"], ["sum", "Total"]] }).map((x) => x.said),
+    ["Spelling in Region on S", "Duplicates on T", "Totals in Total on T"]);
+  assert.deepEqual(stoppedOf({ S: [["spelling", "Region"]] })[0].pair, ["spelling", "Region"]);
+  assert.deepEqual(stoppedOf(null), []);
+  // P-21: the kinds over the list, each with its rows, only when 2+ are present and the list holds more than 10 rows
+  // (fix round 1: 7 buttons over a list of 5 put its first row about 470 px lower)
+  const rows = [{ kinds: [["sum", "Total"], ["limits", "Units"]] }, { kinds: [["spelling", "Region"]] }, { kinds: [["sum", "Total"]] }, { kinds: [] }, { kinds: [["nonsense", "X"]] },
+    ...Array.from({ length: 7 }, () => ({ kinds: [] }))];
+  assert.equal(KIND_MIN, 11);
+  const twelve = rows.map((_, i) => i);
+  assert.deepEqual(kindsOf(twelve, rows), [["sum", 2], ["limits", 1], ["spelling", 1]], "P-21: most rows first, a row counted once a kind");
+  assert.deepEqual(kindsOf(twelve.slice(0, KIND_MIN), rows), [["sum", 2], ["limits", 1], ["spelling", 1]], "P-21: 11 rows, the very limit: the filter shows");
+  assert.deepEqual(kindsOf(twelve.slice(0, KIND_MIN - 1), rows), [], "fix round 1: 10 rows listed: no filter, the rows come up");
+  assert.deepEqual(kindsOf([2, ...twelve.slice(5)], rows), [], "P-21: one kind: no filter");
+  assert.equal(kindLabel("sum"), "Totals");
+  assert.equal(kindLabel("limits"), "Usual range");
+  assert.deepEqual(listed([0, 1, 2, 3], rows, "sum"), [0, 2]);
+  assert.deepEqual(listed([0, 1, 2, 3], rows, null), [0, 1, 2, 3]);
+  // P-20: rows past the first 50 can be reached, 20 more a press, never past a bound
+  assert.equal(shownCount(6000, 0), 50);
+  assert.equal(shownCount(6000, 1), 50 + MORE);
+  assert.equal(shownCount(60, 3), 60);
+  assert.equal(shownCount(100000, 100000), SHOWN_MAX, "P-20: the list never draws more than SHOWN_MAX rows");
+  // P-09: a fix that only takes off a space shows the space and says where it was
+  assert.deepEqual(spaceParts("Meals "), ["", "Meals", " "]);
+  assert.deepEqual(spaceParts("  East"), ["  ", "East", ""]);
+  assert.deepEqual(spaceParts("East"), ["", "East", ""]);
+  assert.deepEqual(spaceParts(42), ["", "42", ""]);
+  assert.equal(spaceNote("Meals ", "Meals"), "(a space at the end)");
+  assert.equal(spaceNote(" Meals", "Meals"), "(a space at the start)");
+  assert.equal(spaceNote(" Meals  ", "Meals"), "(spaces at both ends)");
+  assert.equal(spaceNote("meals", "Meals"), "");
+  assert.equal(spaceNote(5, 50), "");
+  // P-39: a capitals or spaces fix is the column's own word: no receipt to check it against
+  const caps = recommendFix(["Region", "Units"], [["east ", 5]], 0, {}, 'Region "east " looks like "East"', 0, 0, { Region: "East" });
+  assert.deepEqual(caps.changes, [{ cell: "A2", new: "East" }]);
+  assert.equal(caps.explanation, 'Region says "east " where the rest of the column says "East": same word, different capitals/spaces.',
+    "P-39, fix round 1: the column's own word, said once, with no receipt line - " + caps.explanation);
+  // fix round 1: how long a scan took is the hint's quiet text in the summary's line, never its bold heading
+  assert.ok(/\.summary \.summary-time \{ font: 400 13px\/1\.5 var\(--sans\); font-variant-numeric: tabular-nums; color: var\(--muted\); \}/.test(readFileSync(new URL("styles/components.css", import.meta.url), "utf8"))
+    && readFileSync(new URL("features/scan.js", import.meta.url), "utf8").includes('className: "summary-time", textContent: checkedIn(secs)'), "the summary's time is hint text");
+}
+// ---- AH-228 B (the UX study, measured in a browser): Options, notes, the footer, start-up words ----
+{
+  const pane = readFileSync(new URL("taskpane.html", import.meta.url), "utf8");
+  const part = (re) => re.exec(pane)?.[0] || "";
+  const flat = (x) => x.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  // P-10: AI help says it works with no key in one line; the steps and the key box fold away, closed, every control kept
+  const ai = part(/<details id="settings"[\s\S]*?(?=<details class="more">\s*<summary>Saved in this workbook)/), own = part(/<details id="own-key" class="more">[\s\S]*?<\/details>/);
+  assert.ok(own && /<summary>Use your own Google key<\/summary>/.test(own) && ["ai-key", "save-key", "remove-key", "aistudio.google.com/apikey"].every((x) => own.includes(x)), "P-10: the key's steps and box under a closed Use your own Google key");
+  assert.ok(flat(ai.replace(own, "")).split(" ").length < 110, `P-10: AI help outside its fold is short - ${flat(ai.replace(own, "")).split(" ").length} words`);
+  assert.ok(readFileSync(new URL("features/ai.js", import.meta.url), "utf8").includes('"AI help works now, free, with a daily limit. For more answers, use your own free Google key."'), "P-10: the free AI in one line");
+  // P-30: the first time the options name John they say who he is
+  assert.ok(/John, who makes Arcas, gave you an invite code/.test(ai), "P-30: John, who makes Arcas");
+  // P-18: Check words and Check subject rules under one closed fold under the list, each with its own What is sent?; Remove highlights outside
+  const more = part(/<details id="ai-checks" class="more" hidden>[\s\S]*?<ul id="rules-list"[^>]*><\/ul>\s*<\/div>\s*<\/details>/);
+  assert.ok(/<summary>More checks with AI<\/summary>/.test(more) && more.includes('id="odd-box"') && more.includes('id="rules-box"') && (more.match(/What is sent\?/g) || []).length === 2 && !more.includes("clear-highlights"),
+    "P-18: More checks with AI folds both AI checks, closed");
+  // P-25: Saved in this workbook as short points; Power BI in 2 sentences, Where the files are folded
+  assert.ok((part(/<ul id="book-kept"[\s\S]*?<\/ul>/).match(/<li>/g) || []).length >= 7, "P-25: what the workbook keeps, one point each");
+  assert.ok(/<details id="power-bi-files" class="more">\s*<summary>Where the files are<\/summary>/.test(pane) && pane.includes("%LOCALAPPDATA%\\AnomalyHunter"), "P-25: Where the files are, folded");
+  // P-35: one press opens the limits, never "the slider above" (it is folded under Find problems)
+  assert.ok(/<button id="edit-limits" class="link-btn">Exact limits per column<\/button>/.test(pane) && !/<details[^>]*>\s*<summary>Exact limits/.test(pane) && !/slider above/i.test(pane), "P-35: one press opens the limits");
+  assert.ok(pane.includes("Flag a number below the first box or above the second.") && pane.includes(">Use automatic limits</button>"), "P-35: the editor's plain words");
+  // P-28: Stop on the progress line
+  assert.ok(/<p id="busy-line">[\s\S]*<button id="stop-scan" class="link-btn" hidden>Stop<\/button><\/p>/.test(pane), "P-28: Stop on the progress line");
+  // P-14: the note's third button
+  assert.ok(/<div id="live-note"[\s\S]*?id="live-more"/.test(pane), "P-14: the note offers a next step");
+}
+// P-32: how long a scan took goes in the summary's line
+assert.equal(checkedIn(1), "Checked in 1 second.");
+assert.equal(checkedIn(12), "Checked in 12 seconds.");
+// P-15: a list made on another tab says so
+assert.equal(otherTabSaid("Sales", "Budget"), "This list is for Sales. Find problems checks Budget.");
+assert.equal(otherTabSaid("Sales", "Sales"), "");
+// P-38: the highlights button says what it will do
+assert.deepEqual([highlightWord(true), highlightWord(false)], ["Remove highlights", "Show highlights again"]);
+// P-27: arrow keys check once, a moment after the last one
+assert.ok(KEY_WAIT >= 400 && KEY_WAIT <= 1000);
 
 console.log("panel self-check passed");

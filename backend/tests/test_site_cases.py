@@ -82,6 +82,10 @@ def test_each_case_study_credits_its_source_and_licence_and_says_how_much_of_the
         credit = re.search(r'<p class="case-credit">(.*?)</p>', card, re.S)
         assert credit and f'<a href="{meta["source_page"]}">' in credit[1] and text(credit[1]).startswith("Data: FiveThirtyEight, CC BY 4.0"), name
         assert f"{len(rows)} of its {meta['full_rows']:,} rows" in text(card), name
+        # AH-227 W-19: why only part of a table: the excerpt is the part committed beside the tests (fixtures/cases/), so
+        # anyone can scan it again; "scanned at level 5" said how, never why
+        scope = re.search(r'<p class="case-scope">(.*?)</p>', card, re.S)
+        assert scope and text(scope[1]).endswith(", the part kept with Arcas's tests, checked at level 5"), name
     readme = (CASES / "README.md").read_text(encoding="utf-8")
     for name in NAMES:
         assert f"{name}.csv" in readme

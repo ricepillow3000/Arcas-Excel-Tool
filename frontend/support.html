@@ -20,7 +20,7 @@
       <h2>Common questions</h2>
       <details open>
         <summary>The pane says "Arcas has stopped" <span class="pm"></span></summary>
-        <div class="a">Wait half a minute and press <strong>Try again</strong>. If that doesn't work, open your Downloads folder, double-click <code>Arcas.exe</code>, then press <strong>Try again</strong>. It asks you to close Excel, repairs the install, starts Arcas again and reopens Excel. With an invite kit, double-click install.bat in the kit folder instead.</div>
+        <div class="a">Wait half a minute and press <strong>Try again</strong>. If that doesn't work, open your Downloads folder, double-click <code>Arcas.exe</code>, then press <strong>Try again</strong>. It asks you to close Excel, repairs the install, starts Arcas again and reopens Excel. With a setup kit from John, double-click install.bat in the kit folder instead.</div>
       </details>
       <details>
         <summary>Windows says "Windows protected your PC" <span class="pm"></span></summary>
@@ -32,11 +32,11 @@
       </details>
       <details>
         <summary>How do I update? <span class="pm"></span></summary>
-        <div class="a">Download the latest <a href="https://github.com/ricepillow3000/excel-anomaly-hunter/releases/latest/download/Arcas.exe" target="_blank" rel="noopener">Arcas.exe</a> and double-click it. If Excel is open, it asks you to close it first. Your AI key stays. The version you have is the <strong>Engine</strong> line at the bottom of the pane. With an invite kit, double-click install.bat in a newer kit from John.</div>
+        <div class="a">Download the latest <a href="https://github.com/ricepillow3000/Arcas-Excel-Tool/releases/latest/download/Arcas.exe" target="_blank" rel="noopener">Arcas.exe</a> and double-click it. If Excel is open, it asks you to close it first. Your AI key stays. The version you have is the <strong>Engine</strong> line at the bottom of the pane. With a setup kit from John, double-click install.bat in a newer kit from John.</div>
       </details>
       <details>
         <summary>How do I uninstall? <span class="pm"></span></summary>
-        <div class="a">Open Settings, then Apps, then Installed apps. Find Arcas in the list, click the three dots beside it, then Uninstall. It removes the add-in, Arcas, its certificate and its files, the app file too. Not in the list? An Arcas installed before November 2026 shows up there after its next update; until then press Windows+R, paste <code>"%LOCALAPPDATA%\AnomalyHunter\Arcas.exe" uninstall</code> and press Enter. The <a href="privacy.html#rights">Privacy page</a> lists what it removes. With an invite kit, close Excel, run install.bat /u in the kit folder, then delete the kit folder. Like the app's uninstall, it also clears Excel's add-in cache, so other web add-ins may need to be added again.</div>
+        <div class="a">Open Settings, then Apps, then Installed apps. Find Arcas in the list, click the three dots beside it, then Uninstall. It removes the add-in, Arcas, its certificate and its files, the app file too. Not in the list? An Arcas installed before November 2026 shows up there after its next update; until then press Windows+R, paste <code>"%LOCALAPPDATA%\AnomalyHunter\Arcas.exe" uninstall</code> and press Enter. The <a href="privacy.html#rights">Privacy page</a> lists what it removes. With a setup kit from John, close Excel, run install.bat /u in the kit folder, then delete the kit folder. Like the app's uninstall, it also clears Excel's add-in cache, so other web add-ins may need to be added again.</div>
       </details>
       <details>
         <summary>Where is the log? <span class="pm"></span></summary>
@@ -44,7 +44,7 @@
       </details>
       <details>
         <summary>Where is AI help, and what does Remove key do? <span class="pm"></span></summary>
-        <div class="a">AI help works out of the box: with no key, <strong>Ask AI</strong> on a flagged row uses a free shared AI, with a few requests a day for each internet connection. For more, open <strong>AI help (optional, free)</strong> at the bottom of the pane, paste a free Google AI key from <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>, or an invite code (it starts with <code>inv_</code>), and click <strong>Save key</strong>. <strong>Remove key</strong> deletes the key and invite code saved in your AnomalyHunter folder and goes back to the free shared AI; scans and fixes keep working. With an invite kit, also delete <code>invite-code.txt</code> from the kit folder, or installing again turns AI help back on.</div>
+        <div class="a">AI help works out of the box: with no key, <strong>Ask AI</strong> on a flagged row uses a free shared AI, with a few requests a day for each internet connection. For more, open <strong>AI help (optional, free)</strong> at the bottom of the pane, then <strong>Use your own Google key</strong>, paste a free Google AI key from <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>, or an invite code (it starts with <code>inv_</code>), and click <strong>Save key</strong>. <strong>Remove key</strong> deletes the key and invite code saved in your AnomalyHunter folder and goes back to the free shared AI; scans and fixes keep working. With a setup kit from John, also delete <code>invite-code.txt</code> from the kit folder, or installing again turns AI help back on.</div>
       </details>
       <details>
         <summary>It flagged a correct value, or missed one <span class="pm"></span></summary>
@@ -52,21 +52,21 @@
       </details>
       <details>
         <summary>Is my data private? <span class="pm"></span></summary>
-        <div class="a">A scan runs on your PC and sends nothing. Only <strong>Ask AI</strong>, <strong>Check words with AI</strong> and <strong>Check subject rules with AI</strong> send part of your sheet: to Google, or through John's relay to Google if you use an invite code. The <a href="privacy.html">Privacy page</a> says what is sent.</div>
+        <div class="a">A scan runs on your PC and sends nothing. Only <strong>Ask AI</strong>, <strong>Check words with AI</strong> and <strong>Check subject rules with AI</strong> send part of your sheet: to Google, or through John's server on Cloudflare to Google if you use an invite code. The <a href="privacy.html">Privacy page</a> says what is sent.</div>
       </details>
     </section>
 
     <section class="card">
       <h2>Ask John</h2>
       <p>Arcas is a free project run by one person. John usually replies within 2 business days.</p>
-      <div class="callout">Never paste real customer data, account numbers, your AI key or your invite code: use made-up values. Copy the <strong>Engine</strong> line from the bottom of the pane into your message. The only public ways to reach John are the buttons on this page, his email, <a href="mailto:john4000.nguyen@gmail.com">john4000.nguyen@gmail.com</a>, and his phone, <a href="tel:+17702659930">(770) 265-9930</a> (with an invite, you can also use the way you got it). He will never ask for your key, invite code, password or file.</div>
+      <div class="callout">Never paste real customer data, account numbers, your own AI key, or any key or code John gave you: use made-up values. Copy the <strong>Engine</strong> line from the bottom of the pane into your message. The only public ways to reach John are the buttons on this page, his email, <a href="mailto:john4000.nguyen@gmail.com">john4000.nguyen@gmail.com</a>, and his phone, <a href="tel:+17702659930">(770) 265-9930</a> (with an invite, you can also use the way you got it). He will never ask for your key, invite code, password or file.</div>
 
       <div class="opt">
         <span class="n">1</span>
         <div>
           <strong>Post a public question</strong>
           <p>Needs a free GitHub account. Anyone can read it, and it helps others with the same problem.</p>
-          <a class="btn btn-red" href="https://github.com/ricepillow3000/excel-anomaly-hunter/issues/new?template=support_request.yml" target="_blank" rel="noopener">Post a question <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"/></svg></a>
+          <a class="btn btn-red" href="https://github.com/ricepillow3000/Arcas-Excel-Tool/issues/new?template=support_request.yml" target="_blank" rel="noopener">Post a question <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"/></svg></a>
         </div>
       </div>
 
@@ -75,7 +75,7 @@
         <div>
           <strong>Search past questions</strong>
           <p>Someone may have hit the same thing already.</p>
-          <a class="btn btn-line" href="https://github.com/ricepillow3000/excel-anomaly-hunter/issues?q=is%3Aissue" target="_blank" rel="noopener">Search questions <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"/></svg></a>
+          <a class="btn btn-line" href="https://github.com/ricepillow3000/Arcas-Excel-Tool/issues?q=is%3Aissue" target="_blank" rel="noopener">Search questions <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"/></svg></a>
         </div>
       </div>
     </section>

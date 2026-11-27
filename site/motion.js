@@ -220,13 +220,20 @@
 
   const relayout = () => { measure(); request(); };
 
+  const deep = (root) => {
+    let el = null;
+    try { el = location.hash && document.getElementById(decodeURIComponent(location.hash.slice(1))); } catch { return false; }
+    return !!el && (root === document || root.contains(el)) && el.getBoundingClientRect().top + scrollY >= innerHeight;
+  };
   function start(root = document, wait = 0) {
     stop();
     scope = root;
     const lead = still ? 0 : Math.max(0, +wait || 0);
     // the entrance plays while boot.js's mark still hides the blocks (or on a page a transition brings in): scripts that
     // came after its 1.4 s timer find the blocks already showing, and they stay put rather than vanish and fly in
-    if (!still && (root !== document || html.getAttribute("data-ah") === "enter")) enter(root, lead);
+    // AH-227 W-22: never on a page that lands on a #hash below its first screen (a "Row 22" link from checks.html): the
+    // hero's entrance played there unseen and slid the row 120 px after it had landed
+    if (!still && (root !== document || html.getAttribute("data-ah") === "enter") && !deep(root)) enter(root, lead);
     html.removeAttribute("data-ah");
     reveals(root, lead);
     if (!still && !timelines) decorate(root);

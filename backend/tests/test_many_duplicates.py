@@ -31,7 +31,7 @@ def test_many_repeated_rows_through_a_sheet_with_no_id_are_one_note():
     noted = flagged(out, "repeat an earlier row")
     assert len(noted) == 1 and out[noted[0]]["severity"] == "Low", [out[i]["reason"] for i in noted[:3]]
     first = noted[0]
-    assert out[first]["reason"].startswith(f"{len(copies)} of 3000 rows repeat an earlier row exactly, all through the sheet - "
+    assert out[first]["reason"].startswith(f"{len(copies)} of 3000 rows repeat an earlier row exactly, all through the sheet: "
                                            f"the first is this one, a copy of row "), out[first]["reason"]
 
 

@@ -7,8 +7,13 @@ affiliated with Microsoft, Google, Cloudflare, Anthropic or GitHub. This file, t
 Arcas is made and run by John Nguyen (GitHub: ricepillow3000). To reach him, use the pane's Support page, which
 opens a question form on GitHub, email john4000.nguyen@gmail.com, or call (770) 265-9930. An email to John goes to his Gmail, so Google's terms apply to it.
 
-A scan runs on your PC and sends nothing to the internet. Your sheet's data leaves your PC only when you click
-**Ask AI**, **Check words with AI** or **Check subject rules with AI**. There are no accounts and no cookies, and the add-in has no analytics and no tracking. Only this project's website may count its page views, with GoatCounter (see who else sees something).
+## In short
+
+- A scan runs on your PC and sends nothing to the internet.
+- Your sheet's data leaves your PC only when you click **Ask AI**, **Check words with AI** or **Check subject rules with AI**, and then only the part described below.
+- There are no accounts and no cookies, and the add-in has no analytics and no tracking.
+- Only this project's website may count its page views, with GoatCounter (see who else sees something).
+- You can delete your saved AI key with **Remove key**, and uninstall Arcas from Settings > Apps.
 
 ## Always on this PC
 - The scan runs in the engine at `https://127.0.0.1:5055`: Excel hands it the sheet, and it answers only this PC. Websites
@@ -36,7 +41,7 @@ A scan runs on your PC and sends nothing to the internet. Your sheet's data leav
 - If you installed Arcas.exe, it unpacks itself into a temporary folder in `%TEMP%` each time it starts; if the engine is
   stopped by force, that folder can be left behind. Install removes the "downloaded from the internet" mark from its
   own copy of the app, so Windows doesn't warn at every logon.
-- An invite kit (shared by John by a Google Drive or OneDrive link) runs from its own folder: `install.bat`
+- A setup kit from John (shared by John by a Google Drive or OneDrive link) runs from its own folder: `install.bat`
   downloads the Python packages it needs from PyPI, the Python package site (PyPI sees your IP address), and keeps
   them in a `.venv` folder there, with the Power BI shortcuts in its `powerbi` folder. It saves the kit's invite code
   in the folder above, sealed like a code you paste. The kit folder keeps its own invite-code.txt as plain text, as John made it. A kit has no Arcas.exe, `addin\manifest.xml` or Start here.xlsx: Excel lists the
@@ -65,7 +70,7 @@ A scan runs on your PC and sends nothing to the internet. Your sheet's data leav
 
 ## Only if you use AI help
 With no key or invite code of your own, AI help uses John's free AI (below). You can also paste a Google AI key or an
-invite code, or install an invite kit from John (or a developer sets `GEMINI_API_KEY` or `ANTHROPIC_API_KEY` on the
+invite code, or install a setup kit from John (or a developer sets `GEMINI_API_KEY` or `ANTHROPIC_API_KEY` on the
 PC). In every case, nothing from your sheet is sent until you click a button. When you save a Google key, the engine asks Google once
 whether the key works; that call carries the key and no sheet data. A key from a Google project with billing turned on
 can be charged by Google for what AI help uses; without billing, the free tier costs nothing.
@@ -92,18 +97,18 @@ can be charged by Google for what AI help uses; without billing, the free tier c
   - With your own key or an invite code, Google's main Gemini model (gemini-3.8-flash) answers. With your own Google
     key, if that model is busy or its free requests for the day are used up, the same request goes to a backup Gemini
     model (gemini-3.5-flash-lite), also Google's, and the pane says so. With an invite code, only the main model answers.
-  - With an invite code: to John's relay on Cloudflare, which passes it to Google with John's key. A developer setting
-    on the PC, `ANOMALY_HUNTER_RELAY`, sends invite calls to another relay's https address instead.
-    - The relay keeps one counter: for the last day anyone used it, how many AI calls each invite made, under the
+  - With an invite code: to John's server on Cloudflare, which passes it to Google with John's key. A developer setting
+    on the PC, `ANOMALY_HUNTER_RELAY`, sends invite calls to another server's https address instead.
+    - That server keeps one counter: for the last day anyone used it, how many AI calls each invite made, under the
       name John gave that invite, plus the total, and for the free AI how many each network made under its daily
       code, plus their total. The first call of a new day replaces it. It saves no request and no answer; its saved
       logs are switched off.
     - The list of invites (a scrambled copy of each code and a name) stays until John removes it.
-    - Cloudflare sees your IP address as the request passes. The relay's key never reaches your PC.
+    - Cloudflare sees your IP address as the request passes. The server's key never reaches your PC.
   - With neither, but with `ANTHROPIC_API_KEY` set on your PC (a developer setting): to Anthropic's Claude.
-  - With no key or invite code of your own: to John's relay on Cloudflare, which passes it to Google's
-    gemini-3.5-flash-lite with John's key. The relay counts each network's AI calls for the day under a code made from
-    the day and your IP address with the relay's secret key, so the code changes every day. It never stores your IP
+  - With no key or invite code of your own: to John's server on Cloudflare, which passes it to Google's
+    gemini-3.5-flash-lite with John's key. That server counts each network's AI calls for the day under a code made from
+    the day and your IP address with the server's secret key, so the code changes every day. It never stores your IP
     address or the request. It allows 15 AI calls per network and 400 for every free user together a day. It also
     allows at most 15 calls a minute from one network, and 45 a day from one IPv6 /48 (the block of networks one
     provider may give one customer).
@@ -112,9 +117,9 @@ can be charged by Google for what AI help uses; without billing, the free tier c
 
 ## Who else sees something
 - Google receives what AI help sends, under Google's own terms.
-- With an invite code or the free AI, each AI request passes through John's relay on Cloudflare (see above).
+- With an invite code or the free AI, each AI request passes through John's server on Cloudflare (see above).
 - Anthropic receives what AI help sends only in the developer case above.
-- PyPI sees your IP address only if you install an invite kit, when `install.bat` downloads Python packages from it.
+- PyPI sees your IP address only if you install a setup kit from John, when `install.bat` downloads Python packages from it.
 - GitHub hosts the download, so it sees your IP address when you download. Anything you post in an issue is public.
 - The website's contact form and support form send nothing themselves: each opens a public GitHub issue filled in with what you typed, which you submit on GitHub yourself, or, with Email John instead, a new email in your own email app, which you send yourself.
   The links to John's LinkedIn, Handshake and GitHub profiles are plain links: nothing loads from LinkedIn, Handshake or GitHub until you click one, and then that site's own terms apply.
@@ -128,7 +133,7 @@ can be charged by Google for what AI help uses; without billing, the free tier c
 ## Your control
 - **Remove key** (in the pane) deletes the key and invite code saved in `%LOCALAPPDATA%\AnomalyHunter`. Scans and
   fixes keep working, and AI help goes back to John's free AI, which sends nothing until you click Ask AI, Check
-  words with AI or Check subject rules with AI. An invite kit keeps its own copy, and running its install.bat again turns AI help back on, so
+  words with AI or Check subject rules with AI. A setup kit from John keeps its own copy, and running its install.bat again turns AI help back on, so
   also delete `invite-code.txt` from the kit folder. A `GEMINI_API_KEY` or `ANTHROPIC_API_KEY` setting keeps AI help on.
 - You can delete `ai-cache`, `server.log` or `server.log.1` in the folder above whenever you like.
 - **Forget what this workbook saved** (in the pane, under Options > Saved in this workbook) removes everything the pane
@@ -156,9 +161,9 @@ can be charged by Google for what AI help uses; without billing, the free tier c
 ## No warranty, changes, contact
 Arcas is free and comes with no warranty. It can miss mistakes and flag correct values; check important data
 yourself. Its code is open source under the MIT License ([LICENSE](LICENSE)). When this file changes, its history is on GitHub.
-The invite relay is for help with Excel fixes only. John can turn off any invite at any time, each invite has a daily
+John's server on Cloudflare is for help with Excel fixes only. John can turn off any invite at any time, each invite has a daily
 cap (as set today: 10 AI calls per invite and 20 for everyone together a day), and there is no promise it is up.
 The same goes for the free AI, and John can turn it off at any time.
 Questions or problems: the pane's Support page, or
-https://github.com/ricepillow3000/excel-anomaly-hunter/issues (public, needs a free GitHub account; never post your AI
-key, your invite code or real data).
+https://github.com/ricepillow3000/Arcas-Excel-Tool/issues (public, needs a free GitHub account; never post your own AI
+key, any key or code John gave you, or real data).

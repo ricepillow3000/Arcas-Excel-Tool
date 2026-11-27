@@ -45,7 +45,7 @@ def test_a_list_of_people_a_time_series_a_list_of_transactions_and_a_plain_table
     people = profile(["Name", "Sex", "Approved"], [[f"P{k}", "F" if k % 2 else "M", "Yes" if k % 3 else "No"] for k in range(60)])
     assert people["lines"][0] == "This sheet looks like a list of people."
     series = profile(*_monthly())
-    assert series["lines"][0] == "This sheet looks like a time series by Month." and series["about"]["series"] == "Month"
+    assert series["lines"][0] == "Each row is a date in Month." and series["about"]["series"] == "Month"
     ledger = profile(*_ledger())
     assert ledger["lines"][0] == "This sheet looks like a list of transactions (many rows share each Date)."
     assert ledger["about"]["ledger"] and ledger["about"]["series"] is None
@@ -55,7 +55,7 @@ def test_a_list_of_people_a_time_series_a_list_of_transactions_and_a_plain_table
 
 def test_a_sheet_not_about_people_says_no_fairness_check_will_run():
     got = profile(*_monthly())
-    assert "No column says who the rows are, so no fairness check will run." in got["lines"]
+    assert "No column about people, so the fairness check is off." in got["lines"]
     assert got["about"]["people"] is False and got["about"]["groups"] == []
 
 
@@ -65,7 +65,7 @@ def test_totals_dates_codes_kept_as_typed_and_words_for_no_value_are_each_named(
     got = profile(["Order date", "ZIP", "A", "B", "C", "Total", "Income", "Score"], rows)
     lines = got["lines"]
     assert "Totals to check: Total." in lines
-    assert "Dates in: Order date." in lines
+    assert "Dates are in Order date." in lines
     assert "Kept as typed, not as numbers: ZIP." in lines
     assert 'Written for no value: "NA" in Income and -99 in Score.' in lines, lines
     about = got["about"]

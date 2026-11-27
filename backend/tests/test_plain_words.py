@@ -471,3 +471,39 @@ def test_the_praise_reader_catches_what_a_fake_testimonial_looks_like():
 def test_no_page_carries_a_testimonial_a_rating_or_a_user_count():
     found = praise()
     assert found == [], "made-up praise:\n" + "\n".join(found)
+
+
+# ---- The reasons a scan gives (AH-228 P-12) ----
+# The pane shows each reason word for word, so a dash in one is a dash on screen: "Day 7.3 is not a whole number -
+# every other Day is" went past the page reader, which never reads the engine. Every Why(...) sentence, {} slots as "x"
+def reason_sentences():
+    out = []
+    for f in sorted((ROOT / "backend/anomaly_hunter/engine").glob("*.py")):
+        for node in ast.walk(ast.parse(f.read_text(encoding="utf-8"))):
+            if isinstance(node, ast.Call) and getattr(node.func, "id", None) == "Why" and node.args:
+                out += [(f"{f.relative_to(ROOT).as_posix()}:{node.lineno}", t) for t in _texts(node.args[0], {}, {})]
+    return out
+
+
+def test_no_reason_the_engine_gives_uses_a_dash():
+    said = reason_sentences()
+    assert len(said) > 50 and any("is not a whole number" in t for _, t in said)
+    found = [f"{w}: {t!r}" for w, t in said if DASHES.search(t) or " - " in " ".join(t.split())]
+    assert found == [], f"{len(found)} reasons with a dash:\n" + "\n".join(found)
+
+
+# ---- AH-227 W-13 (John: "I hate technical terms"): the engine room's words, taken out of what a stranger reads on the
+# website and the privacy and support pages. "The pane" is a part of Excel few people know, a relay and a kit are ours ----
+JARGON = ("John's relay", "invite kit", "In the pane:", "keep an invite code to yourself", "your AI key or your invite code")
+
+
+def jargon(src):
+    flat = " ".join(html.unescape(re.sub(r"<[^>]+>", " ", re.sub(r"<!--.*?-->", "", src, flags=re.S))).split())
+    return [w for w in JARGON if w.lower() in flat.lower()]
+
+
+def test_the_website_and_the_privacy_and_support_pages_never_use_the_engine_rooms_words():
+    assert jargon("<p>Through <b>John's relay</b> on Cloudflare</p><!-- an invite kit -->") == ["John's relay"]
+    pages = [*ROOT.glob("site/*.html"), ROOT / "frontend/privacy.html", ROOT / "frontend/support.html", ROOT / "PRIVACY.md"]
+    found = [f"{p.relative_to(ROOT).as_posix()}: {w}" for p in sorted(pages) for w in jargon(p.read_text(encoding="utf-8"))]
+    assert found == [], "\n".join(found)

@@ -1007,7 +1007,7 @@ def test_a_lone_decimal_in_a_column_of_whole_numbers_is_worth_a_check():
     rows = [[f"s{i}", int(r.integers(1, 200))] for i in range(120)]
     rows[40][1] = 7.3
     _, out = _scan(["Subject", "Study day"], rows)
-    assert out[40]["reason"] == "Study day 7.3 is not a whole number - every other Study day is" and out[40]["severity"] == "Low"
+    assert out[40]["reason"] == "Study day 7.3 is not a whole number: every other Study day is" and out[40]["severity"] == "Low"
     assert sum(1 for o in out if o["severity"] not in (None, "Noted")) == 1
 
 
