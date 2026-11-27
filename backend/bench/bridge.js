@@ -5,6 +5,6 @@ const { recommendFix } = require(path.join(process.argv[2], "features", "fix.js"
 const jobs = JSON.parse(require("fs").readFileSync(0, "utf8"));
 const out = jobs.map((j) => {
   if (j.op === "table") return tableFromGrid(j.grid, j.formats || null, 0, 0, j.formulas || null);
-  if (j.op === "rec") return recommendFix(j.columns, j.rows, j.i, j.limits, j.reason, j.startRow, j.startCol, j.extra && j.extra.likely, j.calc);
+  if (j.op === "rec") return recommendFix(j.columns, j.rows, j.i, j.limits, j.reason, j.startRow, j.startCol, j.extra && j.extra.likely, j.calc, j.extra && j.extra.maybe, j.extra && j.extra.formula);
 });
 process.stdout.write(JSON.stringify(out));

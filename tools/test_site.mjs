@@ -748,6 +748,8 @@ function woff2(file) {
   // one sentence, the coordinator's words for John: 26 words, the length of what Arcas catches
   const lead = words((/<div class="hero-copy"[^>]*>\s*<p>([\s\S]*?)<\/p>/.exec(home) || ["", ""])[1]);
   assert.ok(lead.split(/(?<=[.?!])\s+/).length === 1 && lead.split(/\s+/).length <= 26 && /typo/.test(lead) && /formula/.test(lead) && /add up/.test(lead), `the hero's lead is not one short sentence: "${lead}"`);
+  // AH-234: the research picked small businesses (price lists, orders, budgets) as the main user, so the lead says so
+  assert.ok(/small business/i.test(lead), `the hero's lead does not name who it is for: "${lead}"`);
   // the page's title and descriptions say the same idea
   for (const k of ["description", "og:description"]) assert.ok(/consistent/.test(metaOf(home, k.startsWith("og:") ? "property" : "name", k)[0] || ""), `index.html: its ${k} does not say consistent`);
   assert.ok(/consistent/i.test(TITLE["index.html"]), `index.html: its title "${TITLE["index.html"]}"`);

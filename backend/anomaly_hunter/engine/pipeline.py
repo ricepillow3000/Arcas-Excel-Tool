@@ -1427,20 +1427,23 @@ def pairs(df, column_types, skip, limits=None, held=None, grid=None):
                     else:  # one factor: Total / the others
                         v = y[i] / np.prod([a[i, c] if k < 2 else 1 - a[i, c] for k, c in enumerate(cs) if c != j])
                 d = _decimals(a[:, j])
-                if np.isfinite(v) and abs(v - np.round(v, d)) < 0.01 * 10.0 ** -d + 1e-9 * abs(v) and usual(j, np.round(v, d)):
-                    fix[index[i]][cols[j]] = float(f"{np.round(v, d):.10g}")
 
-                    def fit(w, i=i, j=j, t=t, cs=cs, op=op):
-                        row = a[i].copy()
-                        row[j] = w
-                        y1, got1 = row[t], op(*(row[c] for c in cs))
-                        if near(y1, got1, cent[t]):
-                            return True
-                        if len(cs) != 2:
-                            return False
-                        p, q = row[cs[0]], row[cs[1]]
-                        slack = half[cs[0]] * abs(q) + half[cs[1]] * abs(p) if op is np.multiply else half[cs[0]] + half[cs[1]]
-                        return bool(abs(y1 - got1) <= slack + own[t] + 1e-9 * abs(y1))
+                def fit(w, i=i, j=j, t=t, cs=cs, op=op):
+                    row = a[i].copy()
+                    row[j] = w
+                    y1, got1 = row[t], op(*(row[c] for c in cs))
+                    if near(y1, got1, cent[t]):
+                        return True
+                    if len(cs) != 2:
+                        return False
+                    p, q = row[cs[0]], row[cs[1]]
+                    slack = half[cs[0]] * abs(q) + half[cs[1]] * abs(p) if op is np.multiply else half[cs[0]] + half[cs[1]]
+                    return bool(abs(y1 - got1) <= slack + own[t] + 1e-9 * abs(y1))
+                # the answer is the column's own rounding of the arithmetic where that holds the rule within its rounding:
+                # Clicks / Impressions = 0.04405 for a CTR written to 3 places, 0.044, never the /1000 a typo pattern guessed
+                if np.isfinite(v) and usual(j, np.round(v, d)) and (
+                        abs(v - np.round(v, d)) < 0.01 * 10.0 ** -d + 1e-9 * abs(v) or j != t and fit(np.round(v, d))):
+                    fix[index[i]][cols[j]] = float(f"{np.round(v, d):.10g}")
                     fits[index[i]][cols[j]] = fit
     return out, fix, fits
 

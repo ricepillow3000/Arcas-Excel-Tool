@@ -52,6 +52,7 @@ KNOWN_FA = set()  # blind ad_campaigns_s23:7 (Impressions 936,763, Clicks = Impr
 fa_seen = set()
 tot = {"harm": 0, "planted": 0, "caught": 0, "restored": 0, "fa_med": 0, "fa_low": 0, "clean": 0, "totals_flagged": 0, "totals": 0,
        "hdr_ok": 0, "sheets": 0, "crash": 0, "id_flags": 0}
+eng = {"sure": 0, "guess": 0, "none": 0, "wrong": 0}  # AH-235: what the pane's card does for each Medium+ planted slip, no AI
 bykind, missed, alarms = collections.defaultdict(lambda: [0, 0, 0]), [], []  # kind -> planted, caught, fixed
 for d in make():
     tot["sheets"] += 1
@@ -105,6 +106,10 @@ for d in make():
             col = colname(t, ch["cell"])
             if col in d["idcols"] or col in d.get("protect", []) or p["kind"] == "real_outlier":
                 harm.append(f"{d['name']}:{ch['cell']}({col})")
+        if rows[i]["severity"] not in (None, "Noted", "Low"):
+            how = "none" if not cell_changes else "guess" if rec.get("guess") else "sure"
+            eng[how] += 1
+            eng["wrong"] += how == "sure" and not ok
         caught += c; restored += bool(ok)
         bk = bykind[p["kind"]]; bk[0] += 1; bk[1] += bool(c); bk[2] += bool(ok)
         if not c:
@@ -134,6 +139,7 @@ for d in make():
     if DETAIL:
         print("\n".join(lines))
 print("TOTAL", json.dumps(tot))
+print(f"ENGINE FIXES: sure {eng['sure']} / guess {eng['guess']} / none {eng['none']} (of {sum(v for k, v in eng.items() if k != 'wrong')}), wrong sure {eng['wrong']}")
 print("BY KIND (planted, caught, fixed):", json.dumps(dict(sorted(bykind.items()))))
 if DETAIL:
     print(f"MISSED ({len(missed)}):", *missed, f"MEDIUM+ FALSE ALARMS ({len(alarms)}):", *alarms, sep="\n  ")

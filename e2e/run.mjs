@@ -1246,12 +1246,16 @@ if (mode === "ai") { // engine started with a Claude key pointed at stub_claude.
   // AH-175: Ask AI is folded under a card's fix, "Want a different fix? Ask AI", and open by itself on a card with no fix
   { const look = () => page.evaluate(() => ({ title: document.getElementById("fix-title").textContent, fix: document.getElementById("fix-changes").children.length,
       open: document.getElementById("ai-fold").open, summary: document.querySelector("#ai-fold > summary").textContent, box: document.getElementById("fix-intent").checkVisibility(),
-      label: document.getElementById("fix-intent-label").textContent }));
+      label: document.getElementById("fix-intent-label").textContent, kind: document.getElementById("fix-label").textContent,
+      starter: !document.querySelector("#fix-tries .try:nth-child(2)").hidden }));
     const cards = [];
     for (const r of [11, 51, 121]) { await openRow(r); cards.push(await look()); await back(); }
     ok(cards.every((c) => c.summary === (c.fix ? "Want a different fix? Ask AI" : "Ask AI for a fix") && c.open === !c.fix && c.box === !c.fix
       && c.label === (c.fix ? "For a different fix, describe it and AI will draft one." : "Describe the fix you want and AI will draft one.")) && cards.some((c) => c.fix) && cards.some((c) => !c.fix),
-      "AH-175, AH-228 P-33: Ask AI folded on a card with a fix, open on one with none and said as the way to a fix - " + JSON.stringify(cards)); }
+      "AH-175, AH-228 P-33: Ask AI folded on a card with a fix, open on one with none and said as the way to a fix - " + JSON.stringify(cards));
+    // AH-235: "What should this value be?" is the way to a fix, so a card the engine already fixed for sure does not show it
+    ok(cards.every((c) => c.starter === (!c.fix || c.kind.startsWith("Best guess"))) && cards.some((c) => c.fix && !c.starter) && cards.some((c) => !c.fix && c.starter),
+      "AH-235: the value starter is hidden on a card with a sure engine fix and shown on one with none - " + JSON.stringify(cards)); }
   await openRow(11);
   ok(await page.isVisible("#ai-fold") && !(await page.isVisible("#ai-off")), "Ask AI shown when a key is set");
   await page.click("#ai-fold > summary");

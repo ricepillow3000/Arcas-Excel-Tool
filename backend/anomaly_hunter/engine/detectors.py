@@ -146,6 +146,20 @@ def _places(x):
 PROVE = 20  # values a column needs before a slip in it is "likely" (the 20 rows every other rule asks): fewer is a guess the user confirms (AH-54)
 
 
+RIVAL_CROWD = 0.1  # share of a column's values within a factor 2 of a rival slip's answer, before it is a rival (AH-236)
+
+
+def rival_step(v, fix, st):
+    """Another power of ten than the one chosen that would also give a value written like the column, in a part of it where
+    the column's own values live. A 102445 that /10 (10244.5) and /100 (1024.45) both make usual may
+    be either slip, and the nearer to the median is a pick, not a proof: the x100 one got "likely" /10 on the blind
+    bench (AH-236). A rival no value is near (430 -> 43 in a column of 0.3-50 with a median of 5) is no rival."""
+    mags = st["mags"]
+    near = lambda c: np.searchsorted(mags, 2 * abs(c), "right") - np.searchsorted(mags, abs(c) / 2, "left")
+    return any(abs(c - fix) > 1e-9 * abs(c) and (c == round(c) or not st["whole"]) and st["places"] >= _places(c)
+               and near(c) >= RIVAL_CROWD * len(mags) for c in (v / 10 ** k for k in (-3, -2, -1, 1, 2, 3)))
+
+
 def likely_value(v, st, lo, hi):
     """The typo behind v, if one is obvious: extra/missing 0s (x10^k, |k|<=3: % typed as 85 for 0.85, g for kg)
     or a flipped sign - one slip, not both - landing inside the baseline [lo, hi]. None when unsure. Never "corrects"
@@ -382,7 +396,7 @@ def limits_detector(df, column_types, limits, typos_only=False, listing=False, q
                 # ...and a column too short to prove its usual size gets a guess, never "likely": drug use by age, 17 age
                 # groups, read the oldest's real median of 364 days as "likely 3.64" (blind round 37, AH-54)
                 said = None if fix is None or small else "maybe" if (fix != -v and abs(fix) > abs(v)) or (fix == -v and _signed(col, column_types)) \
-                    or st["n"] < PROVE else "likely"
+                    or st["n"] < PROVE or (fix != -v and rival_step(v, fix, st)) else "likely"
                 if said:
                     r[said][i][col] = fix
                 r["reasons"][i].append(Why(f"{col} weird limit is {lim:g}; this is {say(v)}" + (f" ({said} {say(fix)})" if said else ""), col))
