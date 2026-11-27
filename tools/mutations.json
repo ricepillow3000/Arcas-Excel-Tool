@@ -6757,5 +6757,27 @@
   "tests": [
    "backend/tests/test_fix_verified.py::test_a_text_value_the_spelling_check_still_flags_is_not_offered"
   ]
+ },
+ {
+  "id": "pairs-rounded-solve-tighten",
+  "guard": "A factor the row's arithmetic pins within its columns' rounding is solved, not left to a typo pattern (AH-236)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": " or j != t and fit(np.round(v, d))):",
+  "new": "):",
+  "kind": "tighten",
+  "tests": [
+   "backend/tests/test_math_beats_guess.py::test_a_ctr_typed_as_a_whole_percent_is_solved_from_its_clicks_and_impressions"
+  ]
+ },
+ {
+  "id": "pairs-rounded-solve-total-loosen",
+  "guard": "A factor the row's arithmetic pins within its columns' rounding is solved, not left to a typo pattern (AH-236)",
+  "file": "backend/anomaly_hunter/engine/pipeline.py",
+  "old": " or j != t and fit(np.round(v, d))):",
+  "new": " or fit(np.round(v, d))):",
+  "kind": "loosen",
+  "tests": [
+   "backend/tests/test_math_beats_guess.py::test_a_total_is_never_solved_from_rounded_factors"
+  ]
  }
 ]
