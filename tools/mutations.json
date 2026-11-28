@@ -6979,5 +6979,49 @@
    "e2e"
   ],
   "modes": "flow2"
+ },
+ {
+  "id": "summary-dismissed-loosen",
+  "guard": "a dismissed row is not counted in the summary (AH-242)",
+  "file": "frontend/features/scan.js",
+  "old": "decided[i] === \"dismissed\" ? { ...r, severity: null } : r",
+  "new": "false ? { ...r, severity: null } : r",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "summary-dismissed-tighten",
+  "guard": "a fixed row that still looks wrong stays counted (AH-242)",
+  "file": "frontend/features/scan.js",
+  "old": "decided[i] === \"dismissed\" ? { ...r",
+  "new": "decided[i] ? { ...r",
+  "kind": "tighten",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "twins-key-loosen",
+  "guard": "two cells past different limits are not one line (AH-242)",
+  "file": "frontend/features/scan.js",
+  "old": "const key = m.slice(3).join(\"|\");",
+  "new": "const key = m[5];",
+  "kind": "loosen",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
+ },
+ {
+  "id": "twins-join-tighten",
+  "guard": "two cells with the same advice are one line (AH-242)",
+  "file": "frontend/features/scan.js",
+  "old": "o.cells.length < 2 ?",
+  "new": "o.cells.length < 3 ?",
+  "kind": "tighten",
+  "tests": [
+   "node frontend/selfcheck.js"
+  ]
  }
 ]

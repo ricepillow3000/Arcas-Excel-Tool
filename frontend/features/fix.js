@@ -8,7 +8,7 @@ import { busy, notice } from "../components/progress.js";
 import { post } from "../services/api.js";
 import { readCells, readRows, writeCells } from "../services/excel.js";
 import { fillRow } from "./highlight.js";
-import { doneOf, plainReason, shareOf } from "./scan.js";
+import { doneOf, joinTwins, plainReason, shareOf } from "./scan.js";
 import { codeAt, rowHash, saveDecisions } from "./decisions.js";
 import { isOurs, plainError } from "../utils/errors.js";
 import { forgetUndo, saveUndo } from "./undo-store.js";
@@ -153,10 +153,11 @@ export function recommendFix(columns, rows, i, limits, reason, startRow, startCo
     notes.push(offered && offered.every(({ col }) => s.cols.includes(col))
       ? `${s.text}. Either ${offered[0].col} should be ${offered[0].new} or ${offered[1].col} should be ${offered[1].new}. Check your source to see which, then pick it.`
       : `${s.text}, so one of these numbers is wrong. Check them against the source.`);
-  for (const { text } of issuesOf(reason)) // worth-a-check reasons with no value to write: say what to look for
+  for (const text of joinTwins(issuesOf(reason).map((p) => p.text))) // worth-a-check reasons with no value to write: say what to look for
     for (const [rx, hint] of HINTS) {
       const m = rx.exec(text); // a hint may quote what the reason names: the word to filter the column for (AH-45 review)
-      if (m) notes.push(`${text.replace(/\.$/, "")}: ${typeof hint === "function" ? hint(m) : hint}. Check it against the source.`);
+      const many = / are (?:above|below) their usual limit of /.test(text); // AH-242: two cells named, the advice said once
+      if (m) notes.push(`${text.replace(/\.$/, "")}: ${typeof hint === "function" ? hint(m, many) : hint}. Check ${many ? "them" : "it"} against the source.`);
     }
   if (!notes.length)
     notes.push("Nothing here is clearly broken, but the values are unusual together. Check them against the source; if they're right, leave them.");
@@ -205,9 +206,9 @@ const HINTS = [
   [/ is blank in \d+ of \d+ rows where .+ would fill it, spread through the sheet$/, "blanks this many and this spread out are " +
     "usually values the source does not have, not slips; if the column must always be filled there, filter it for blanks and fill them in"],
   // AH-74: a value past its limit in a row whose own arithmetic holds - no single slip leaves a sum or a product right
-  [/, but the row adds up \(.+\): worth a check$/, "the row's own numbers agree with this value, so a typing slip is " +
+  [/, but the row adds up \(.+\): worth a check$/, (_, many) => `the row's own numbers agree with ${many ? "these values" : "this value"}, so a typing slip is ` +
     "unlikely (one slip changes one cell and breaks the sum); it may be a real record or another unit. If the total is a formula of " +
-    "these cells it follows any slip and proves nothing, so check this value at its source; if it is right, leave it"],
+    `these cells it follows any slip and proves nothing, so check ${many ? "these values at their source; if they are" : "this value at its source; if it is"} right, leave ${many ? "them" : "it"}`],
   // AH-76: a date typed in another form, a column of many forms, a number in a column of dates
   [/ is written .+ where .+ \(read as \d{4}-\d\d-\d\d\)$|: it could be \d{4}-\d\d-\d\d or \d{4}-\d\d-\d\d$/, "a date typed in " +
     "another form is read by guessing its day and month, and sorts and filters apart from the column's real dates; check " +

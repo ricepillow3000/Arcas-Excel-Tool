@@ -253,6 +253,15 @@ assert.deepEqual(["", "  ", " -10 ", "1e3", "0.5", "abc", "12abc", "1,000", "-"]
 assert.deepEqual(legendOf([{ severity: "Medium" }, { severity: "Medium" }, { severity: null }]), []);
 assert.deepEqual(legendOf([{ severity: "Low" }, { severity: "High" }, { severity: "Low" }, { severity: "Noted" }]), [["High", 1], ["Low", 2]]);
 assert.deepEqual(legendOf([]), []);
+// AH-242: a row the user dismissed said it looks right, so the summary and legend leave it out (a fixed one that still
+// looks wrong stays counted: the checker disagrees)
+const dj = [{ severity: "High" }, { severity: "Low" }, { severity: "Medium" }, { severity: null }];
+assert.equal(summaryOf(dj, { 0: "dismissed" }), "1 of 4 rows look wrong. 1 more is worth a quick check.");
+assert.equal(summaryOf(dj, { 0: "dismissed", 2: "dismissed" }), "Nothing clearly wrong in 4 rows. 1 is worth a quick check.");
+assert.equal(summaryOf(dj, { 0: "fixed" }), summaryOf(dj), "a fix that still looks wrong stays counted");
+assert.equal(summaryOf([{ severity: "High" }, { severity: null }], { 0: "dismissed" }), "No problems found in 2 rows.");
+assert.deepEqual(legendOf(dj, { 0: "dismissed", 2: "dismissed" }), []);
+assert.deepEqual(legendOf(dj, { 0: "dismissed" }), [["Medium", 1], ["Low", 1]]);
 // AH-171: a finish line under the card after each decision, counting the list's rows (the same rows "Rows to check (1 of 5
 // done)" counts): silent before the first, and again once an Undo takes the last one back; a row decided but not listed
 // is not counted
@@ -560,6 +569,15 @@ assert.ok(rec.explanation.includes("an extra zero or a slipped decimal point") &
 rec = recommendFix(["Id", "AnnualSalary", "Bonus", "TotalComp"], [["a", 1150000, 400000, 1550000]], 0,
   { Bonus: [1500, 9000, 1500, 22000] }, "Bonus 400000 is above its usual limit of 22000, but the row adds up (TotalComp = AnnualSalary + Bonus): worth a check", 0, 0, {}, null, {});
 assert.ok(rec.explanation.includes("the row's own numbers agree") && !rec.explanation.includes("Nothing here") && !rec.changes.length, rec.explanation);
+// AH-242: two cells of one row with the same advice get it once, naming both (a card said the paragraph twice)
+const twin = "UnitPrice -9.01 is below its usual limit of 0, but the row adds up (Total = Qty x UnitPrice): worth a check; "
+  + "Total -9.01 is below its usual limit of 0, but the row adds up (Total = Qty x UnitPrice): worth a check";
+rec = recommendFix(["Id", "Qty", "UnitPrice", "Total"], [["a", 1, -9.01, -9.01]], 0, { UnitPrice: [1, 90, 0, 200], Total: [1, 90, 0, 200] }, twin, 0, 0, {}, null, {});
+assert.equal(rec.explanation.split("agree with").length, 2, "the shared advice is said once: " + rec.explanation);
+assert.ok(rec.explanation.startsWith("UnitPrice -9.01 and Total -9.01 are below their usual limit of 0, but the row adds up (Total = Qty x UnitPrice): worth a check: ")
+  && rec.explanation.endsWith("Check them against the source."), rec.explanation);
+assert.equal(plainReason(twin), "UnitPrice -9.01 and Total -9.01 are below their usual limit of 0, but the row adds up (Total = Qty x UnitPrice): worth a check");
+assert.equal(plainReason(twin.replace("Total -9.01 is below", "Total 200 is above")).split("\n").length, 2, "different directions stay two lines");
 // many blanks spread through a column are one note (AH-28): what they usually are, never a value written in
 rec = recommendFix(["Id", "Age"], [["a", ""]], 0, {}, "Age is blank in 178 of 891 rows, spread through the sheet", 0, 0);
 assert.ok(rec.explanation.includes("not known") && !rec.explanation.includes("Nothing here") && !rec.changes.length, rec.explanation);

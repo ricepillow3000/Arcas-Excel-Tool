@@ -6,21 +6,21 @@ import { cutNote } from "../utils/sheet.js";
 import { place } from "../utils/layout.js";
 import { act } from "../hooks/use-action.js";
 import { rowItem } from "../components/row-item.js";
-import { fairnessNote, fairnessTests, flaggedRows, kindLabel, kindsOf, legendOf, listed, listOrder, shownCount, summaryOf, SHOWN_MAX, MORE } from "../features/scan.js";
+import { fairnessNote, fairnessTests, flaggedRows, kindLabel, kindsOf, legendOf, listed, listOrder, shownCount, summaryOf, undismissed, SHOWN_MAX, MORE } from "../features/scan.js";
 import { openFix } from "./fix.js";
 import { countUp, stagger, turnDone } from "../components/motion.js";
 
 // Results show up: the summary, the color legend and the rows to check.
 export function renderResults(rows, s, fair) {
-  const flagged = flaggedRows(rows);
+  const flagged = flaggedRows(undismissed(rows, state.decided));
   state.order = listOrder(rows, state.decided); // the list keeps this order while rows get fixed or dismissed
   // each flagged number its own .count, so it can count up (AH-149); the rows' total ("of 300 rows") is itself from the
   // first frame: counted up too, it read "0 of 0 rows look wrong." (AH-149 review). Nothing found ends on a check mark
-  const parts = summaryOf(rows).split(/(\d(?:[\d,]*\d)?)/);
+  const parts = summaryOf(rows, state.decided).split(/(\d(?:[\d,]*\d)?)/);
   $("summary").replaceChildren(...parts.map((t, k) => (k % 2 && !parts[k + 1].startsWith(" row") ? Object.assign(document.createElement("span"), { className: "count", textContent: t }) : t)));
   $("summary").classList.toggle("tick", !flagged.length);
   countUp($("summary"));
-  $("legend").replaceChildren(...legendOf(rows).map(([k, count]) => {
+  $("legend").replaceChildren(...legendOf(rows, state.decided).map(([k, count]) => {
     const li = document.createElement("li");
     li.innerHTML = `<span class="swatch sev-${esc(k)}"></span>${esc(SEV[k])}: ${esc(n(count))}`;
     return li;
