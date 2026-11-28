@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 
 from anomaly_hunter.engine.detectors import Why, say
-from anomaly_hunter.engine.pipeline import _cent, _decimals, _in_order, summary_rows
+from anomaly_hunter.engine.pipeline import _cent, _decimals, _half, _in_order, summary_rows
 
 MIN_ROWS = 10
 HOLDS = 0.95
@@ -135,12 +135,6 @@ def _judge(df, types, heads, r, skip):
                 lambda at: [(i, f"{v} {say(y[i])} on {me} {ids[i]} is not the sum of the {int(kids[i])} rows whose {up} is "
                              f"{ids[i]} ({say(got[i])})", [heads[v]]) for i in at])
     return None
-
-
-def _half(x):
-    """Half the last digit a column is written to; 0 for whole numbers, which are exact (units, laps)."""
-    d = _decimals(x)
-    return 0.0 if d == 0 else 0.5 * 10.0 ** -d
 
 
 def _near(y, got, judged, slack):
