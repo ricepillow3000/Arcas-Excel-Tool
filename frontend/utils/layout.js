@@ -1,5 +1,5 @@
 import { EXCEL_ERRORS } from "../constants/index.js";
-import { colLetter, excelDate, headerAt, isDateFormat, rowFromAddress, tableAt, tableFromGrid } from "./sheet.js";
+import { colIndex, colLetter, excelDate, headerAt, isDateFormat, rowFromAddress, tableAt, tableFromGrid } from "./sheet.js";
 
 // AH-212: a power user's sheet is seldom one table. tableFromGrid read the used range as one, so a two-row header's
 // second row (Jan, Feb under a merged Q1) was data, two stacked tables were one, a label merged down its group was blank
@@ -13,8 +13,7 @@ const blank = (v) => v === "" || v === null || v === undefined;
 export function areaOf(a) {
   const m = /^\$?([A-Z]{1,3})\$?(\d{1,7})(?::\$?([A-Z]{1,3})\$?(\d{1,7}))?$/.exec(String(a).replace(/^.*!/, "").trim());
   if (!m) return null;
-  const col = (s) => [...s].reduce((k, ch) => k * 26 + ch.charCodeAt(0) - 64, 0) - 1;
-  const [r1, c1, r2, c2] = [+m[2] - 1, col(m[1]), +(m[4] || m[2]) - 1, col(m[3] || m[1])];
+  const [r1, c1, r2, c2] = [+m[2] - 1, colIndex(m[1]), +(m[4] || m[2]) - 1, colIndex(m[3] || m[1])];
   return { r1: Math.min(r1, r2), c1: Math.min(c1, c2), r2: Math.max(r1, r2), c2: Math.max(c1, c2) };
 }
 
@@ -259,7 +258,7 @@ export function rowAt(s, address) {
   if (!s?.tables) return rowFromAddress(address, s.startRow);
   const m = /^(?:.*!)?\$?([A-Z]*)\$?(\d+)(?::\$?[A-Z]*\$?(\d+))?$/i.exec(String(address));
   if (!m || (m[3] && m[3] !== m[2])) return null;
-  const col = m[1] ? [...m[1].toUpperCase()].reduce((k, ch) => k * 26 + ch.charCodeAt(0) - 64, 0) - 1 : null;
+  const col = m[1] ? colIndex(m[1]) : null;
   const t = s.tables.find((v) => { const g = +m[2] - v.startRow - 2; return g >= v.o && g < v.o + v.n && (col === null || (col >= v.startCol && col < v.startCol + v.columns.length)); });
   return t ? +m[2] - t.startRow - 2 : null;
 }

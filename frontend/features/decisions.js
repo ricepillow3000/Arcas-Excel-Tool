@@ -64,11 +64,16 @@ export function decide(book, sheet, pairs) {
   }
   const keys = Object.keys(rows);
   keys.slice(0, Math.max(0, keys.length - PER_SHEET)).forEach((k) => delete rows[k]);
+  return newestSheet(book, sheet, keys.length ? rows : null, SHEETS);
+}
+
+// Pure: the book with this sheet's value as the newest (null: the sheet taken out), at most `cap` sheets, oldest cut
+export function newestSheet(book, sheet, value, cap) {
   const out = Object.assign(Object.create(null), book);
-  delete out[sheet]; // this sheet becomes the newest
-  if (keys.length) out[sheet] = rows;
+  delete out[sheet];
+  if (value) out[sheet] = value;
   const sheets = Object.keys(out);
-  sheets.slice(0, Math.max(0, sheets.length - SHEETS)).forEach((s) => delete out[s]);
+  sheets.slice(0, Math.max(0, sheets.length - cap)).forEach((s) => delete out[s]);
   return out;
 }
 

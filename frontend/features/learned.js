@@ -1,5 +1,5 @@
 import { ACCEPTED_KEY, IGNORED_KEY } from "../constants/index.js";
-import { hash } from "./decisions.js";
+import { hash, newestSheet } from "./decisions.js";
 
 // AH-205 (John, 2026-11-19: "learn really fast so the tool can fully help the user in one session"): a Dismiss teaches
 // the sheet at once, and "Stop checking ..." mutes one kind of check in one column. Both live in the workbook (its
@@ -47,12 +47,7 @@ export function learnIn(book, sheet, pairs, drop = false) {
   const key = (p) => JSON.stringify(p), gone = new Set(pairs.map(key));
   const added = drop ? [] : [...new Map(pairs.map((p) => [key(p), p])).values()];
   const rows = [...(book[sheet] || []).filter((p) => !gone.has(key(p))), ...added].slice(-PER_SHEET);
-  const out = Object.assign(Object.create(null), book);
-  delete out[sheet]; // this sheet becomes the newest
-  if (rows.length) out[sheet] = rows;
-  const sheets = Object.keys(out);
-  sheets.slice(0, Math.max(0, sheets.length - SHEETS)).forEach((s) => delete out[s]);
-  return out;
+  return newestSheet(book, sheet, rows.length ? rows : null, SHEETS);
 }
 
 // Pure: what a Dismiss of this row teaches: [column, code] for each one-cell check of its value (kinds: the engine's

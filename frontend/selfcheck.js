@@ -26,6 +26,14 @@ import { spaceParts, spaceNote } from "./components/fix-preview.js";
 import { asLearned, learnIn, taught, learnedOf, stoppable, KIND_WORDS, ONE_CELL, PER_SHEET as LEARN_CAP, SENT, TEXT } from "./features/learned.js";
 import { ruleOf, heldOf, asRules, keepIn, MAX as RULES_MAX, SHEETS as RULE_SHEETS, HEADER } from "./features/rules.js";
 
+const file = (f) => readFileSync(new URL(f, import.meta.url), "utf8");
+// a fresh in-memory localStorage for the tests that read it (Ask AI's memory, the live switches, the kept advice)
+function fakeStorage() {
+  const box = new Map();
+  globalThis.localStorage = { getItem: (k) => box.get(k) ?? null, setItem: (k, v) => box.set(k, String(v)), removeItem: (k) => box.delete(k) };
+  return box;
+}
+
 // Fixed / Dismissed are kept in the workbook under a code per row, so they outlive the pane (2026-10-20: a dismissed
 // row came back flagged after a reload, an accepted fix vanished). Same values = same code, on any PC, every time.
 assert.equal(hash("East,5"), hash("East,5"));
@@ -73,8 +81,7 @@ assert.deepEqual(listOrder([{ severity: null }, { severity: "Low", magnitude: 1 
 
 // Ask AI's memory (AH-143): kept on this PC, newest first, only the flagged column's, Undo and Forget take it back out
 {
-  const box = new Map();
-  globalThis.localStorage = { getItem: (k) => box.get(k) ?? null, setItem: (k, v) => box.set(k, String(v)), removeItem: (k) => box.delete(k) };
+  const box = fakeStorage();
   for (let k = 0; k < 25; k++) remember("Units", "Units weird limit is 90; this is 500 (likely 50)", 500 + k, 50);
   remember("Region", 'Region "east " looks like "East"', "east ", "East");
   assert.equal(recall(" units ").length, OFFERED, "a header matches case and space blind, and only 20 go to the engine");
@@ -105,8 +112,8 @@ assert.deepEqual(listOrder([{ severity: null }, { severity: "Low", magnitude: 1 
 // Key, pointer and input handlers go through addEventListener with an explicit preventDefault, and no other DOM0
 // handler may be a bare `a && b()` / `a || b()` whose value can be false.
 const panes = readdirSync(new URL(".", import.meta.url), { recursive: true }).filter((f) => f.endsWith(".js") && f !== "selfcheck.js");
-for (const f of panes) {
-  const src = readFileSync(new URL(f, import.meta.url), "utf8");
+const paneSrc = panes.map((f) => [f, file(f)]);
+for (const [f, src] of paneSrc) {
   const cancels = /\.on(?:key|pointer|mouse|touch|wheel|input|beforeinput|submit|contextmenu|drag|drop|paste|cut|copy)[a-z]*\s*=(?!=)/.exec(src);
   assert.ok(!cancels, `${f}: "${cancels?.[0]}" - use addEventListener and call preventDefault yourself`);
   const falsy = /\.on[a-z]+\s*=\s*(?:async\s*)?(?:\([^)]*\)|\w+)\s*=>\s*(?!\{)[^\n;]*(?:&&|\|\|)/.exec(src);
@@ -123,8 +130,7 @@ for (const f of panes) {
 
 // every value written into HTML goes through esc() (a number through asNumber()), not only the ones that look like they
 // come from the sheet: a row's "done" word and its severity were the last two left bare (AH-87 audit)
-for (const f of panes) {
-  const src = readFileSync(new URL(f, import.meta.url), "utf8");
+for (const [f, src] of paneSrc) {
   if (!/\.innerHTML\s*=/.test(src)) continue;
   for (const [tpl] of src.matchAll(/`[^`]*`/g)) {
     if (!tpl.includes("<")) continue; // not markup
@@ -136,7 +142,7 @@ for (const f of panes) {
 // (aria-hidden="true", focusable="false" for old Edge): unnamed, a screen reader reads out "image" or its path data (AH-87)
 for (const dir of ["./", "../site/"]) {
   for (const f of readdirSync(new URL(dir, import.meta.url)).filter((f) => f.endsWith(".html"))) {
-    const src = readFileSync(new URL(dir + f, import.meta.url), "utf8");
+    const src = file(dir + f);
     for (const [tag] of src.matchAll(/<svg\b[^>]*>/g)) {
       const hidden = /\saria-hidden="true"/.test(tag), named = /\srole="img"/.test(tag) && /\saria-label(?:ledby)?="[^"]+"/.test(tag);
       assert.ok(hidden || named, `${dir}${f}: ${tag.slice(0, 80)} is neither aria-hidden="true" nor role="img" with a label`);
@@ -147,15 +153,14 @@ for (const dir of ["./", "../site/"]) {
 // the font ships in the pane (and so in the exe, which bundles frontend/ whole): the SIL Open Font License asks that its
 // text go with it (AH-87: only the website's copy had it)
 for (const font of readdirSync(new URL("assets/", import.meta.url)).filter((f) => f.endsWith(".woff2")))
-  assert.ok(font === "plus-jakarta-sans.woff2" && readFileSync(new URL("assets/OFL-PlusJakartaSans.txt", import.meta.url), "utf8").includes("SIL Open Font License, Version 1.1"),
+  assert.ok(font === "plus-jakarta-sans.woff2" && file("assets/OFL-PlusJakartaSans.txt").includes("SIL Open Font License, Version 1.1"),
     `assets/${font} ships without its licence text`);
 
 // "Forget what this workbook saved" forgets every key the pane saves in a workbook: a key added later and left off its
 // list would stay in people's files after they asked for it to go (AH-87)
 {
   const saved = new Set();
-  for (const f of panes) {
-    const src = readFileSync(new URL(f, import.meta.url), "utf8");
+  for (const [f, src] of paneSrc) {
     for (const [, k] of src.matchAll(/settings(?:\(\))?\.set\(\s*([^,]+?)\s*,/g)) saved.add(/^["']/.test(k) ? k.slice(1, -1) : K[k]);
   }
   assert.deepEqual([...saved].sort(), WORKBOOK_KEYS.map(([k]) => k).sort(), "the keys the pane saves in a workbook and the ones Forget removes differ");
@@ -696,11 +701,11 @@ assert.match(recommendFix(["Name", "APPEARANCES"], [["Hulk", ""]], 0, {}, "APPEA
   /^APPEARANCES is blank in 130 of 2000 rows, all at the end of the table, which is sorted by APPEARANCES: sorting puts blank cells last/);
 // AH-94: the scan skeleton is one still block in the page, never built per scan (e2e counts nodes over 30 scans), and
 // its rows are made of the very classes a list row is (components/row-item.js), so each bar sits where text lands
-const html = readFileSync(new URL("taskpane.html", import.meta.url), "utf8");
+const html = file("taskpane.html");
 const skel = /<section id="scan-skeleton" aria-hidden="true">([\s\S]*?)<\/section>/.exec(html)?.[1] || "";
 const skRows = skel.split('<div class="row-box">').slice(1);
 assert.equal(skRows.length, 5, "the scan skeleton has 5 list rows");
-const rowClasses = [...readFileSync(new URL("components/row-item.js", import.meta.url), "utf8").matchAll(/class="([a-z-]+)"/g)].map((m) => m[1]);
+const rowClasses = [...file("components/row-item.js").matchAll(/class="([a-z-]+)"/g)].map((m) => m[1]);
 assert.deepEqual([...new Set(rowClasses)].sort(), ["row-head", "row-why", "sev", "swatch"]);
 for (const r of skRows) for (const c of rowClasses) assert.ok(r.includes(`class="${c}"`), `a skeleton row lacks .${c}`);
 assert.ok(/class="summary"/.test(skel) && /class="legend"/.test(skel) && /class="flagged-list"/.test(skel) && !/\bid=/.test(skel), "the skeleton: summary, legend, list, and no id a test or script could mistake for the real one");
@@ -712,14 +717,14 @@ assert.ok((fixSk.match(/class="sk-bar /g) || []).length >= 2 && !/\bid=/.test(fi
 // AH-157: the last check's line sits under the empty state's heading, never before it (#empty-state p:first-child)
 // AH-228 P-34: and it never repeats the button above it ("Click Find problems to check the sheet that is open.")
 assert.ok(/<section id="empty-state"[^>]*>\s*<p>Arcas checks the sheet that is open\.<\/p>\s*<p id="last-scan" hidden><\/p>/.test(html), "the empty state's heading stays first, the last check under it");
-assert.ok(/toggleAttribute\("data-opening"/.test(readFileSync(new URL("pages/fix.js", import.meta.url), "utf8")), "a row's card shows its skeleton by data-opening while it opens");
+assert.ok(/toggleAttribute\("data-opening"/.test(file("pages/fix.js")), "a row's card shows its skeleton by data-opening while it opens");
 assert.ok(!/\bstyle=|<style/.test(html), "the pane CSP refuses inline styles");
 // the entrance is unhurried (John: "it seems like I'm rushing the user") and still at rest well inside launch's 2 s
-const motion = readFileSync(new URL("components/motion.js", import.meta.url), "utf8");
+const motion = file("components/motion.js");
 const [, DUR, STEP, MAX_DELAY] = /const DUR = (\d+), STEP = (\d+), MAX_DELAY = (\d+);/.exec(motion).map(Number);
 assert.ok(DUR >= 900 && STEP >= 100 && MAX_DELAY + DUR <= 1600, `entrance ${DUR}/${STEP}/${MAX_DELAY} ms`);
 // every new movement has its reduced-motion twin
-const css = readFileSync(new URL("styles/components.css", import.meta.url), "utf8");
+const css = file("styles/components.css");
 const calmCss = css.slice(css.lastIndexOf("@media (prefers-reduced-motion: reduce)"));
 for (const sel of [".flagged-list button::before", ".flagged-list button:is(:hover, :focus-visible):not(:disabled)", "#scan-skeleton::after", ".fix-sk::after", ".tick::after", "::view-transition-group(*)", "#status::before"])
   assert.ok(calmCss.includes(sel), `no reduced-motion rule for ${sel}`);
@@ -730,7 +735,8 @@ assert.ok(/turnIn\(el, y = null\) \{\s*if \(!el \|\| still\(\)/.test(motion) && 
 assert.ok(/function morph\([^)]*\) \{\s*if \(!from \|\| still\(\)/.test(motion) && /function stagger\([^)]*\) \{\s*if \(still\(\)\)/.test(motion) && /function countUp\([^)]*\) \{\s*if \(still\(\)\)/.test(motion), "the morph, the rows' arrival and the count skip reduced motion");
 // AH-149: every movement is finite. The scan skeleton's light and the progress sliver ran forever ("infinite") while a
 // scan ran; each now has a count of its own
-for (const [f, src] of [["styles/components.css", css], ["styles/global.css", readFileSync(new URL("styles/global.css", import.meta.url), "utf8")]])
+const globalCss = file("styles/global.css");
+for (const [f, src] of [["styles/components.css", css], ["styles/global.css", globalCss]])
   assert.ok(!/\binfinite\b/.test(src), `${f}: an animation that never ends`);
 assert.ok(!/iterations:\s*Infinity/.test(motion), "components/motion.js: an animation that never ends");
 
@@ -796,14 +802,14 @@ assert.ok(!/iterations:\s*Infinity/.test(motion), "components/motion.js: an anim
 
 // AH-117: no negative letter-spacing (John: "negative kerning", a generated page's look) in any pane stylesheet, and no
 // small label over a heading that the heading already says (support.html's "Answers" over "Common questions")
-const sheetsCss = ["styles/global.css", "styles/components.css", "legal.css"].map((f) => [f, readFileSync(new URL(f, import.meta.url), "utf8")]);
+const sheetsCss = [["styles/global.css", globalCss], ["styles/components.css", css], ["legal.css", file("legal.css")]];
 for (const [f, src] of sheetsCss) {
   const neg = /letter-spacing\s*:\s*-[^;}]*/.exec(src);
   assert.ok(!neg, `${f}: "${neg?.[0]}" - letter-spacing is normal or wider, never negative`);
   assert.ok(!/\.(kicker|eyebrow)\b/.test(src), `${f}: an eyebrow class is styled`);
 }
 for (const f of readdirSync(new URL(".", import.meta.url)).filter((f) => f.endsWith(".html")))
-  assert.ok(!/class="[^"]*\b(kicker|eyebrow)\b/.test(readFileSync(new URL(f, import.meta.url), "utf8")), `${f}: an eyebrow label above a heading`);
+  assert.ok(!/class="[^"]*\b(kicker|eyebrow)\b/.test(file(f)), `${f}: an eyebrow label above a heading`);
 
 // AH-120: every kind of button shows it was pressed (only the slider's thumb did). Each class a pane <button> or a page's
 // button link wears, the list's row buttons and every details summary have an :active rule
@@ -812,7 +818,7 @@ for (const f of readdirSync(new URL(".", import.meta.url)).filter((f) => f.endsW
   const pressed = [...allCss.matchAll(/[^{}]*:active[^{}]*\{/g)].map((m) => m[0]);
   const classes = new Set();
   for (const f of ["taskpane.html", "privacy.html", "support.html"]) {
-    const src = readFileSync(new URL(f, import.meta.url), "utf8");
+    const src = file(f);
     for (const [, c] of src.matchAll(/<button\b[^>]*\bclass="([^"]+)"/g)) c.split(/\s+/).forEach((x) => classes.add(x));
     for (const [, c] of src.matchAll(/<a\b[^>]*\bclass="(btn[^"]*)"/g)) c.split(/\s+/).forEach((x) => classes.add(x));
   }
@@ -856,12 +862,12 @@ for (const f of readdirSync(new URL(".", import.meta.url)).filter((f) => f.endsW
   const down = flat(/<section id="server-down"[^>]*>([\s\S]*?)<\/section>/.exec(html)?.[1] || "");
   // AH-228 P-24: it says it is trying again by itself (it asks every 5 s for 2 minutes, app.js), shown only while it does
   assert.equal(down, "Arcas has stopped. Arcas is trying again by itself. Wait half a minute and press Try again. If that doesn't work, open your Downloads folder, double-click Arcas.exe, then press Try again. Try again", "the engine down at start");
-  assert.ok(readFileSync(new URL("services/api.js", import.meta.url), "utf8").includes('throw ours("Arcas has stopped. Wait half a minute and try again. If that doesn\'t work, open your Downloads folder, double-click Arcas.exe, then try again.")'), "the engine down mid-call");
+  assert.ok(file("services/api.js").includes('throw ours("Arcas has stopped. Wait half a minute and try again. If that doesn\'t work, open your Downloads folder, double-click Arcas.exe, then try again.")'), "the engine down mid-call");
   // AH-228 P-17: the colours are said beside Remove highlights, where the list's hint said them first in 43 words
   assert.ok(html.includes('<p id="list-hint" class="hint">Worst first. Click a row to see the fix. Check each one before you accept: you know your data best.</p>'), "the list's hint is its short form");
   assert.ok(html.includes('<button id="clear-highlights" class="secondary">Remove highlights</button>\n        <p id="highlight-hint" class="hint">The cells to check are coloured in your sheet. This changes no values. Remove highlights takes the colour off.</p>'), "the colours are said beside Remove highlights");
   assert.ok(/<summary>AI help \(optional, free\)<\/summary>\s*<p class="hint">Optional\. Arcas finds problems without AI\.<\/p>/.test(html), "AI help does not open by saying it is optional");
-  assert.ok(readFileSync(new URL("features/fix.js", import.meta.url), "utf8").includes("Check it against the original receipt, invoice or report before you click Accept."), "a fix card's check against the source");
+  assert.ok(file("features/fix.js").includes("Check it against the original receipt, invoice or report before you click Accept."), "a fix card's check against the source");
 }
 
 // AH-175: the pane simpler on first use: the slider, its hint and how it was tested fold under Find problems, closed, the
@@ -930,8 +936,7 @@ for (const f of readdirSync(new URL(".", import.meta.url)).filter((f) => f.endsW
   assert.equal(LIVE_ROWS, 20000);
   assert.equal(liveable(20000), true);
   assert.equal(liveable(20001), false);
-  const box = new Map();
-  globalThis.localStorage = { getItem: (k) => box.get(k) ?? null, setItem: (k, v) => box.set(k, String(v)), removeItem: (k) => box.delete(k) };
+  const box = fakeStorage();
   assert.ok(liveOn() && soundOn(), "on unless turned off");
   box.set(K.LIVE_KEY, "0"); box.set(K.SOUND_KEY, "0");
   assert.ok(!liveOn() && !soundOn(), "off once turned off");
@@ -1007,7 +1012,7 @@ for (const f of readdirSync(new URL(".", import.meta.url)).filter((f) => f.endsW
 }
 // AH-220: Arcas never starts by itself with a workbook (Office.addin.setStartupBehavior): only a workbook whose pane the
 // person opened has a page that listens, so the pane is never opened for a workbook that never ran Arcas
-for (const f of panes) assert.ok(!readFileSync(new URL(f, import.meta.url), "utf8").includes("setStartupBehavior"), `AH-220: ${f} never sets Arcas to start with the workbook`);
+for (const [f, src] of paneSrc) assert.ok(!src.includes("setStartupBehavior"), `AH-220: ${f} never sets Arcas to start with the workbook`);
 
 
 // AH-205: a Dismiss teaches the sheet the values its one-cell checks named, as codes, never the values; "Stop checking"
@@ -1120,15 +1125,14 @@ for (const f of panes) assert.ok(!readFileSync(new URL(f, import.meta.url), "utf
 // header draws it inline (its ring sweeps once) and every other place shows the file, never a paper icon
 {
   const STEPS = ["#6B1E2E", "#5B1E30", "#4B1C35", "#371C3A", "#211B3C", "#0C1938"];
-  const coin = readFileSync(new URL("assets/crest4-coin.svg", import.meta.url), "utf8");
+  const coin = file("assets/crest4-coin.svg");
   const tiles = [...coin.matchAll(/data-part="tile" data-row="(\d)"[^>]*fill="(#[0-9A-F]{6})"/g)];
   assert.ok(tiles.length === 14 && tiles.every(([, r, f]) => f === STEPS[+r]), "crest4-coin.svg: not 14 tiles in their true steps, wine to navy");
   assert.ok(/data-part="ring"[^>]*stroke="#997D3A"/.test(coin) && /data-part="disc"/.test(coin) && !/<rect\b(?![^>]*height="31")[^>]*fill="#F7F5F0"/.test(coin), "crest4-coin.svg: no gold ring or disc, or a square plate");
-  const pane = readFileSync(new URL("taskpane.html", import.meta.url), "utf8");
-  const head = /<span class="mark">(<svg class="coin"[\s\S]*?<\/svg>)<\/span>/.exec(pane);
+  const head = /<span class="mark">(<svg class="coin"[\s\S]*?<\/svg>)<\/span>/.exec(html);
   assert.ok(head && head[1].replace(/^<svg [^>]*>/, "") === coin.trim().replace(/^<svg [^>]*>/, ""), "taskpane.html: the header's mark is not crest4-coin.svg");
   for (const page of ["taskpane.html", "privacy.html", "support.html"]) {
-    const html = readFileSync(new URL(page, import.meta.url), "utf8").replace(/<link[^>]*>/g, "");
+    const html = file(page).replace(/<link[^>]*>/g, "");
     assert.ok(!/crest4-(16|32|64|80)\.png/.test(html), `${page}: a paper icon on the navy band (a white box)`);
   }
 }
@@ -1342,8 +1346,7 @@ assert.ok(KIND_WORDS.group && !ONE_CELL.has("group"), "AH-214: a row's group is 
 // column, its kind of one-cell check, its old value exactly, as text) is offered first on the card, with a line that
 // says so; a value the engine proves for that cell stays; Undo and Forget take it back out
 {
-  const box = new Map();
-  globalThis.localStorage = { getItem: (k) => box.get(k) ?? null, setItem: (k, v) => box.set(k, String(v)), removeItem: (k) => box.delete(k) };
+  const box = fakeStorage();
   const cols = ["Region", "Units", "Total"], row = ["East", 7777, 170.43], kinds = [["limits", "Units"]];
   const advice = { explanation: "Units is 7777, past its limit of 90. Check it against the source; if it's right, leave it.", changes: [], guess: false };
   const offer = (rec = advice, ks = kinds, r = row, calc = null, c = cols) => withPast(rec, c, r, ks, calc, 22, 0);
@@ -1455,19 +1458,18 @@ assert.ok(KIND_WORDS.group && !ONE_CELL.has("group"), "AH-214: a row's group is 
   assert.equal(caps.explanation, 'Region says "east " where the rest of the column says "East": same word, different capitals/spaces.',
     "P-39, fix round 1: the column's own word, said once, with no receipt line - " + caps.explanation);
   // fix round 1: how long a scan took is the hint's quiet text in the summary's line, never its bold heading
-  assert.ok(/\.summary \.summary-time \{ font: 400 13px\/1\.5 var\(--sans\); font-variant-numeric: tabular-nums; color: var\(--muted\); \}/.test(readFileSync(new URL("styles/components.css", import.meta.url), "utf8"))
-    && readFileSync(new URL("features/scan.js", import.meta.url), "utf8").includes('className: "summary-time", textContent: checkedIn(secs)'), "the summary's time is hint text");
+  assert.ok(/\.summary \.summary-time \{ font: 400 13px\/1\.5 var\(--sans\); font-variant-numeric: tabular-nums; color: var\(--muted\); \}/.test(css)
+    && file("features/scan.js").includes('className: "summary-time", textContent: checkedIn(secs)'), "the summary's time is hint text");
 }
 // ---- AH-228 B (the UX study, measured in a browser): Options, notes, the footer, start-up words ----
 {
-  const pane = readFileSync(new URL("taskpane.html", import.meta.url), "utf8");
-  const part = (re) => re.exec(pane)?.[0] || "";
+  const part = (re) => re.exec(html)?.[0] || "";
   const flat = (x) => x.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
   // P-10: AI help says it works with no key in one line; the steps and the key box fold away, closed, every control kept
   const ai = part(/<details id="settings"[\s\S]*?(?=<details class="more">\s*<summary>Saved in this workbook)/), own = part(/<details id="own-key" class="more">[\s\S]*?<\/details>/);
   assert.ok(own && /<summary>Use your own Google key<\/summary>/.test(own) && ["ai-key", "save-key", "remove-key", "aistudio.google.com/apikey"].every((x) => own.includes(x)), "P-10: the key's steps and box under a closed Use your own Google key");
   assert.ok(flat(ai.replace(own, "")).split(" ").length < 110, `P-10: AI help outside its fold is short - ${flat(ai.replace(own, "")).split(" ").length} words`);
-  assert.ok(readFileSync(new URL("features/ai.js", import.meta.url), "utf8").includes('"AI help works now, free, with a daily limit. For more answers, use your own free Google key."'), "P-10: the free AI in one line");
+  assert.ok(file("features/ai.js").includes('"AI help works now, free, with a daily limit. For more answers, use your own free Google key."'), "P-10: the free AI in one line");
   // P-30: the first time the options name John they say who he is
   assert.ok(/John, who makes Arcas, gave you an invite code/.test(ai), "P-30: John, who makes Arcas");
   // P-18: Check words and Check subject rules under one closed fold under the list, each with its own What is sent?; Remove highlights outside
@@ -1476,14 +1478,14 @@ assert.ok(KIND_WORDS.group && !ONE_CELL.has("group"), "AH-214: a row's group is 
     "P-18: More checks with AI folds both AI checks, closed");
   // P-25: Saved in this workbook as short points; Power BI in 2 sentences, Where the files are folded
   assert.ok((part(/<ul id="book-kept"[\s\S]*?<\/ul>/).match(/<li>/g) || []).length >= 7, "P-25: what the workbook keeps, one point each");
-  assert.ok(/<details id="power-bi-files" class="more">\s*<summary>Where the files are<\/summary>/.test(pane) && pane.includes("%LOCALAPPDATA%\\AnomalyHunter"), "P-25: Where the files are, folded");
+  assert.ok(/<details id="power-bi-files" class="more">\s*<summary>Where the files are<\/summary>/.test(html) && html.includes("%LOCALAPPDATA%\\AnomalyHunter"), "P-25: Where the files are, folded");
   // P-35: one press opens the limits, never "the slider above" (it is folded under Find problems)
-  assert.ok(/<button id="edit-limits" class="link-btn">Exact limits per column<\/button>/.test(pane) && !/<details[^>]*>\s*<summary>Exact limits/.test(pane) && !/slider above/i.test(pane), "P-35: one press opens the limits");
-  assert.ok(pane.includes("Flag a number below the first box or above the second.") && pane.includes(">Use automatic limits</button>"), "P-35: the editor's plain words");
+  assert.ok(/<button id="edit-limits" class="link-btn">Exact limits per column<\/button>/.test(html) && !/<details[^>]*>\s*<summary>Exact limits/.test(html) && !/slider above/i.test(html), "P-35: one press opens the limits");
+  assert.ok(html.includes("Flag a number below the first box or above the second.") && html.includes(">Use automatic limits</button>"), "P-35: the editor's plain words");
   // P-28: Stop on the progress line
-  assert.ok(/<p id="busy-line">[\s\S]*<button id="stop-scan" class="link-btn" hidden>Stop<\/button><\/p>/.test(pane), "P-28: Stop on the progress line");
+  assert.ok(/<p id="busy-line">[\s\S]*<button id="stop-scan" class="link-btn" hidden>Stop<\/button><\/p>/.test(html), "P-28: Stop on the progress line");
   // P-14: the note's third button
-  assert.ok(/<div id="live-note"[\s\S]*?id="live-more"/.test(pane), "P-14: the note offers a next step");
+  assert.ok(/<div id="live-note"[\s\S]*?id="live-more"/.test(html), "P-14: the note offers a next step");
 }
 // P-32: how long a scan took goes in the summary's line
 assert.equal(checkedIn(1), "Checked in 1 second.");

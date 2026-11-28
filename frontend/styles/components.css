@@ -82,13 +82,12 @@ label.check:has(input:disabled) { color: var(--muted); } /* AH-228 P-29: off whi
 #stop-scan { flex: none; padding: 0; }
 /* a hairline box and the flagged cell's square before the first word, where a wine stripe ran down its left (AH-98) */
 #notice { margin: 0; padding: var(--s2) var(--s3); border: 1px solid var(--rule); background: var(--field); font-size: 13px; color: var(--ink); text-wrap: pretty; }
-#notice::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: var(--s2); vertical-align: -1px; background: var(--wine); }
+#notice::before, .notice::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: var(--s2); vertical-align: -1px; background: var(--wine); }
 #notice:empty { display: none; }
 /* AH-228 P-01, P-19: Undo beside what a Dismiss or a Never check taught */
 #notice #notice-undo { min-height: 44px; padding: 0 var(--s2); vertical-align: middle; }
 /* the same box for why an AI help action failed, said where it was asked, at body size (AH-149 review r2) */
 .notice, .fix-changes .notice { margin: var(--s2) 0 var(--s3); padding: var(--s2) var(--s3); border: 1px solid var(--rule); background: var(--field); font-size: var(--fs-0); color: var(--ink); text-wrap: pretty; }
-.notice::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: var(--s2); vertical-align: -1px; background: var(--wine); }
 
 /* AH-181: what checking as you work found, laid over the pane's foot (above a card's foot bar, z-index 5), so nothing
    under it moves when it comes or goes. The crest is its mark; a hairline over it, never a side stripe */
@@ -249,7 +248,7 @@ details.more[open] summary { margin-bottom: var(--s3); }
 ::view-transition-group(row-title) { animation-duration: .42s; animation-timing-function: var(--ease); }
 #fix-view::after { content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0;
   background: linear-gradient(90deg, color-mix(in oklch, var(--navy) 4%, transparent), color-mix(in oklch, var(--navy) 30%, transparent)); }
-.fix-changes .old { color: var(--muted); text-decoration: line-through; }
+.fix-changes .old, #history-list .old { color: var(--muted); text-decoration: line-through; }
 .fix-changes .new { color: var(--navy); font-weight: 800; text-decoration: underline; text-decoration-color: var(--wine); text-decoration-thickness: 2px; text-underline-offset: 3px; }
 .fix-result .row-buttons { margin-top: var(--s4); }
 #ai-box label { display: block; font-size: 13px; font-weight: 700; margin-bottom: var(--s2); color: var(--navy); }
@@ -270,8 +269,7 @@ details.more[open] summary { margin-bottom: var(--s3); }
    results and a list row (taskpane.html), so each bar sits where its text lands. #main-ui[data-scanning] shows it in
    place of the empty state or the old results (features/scan.js). Bars are a band through one line box of the real
    font, so their lines are exactly as tall as text; one soft light passes over them, moved by transform only. ---- */
-#scan-skeleton { display: none; position: relative; clip-path: inset(0); --sk: var(--tint-2); }
-#main-ui[data-scanning] #scan-skeleton { display: block; }
+#scan-skeleton, .fix-sk { display: none; position: relative; clip-path: inset(0); --sk: var(--tint-2); }
 #main-ui[data-scanning] :is(#empty-state, #results) { display: none; }
 .sk-bar { display: block; color: transparent; background: linear-gradient(var(--sk), var(--sk)) 0 50% / 100% .62em no-repeat; }
 .sk-long { width: 94%; } .sk-mid { width: 62%; } .sk-short { width: 38%; }
@@ -282,7 +280,6 @@ details.more[open] summary { margin-bottom: var(--s3); }
 #scan-skeleton li:nth-child(3) .row-why .sk-mid { width: 76%; }
 #scan-skeleton li:nth-child(4) .row-why .sk-mid { width: 52%; }
 /* AH-157: a row's card while it opens: the shape of a fix in the same bars where the fix lands (.fix-body holds its space) */
-.fix-sk { display: none; position: relative; clip-path: inset(0); --sk: var(--tint-2); }
 #fix-view[data-opening] .fix-sk { display: block; }
 #fix-view[data-opening] .fix-body > :not(.fix-sk) { display: none; }
 #scan-skeleton::after, .fix-sk::after { content: ""; position: absolute; inset: 0; z-index: 3; pointer-events: none; transform: translateX(-100%);
@@ -325,7 +322,6 @@ details.more[open] summary { margin-bottom: var(--s3); }
 #history-list .what { flex: 1 1 12ch; min-width: 0; overflow-wrap: anywhere; }
 #history-list .what > span { display: block; }
 #history-list .where { color: var(--muted); font-size: var(--fs--1); }
-#history-list .old { color: var(--muted); text-decoration: line-through; }
 #history-list .new { color: var(--navy); font-weight: 800; }
 #history-list .secondary { flex: none; width: auto; margin: 0; }
 #stopped-list { list-style: none; margin: 0; padding: 0; } /* AH-228 P-01: the checks stopped, each with Check again */
