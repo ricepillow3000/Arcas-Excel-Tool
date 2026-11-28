@@ -274,7 +274,7 @@ def _labelled_minus(df, column_types, x):
     return np.zeros(len(x), bool)
 
 
-def limits_detector(df, column_types, limits, typos_only=False, listing=False, quiet=(), held=None, computed=None):
+def limits_detector(df, column_types, limits, typos_only=False, listing=False, quiet=(), *, held, computed):
     """Weird-limit breach = vote. Baseline-only breach = noted, no vote. likely[i] = {col: probable typo fix}.
     typos_only (strength 0): only breaches with an obvious typo behind them, or negatives in a column that never goes
     below 0, vote. listing (strength 7+): alone_reasons[i] = breaches only noted that few other values share (FEW), said
@@ -285,7 +285,6 @@ def limits_detector(df, column_types, limits, typos_only=False, listing=False, q
     A value the same number in another column of a sibling row (SIBLINGS) is a counter-entry, and one with 2+ others
     within NEAR of it and no typo behind it a recurring amount: either is noted, never a vote or a fix (AH-198)."""
     n = len(df)
-    computed = computed or {}
     cols = numbers(column_types)
     # the typed numbers of every number column: a formula's value repeats its inputs, so it corroborates nothing
     typed = df[cols].to_numpy(dtype=float).copy() if cols else np.zeros((n, 0))
@@ -325,7 +324,7 @@ def limits_detector(df, column_types, limits, typos_only=False, listing=False, q
         # with 5+ negatives, a negative is one of its values, judged by its crowd like any other (AH-177, limits._limits)
         rare_minus = (sv >= 0).sum() >= 0.99 * (len(sv) - 1) and not (_signed(col, column_types) and (sv < 0).sum() >= 5)
         top = None if typos_only else _alone_top(sv)
-        rules = (held or {}).get(col, ())
+        rules = held.get(col, ())
         ruled = lambda i: next((t for m, t in rules if m[i]), None)  # the rule this row's arithmetic holds to
         meant = _labelled_minus(df, column_types, x) if (x < 0).any() else np.zeros(n, bool)
 
@@ -664,10 +663,6 @@ def _scaled(df, cols):
     return pd.DataFrame(out)
 
 
-def _skip(n, cols):
-    return "fewer than 30 rows" if n < 30 else None if cols else "no numeric columns"
-
-
 def _ecod(x):
     """ECOD (Li et al. 2022), the same maths as pyod 3.6.6: per column, -log of the share of values at or past each one,
     on the tail the column's skew points to; summed over columns. pyod brought numba, llvmlite, matplotlib and
@@ -694,7 +689,7 @@ def ecod_detector(df, column_types, k=K, limits=None):
     sparse column's spread is tiny (rain's 0.24 mm), so a storm's honest 9.8 mm was "mainly Rainfall" on the hour a
     pressure was typed in kPa, and the rain cell was coloured Medium (AH-208, episode 6)."""
     n, cols = len(df), numbers(column_types)
-    if why := _skip(n, cols):
+    if why := ("fewer than 30 rows" if n < 30 else None if cols else "no numeric columns"):
         return _result(n, why)
     x = _scaled(df, cols)
     votes, mag = robust_vote(_ecod(x.to_numpy()), k)

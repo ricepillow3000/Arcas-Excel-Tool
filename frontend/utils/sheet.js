@@ -1,6 +1,6 @@
 // A scan reads at most this many cells: Excel refuses one read over 5M cells, and the engine's time grows with it.
 // Only the bottom is cut, so row numbers never shift.
-export const maxCells = () => globalThis.MAX_CELLS || 2e6;
+export const maxCells = () => 2e6;
 
 // Pure: the honest line for a sheet too big to read at once
 export const cutNote = ([last, total]) =>
@@ -32,7 +32,6 @@ export function tableAt(header, data, formats, startRow, colIndex, formulas) {
     return seen.length ? 2 * seen.filter(isDateFormat).length > seen.length : isDateFormat(formats[0]?.[j] ?? "");
   }) : [];
   const rows = data.map((r) => readAs(r, isDate));
-  const calc = formulas; // each data row's formulas ("=B2-C2"), so a fix never types over one
   const columns = []; // name duplicate headers like the engine does ("Dept", "Dept.1", skipping taken names): limits and fixes are keyed by these
   header.forEach((c) => {
     let name = String(c);
@@ -44,7 +43,8 @@ export function tableAt(header, data, formats, startRow, colIndex, formulas) {
   const twice = (c) => header.filter((d) => String(d) === String(c)).length > 1;
   const names = header.some(twice) ? Object.fromEntries(header.map((c, j) => [columns[j], !twice(c) ? columns[j]
     : `${String(c).trim() ? `${String(c).trim()} (column ${colLetter(colIndex + j)})` : `column ${colLetter(colIndex + j)}`}`])) : {};
-  return { columns, rows, startRow, startCol: colIndex, calc, dates: isDate, names };
+  // calc: each data row's formulas ("=B2-C2"), so a fix never types over one
+  return { columns, rows, startRow, startCol: colIndex, calc: formulas, dates: isDate, names };
 }
 
 // Pure: each column name in a sentence said as the sheet's names say it (names: engine name -> shown). A name counts
@@ -92,6 +92,9 @@ export const r1c1ToA1 = (f, row, col) => f.replace(/(?<![A-Za-z_\d])R(\[-?\d+\]|
   return `${c && c[0] !== "[" ? "$" : ""}${colLetter(cn)}${r && r[0] !== "[" ? "$" : ""}${rn}`;
 });
 
+// Pure: Excel letters -> 0-based column index (A -> 0, AA -> 26), the way back from colLetter
+export const colIndex = (letters) => [...letters.toUpperCase()].reduce((k, ch) => k * 26 + ch.charCodeAt(0) - 64, 0) - 1;
+
 // Pure: 0-based column index -> Excel letters (0 -> A, 26 -> AA)
 export function colLetter(n) {
   let s = "";
@@ -109,7 +112,7 @@ export const sameRow = (now, was, calc = []) => now.length === was.length && now
 // Pure: "AA12" -> {col: 26, row: 12} (0-based column, sheet row number), or null
 export function cellAt(cell) {
   const m = /^([A-Z]+)(\d+)$/.exec(String(cell));
-  return m && { col: [...m[1]].reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0) - 1, row: +m[2] };
+  return m && { col: colIndex(m[1]), row: +m[2] };
 }
 
 // Pure: the cells (column indexes) a row's reasons are about - the pane colours those, no other (AH-40: it coloured the

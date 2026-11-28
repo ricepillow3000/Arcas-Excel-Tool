@@ -1,4 +1,5 @@
 import { RULES_KEY } from "../constants/index.js";
+import { newestSheet } from "./decisions.js";
 
 // AH-217 (John, 2026-11-21: "AI proposes, the no-AI engine verifies, then enforces locally for free"): a rule Check
 // subject rules found holding on the sheet is kept in the workbook (its kind and the headers it names, never a cell and
@@ -47,14 +48,7 @@ export function asRules(v) {
 }
 
 // Pure: the book with this sheet's rules replaced (none: the sheet taken out), the sheet newest, at most SHEETS sheets
-export function keepIn(book, sheet, rules) {
-  const out = Object.assign(Object.create(null), book);
-  delete out[sheet];
-  if (rules.length) out[sheet] = rules.slice(0, MAX);
-  const sheets = Object.keys(out);
-  sheets.slice(0, Math.max(0, sheets.length - SHEETS)).forEach((s) => delete out[s]);
-  return out;
-}
+export const keepIn = (book, sheet, rules) => newestSheet(book, sheet, rules.length ? rules.slice(0, MAX) : null, SHEETS);
 
 const settings = () => Office.context.document.settings;
 

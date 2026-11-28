@@ -139,10 +139,10 @@ def _header(columns):
     return [ours[0], *names, *ours[1:]]
 
 
-def tables(columns, rows, out, start_row=0, sheet="", now=None, decisions=None):
+def tables(columns, rows, out, start_row, sheet, decisions=None):
     """-> (scan table, flags table): lists of rows, the header first, cells as csv.writer gets them.
     decisions: per row None, "fixed" or "dismissed" (checked by the /scan route)."""
-    now = now or datetime.datetime.now().astimezone().isoformat(timespec="seconds")
+    now = datetime.datetime.now().astimezone().isoformat(timespec="seconds")
     decisions = decisions or [None] * len(rows)
     full, flags = [_header(columns)], [list(FLAGS)]
     for i, (row, v, d) in enumerate(zip(rows, out, decisions, strict=True)):
@@ -167,7 +167,7 @@ def remove(scan_csv):
             q.unlink(missing_ok=True)
 
 
-def write(scan_csv, columns, rows, out, start_row=0, sheet="", decisions=None):
+def write(scan_csv, columns, rows, out, start_row, sheet, decisions=None):
     """Both files, each written whole to a .tmp first and then swapped in, so Power BI never reads half a file.
     UTF-8 with a BOM: without it Power BI reads the file as Windows-1252 and every accent or emoji comes out garbled."""
     try:

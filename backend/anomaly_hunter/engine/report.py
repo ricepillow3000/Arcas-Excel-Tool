@@ -22,7 +22,7 @@ def _put(ws, row):
     ws.append([ILLEGAL_CHARACTERS_RE.sub("?", v) if isinstance(v, str) else v for v in row])
 
 
-def write_report(df, rows, status, out_path, limits_path, warnings, fair=None):
+def write_report(df, rows, status, out_path, limits_path, warnings, fair):
     wb = Workbook()
     data = wb.active
     data.title = "Data"
@@ -57,7 +57,7 @@ def write_report(df, rows, status, out_path, limits_path, warnings, fair=None):
 
     # Fairness: which columns are protected (never used to judge who is unusual) and one line per subgroup test
     fairness = wb.create_sheet("Fairness")
-    prot = (fair or {}).get("protected", {})
+    prot = fair.get("protected", {})
     _put(fairness, ["Protected columns - checked for typos and blanks, never used to decide who is unusual"])
     for col, why in prot.items():
         _put(fairness, [col, why])
@@ -65,7 +65,7 @@ def write_report(df, rows, status, out_path, limits_path, warnings, fair=None):
         _put(fairness, ["(none found by column name: age, gender, race, marital status, location, zip...)"])
     _put(fairness, [])
     _put(fairness, ["Result", "What was compared", "Finding", "Groups (rows, rate)", "p-value", "In real data"])
-    for t in (fair or {}).get("tests", []):
+    for t in fair.get("tests", []):
         _put(fairness, [VERDICT.get(t["verdict"], "Even"), f"{t['column']}: {t['test']}",
                          t["text"], "; ".join(f"{g} ({n}, {r:.0%})" for g, (n, r) in t["groups"].items()),
                          "" if t["p"] is None else round(t["p"], 4), t.get("context", "")])

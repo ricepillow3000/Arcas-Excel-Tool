@@ -2,6 +2,7 @@
 import assert from "node:assert";
 import worker, { Counter, dayKey, network } from "./worker.js";
 import { canary } from "./canary.mjs";
+import { good, googleOk, hash, namespace } from "./stub.mjs";
 
 // AH-209: the caps' day is read from the clock on every call, and the busy-retry test below waits 4 s for real: a full
 // gate run that crossed Pacific midnight (08:00:00 UTC, 19 Nov) counted Ana's 4th fix on a new day, 200 for 429.
@@ -12,16 +13,6 @@ globalThis.Date = class extends RealDate {
   static now() { return NOON; }
 };
 
-const hash = async (t) => [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t)))]
-  .map((b) => b.toString(16).padStart(2, "0")).join("");
-
-// a Durable Object stub: one Counter, requests handled one at a time (as Cloudflare does)
-function namespace() {
-  const store = new Map(), obj = new Counter({ storage: { get: async (k) => store.get(k), put: async (k, v) => store.set(k, v) } });
-  let queue = Promise.resolve();
-  return { idFromName: () => "caps", get: () => ({ fetch: (u, init) => (queue = queue.then(() => obj.fetch(new Request(u, init)))) }) };
-}
-
 const sent = [];
 let googleStatus = 200;
 const googleQueue = []; // statuses for the next calls, then googleStatus
@@ -29,14 +20,16 @@ let googleBody = JSON.stringify({ error: { message: "project 1234 key AQ.secret"
 globalThis.fetch = async (url, init) => {
   sent.push({ url, headers: init.headers, body: JSON.parse(init.body) });
   const status = googleQueue.length ? googleQueue.shift() : googleStatus;
-  return status === 200
-    ? new Response(JSON.stringify({ choices: [{ message: { content: '{"explanation":"x","changes":[]}' } }] }), { status: 200 })
-    : new Response(googleBody, { status });
+  return status === 200 ? googleOk() : new Response(googleBody, { status });
 };
 
 const env = { GEMINI_KEY: "AQ.the-secret", TOKENS: JSON.stringify({ [await hash("inv_ana")]: "Ana", [await hash("inv_ben")]: "Ben" }),
   COUNTER: namespace(), DAILY_PER_INVITE: "3", DAILY_TOTAL: "5" };
-const good = { messages: [{ role: "user", content: "Fix row 7" }], response_format: { type: "json_schema", json_schema: { name: "fix", schema: {} } } };
+// one POST to /fix on env e: a string body goes as it is, an object as JSON
+const fix = (e, headers, body = good) => worker.fetch(new Request("https://relay.example/fix", {
+  method: "POST", headers, body: typeof body === "string" ? body : JSON.stringify(body) }), e);
+const ana = { Authorization: "Bearer inv_ana" };
+const atIp = (ip) => ({ "CF-Connecting-IP": ip });
 const call = (body, code = "inv_ana", path = "/fix") => worker.fetch(new Request(`https://relay.example${path}`, {
   method: "POST", headers: code !== null ? { Authorization: code && `Bearer ${code}` } : {}, body: typeof body === "string" ? body : JSON.stringify(body) }), env);
 
@@ -155,14 +148,12 @@ assert.equal(slow.status, 504, "Google did not answer in time");
 assert.match((await slow.json()).error, /in time/, "in the relay's own words");
 assert.deepEqual(asked, [90_000], "90 s, the engine's own cap on one call to Google");
 assert.equal(hung, 1, "a call that timed out is not tried again: the engine's 240 s would run out first");
-const broken = await worker.fetch(new Request("https://relay.example/fix", { method: "POST", headers: { Authorization: "Bearer inv_ana" }, body: "{}" }),
-  { ...env, TOKENS: "{bad" });
+const broken = await fix({ ...env, TOKENS: "{bad" }, ana, "{}");
 assert.equal(broken.status, 500, "a mistyped TOKENS secret");
 assert.ok((await broken.json()).error);
 // the daily-cap counter itself failing (a Durable Object outage): our own JSON, and Google is never called (AH-13)
 const sentBefore = sent.length;
-const noCounter = await worker.fetch(new Request("https://relay.example/fix", { method: "POST", headers: { Authorization: "Bearer inv_ana" },
-  body: JSON.stringify(good) }), { ...env, COUNTER: { idFromName: () => "caps", get: () => ({ fetch: async () => { throw new Error("DO down"); } }) } });
+const noCounter = await fix({ ...env, COUNTER: { idFromName: () => "caps", get: () => ({ fetch: async () => { throw new Error("DO down"); } }) } }, ana);
 assert.equal(noCounter.status, 503, "the cap counter is down");
 assert.ok((await noCounter.json()).error, "still a JSON error");
 assert.equal(sent.length, sentBefore, "and nothing reached Google");
@@ -170,15 +161,13 @@ assert.equal(sent.length, sentBefore, "and nothing reached Google");
 // if the [vars] caps are ever lost, the fallbacks are the real quota (10 / 20), never looser
 googleStatus = 200;
 const bare = { GEMINI_KEY: env.GEMINI_KEY, TOKENS: env.TOKENS, COUNTER: namespace() };
-const bareCall = () => worker.fetch(new Request("https://relay.example/fix", {
-  method: "POST", headers: { Authorization: "Bearer inv_ana" }, body: JSON.stringify(good) }), bare);
+const bareCall = () => fix(bare, ana);
 for (let i = 0; i < 10; i++) assert.equal((await bareCall()).status, 200, `fallback cap: call ${i + 1} of 10`);
 assert.equal((await bareCall()).status, 429, "fallback per-invite cap is 10");
 // a daily cap of 0 switches the relay off (2026-10-15 audit: `+"0" || 20` read 0 as unset and allowed 20)
 const off = { ...bare, COUNTER: namespace(), DAILY_TOTAL: "0" };
 const before = sent.length;
-const offCall = await worker.fetch(new Request("https://relay.example/fix", {
-  method: "POST", headers: { Authorization: "Bearer inv_ana" }, body: JSON.stringify(good) }), off);
+const offCall = await fix(off, ana);
 assert.equal(offCall.status, 429, "a total cap of 0 refuses");
 assert.equal(sent.length, before, "and never reaches Google");
 
@@ -263,8 +252,7 @@ assert.equal(sent.length, before, "and never reaches Google");
   const upload = { messages: [{ role: "user", content: `Fix row 7: A7='${marker}', the customer's own words` }], response_format: { type: "json_schema", json_schema: { name: "fix", schema: {} } } };
   googleStatus = 200;
   const before = sent.length;
-  const done = await worker.fetch(new Request("https://relay.example/fix", { method: "POST",
-    headers: { Authorization: "Bearer inv_ana" }, body: JSON.stringify(upload) }), watched);
+  const done = await fix(watched, ana, upload);
   assert.equal(done.status, 200);
   assert.ok(JSON.stringify(sent.at(-1).body).includes(marker) && sent.length === before + 1, "the request reached Google once");
   assert.ok(puts.length === 1 && puts.every(([k]) => k === "c"), "the counter writes its one object only - " + JSON.stringify(puts));
@@ -283,8 +271,7 @@ assert.equal(sent.length, before, "and never reaches Google");
   const perDay = '{"error":{"message":"Quota exceeded for metric GenerateRequestsPerDayPerProjectPerModel-FreeTier, project 1234"}}';
   const perMinute = '{"error":{"message":"Quota exceeded for metric GenerateRequestsPerMinutePerProjectPerModel-FreeTier, project 1234"}}';
   const menv = (extra) => ({ ...env, COUNTER: namespace(), DAILY_PER_INVITE: "3", DAILY_TOTAL: "5", ...extra });
-  const ask = (e) => worker.fetch(new Request("https://relay.example/fix", { method: "POST", headers: { Authorization: "Bearer inv_ana" },
-    body: JSON.stringify(good) }), e);
+  const ask = (e) => fix(e, ana);
   const models = (from) => sent.slice(from).map((s) => s.body.model);
   googleStatus = 200;
   for (const first of [429, 503, 502]) {
@@ -346,10 +333,8 @@ assert.equal(sent.length, before, "and never reaches Google");
   const PUB = "gemini-3.5-flash-lite";
   const penv = (extra) => ({ ...env, COUNTER: namespace(), DAILY_PER_INVITE: "3", DAILY_TOTAL: "5",
     PUBLIC_DAILY_PER_NETWORK: "15", PUBLIC_DAILY_TOTAL: "400", PUBLIC_MODELS: PUB, ...extra });
-  const free = (e, ip = "203.0.113.7", body = good) => worker.fetch(new Request("https://relay.example/fix", {
-    method: "POST", headers: ip ? { "CF-Connecting-IP": ip } : {}, body: JSON.stringify(body) }), e);
-  const invite = (e) => worker.fetch(new Request("https://relay.example/fix", {
-    method: "POST", headers: { Authorization: "Bearer inv_ana" }, body: JSON.stringify(good) }), e);
+  const free = (e, ip = "203.0.113.7", body = good) => fix(e, ip ? atIp(ip) : {}, body);
+  const invite = (e) => fix(e, ana);
   googleStatus = 200;
   let e = penv({});
   let from = sent.length;
@@ -362,7 +347,7 @@ assert.equal(sent.length, before, "and never reaches Google");
   for (const [what, body] of [["over 8 KB", "x".repeat(9000)], ["not JSON", "{not json"],
     ["two messages", JSON.stringify({ messages: [{ role: "user", content: "a" }, { role: "user", content: "b" }], response_format: good.response_format })],
     ["no response_format", JSON.stringify({ messages: [{ role: "user", content: "a" }] })]]) {
-    const bad = await worker.fetch(new Request("https://relay.example/fix", { method: "POST", headers: { "CF-Connecting-IP": "203.0.113.9" }, body }), e);
+    const bad = await fix(e, atIp("203.0.113.9"), body);
     assert.ok([400, 413].includes(bad.status), `the public tier keeps the body checks: ${what}`);
   }
   assert.equal((await free(e, null)).status, 400, "no network to count it under: refused");
@@ -425,8 +410,7 @@ assert.equal(sent.length, before, "and never reaches Google");
   assert.equal(network("::ffff:192.0.2.1"), "0:0:0:0::/64", "a dotted IPv4 tail counts as two groups");
   assert.equal(network("2001:db8:aa:bb::"), "2001:db8:aa:bb::/64");
   const penv = { ...env, COUNTER: namespace(), PUBLIC_DAILY_PER_NETWORK: "2", PUBLIC_DAILY_TOTAL: "400", PUBLIC_MODELS: "gemini-3.5-flash-lite" };
-  const free = (ip) => worker.fetch(new Request("https://relay.example/fix", { method: "POST", headers: { "CF-Connecting-IP": ip },
-    body: JSON.stringify(good) }), penv);
+  const free = (ip) => fix(penv, atIp(ip));
   googleStatus = 200;
   assert.equal((await free("2001:db8:0:1::1")).status, 200);
   assert.equal((await free("2001:db8:0:1:ffff::2")).status, 200, "another address of the same /64");
@@ -446,7 +430,7 @@ assert.equal(sent.length, before, "and never reaches Google");
     const base = JSON.stringify({ ...good, messages: [{ role: "user", content: "" }] });
     return JSON.stringify({ ...good, messages: [{ role: "user", content: "x".repeat(n - base.length) }] });
   };
-  const post = (body) => worker.fetch(new Request("https://relay.example/fix", { method: "POST", headers: { Authorization: "Bearer inv_ana" }, body }), e);
+  const post = (body) => fix(e, ana, body);
   googleStatus = 200;
   for (const n of [7000, 8 * 1024]) {
     assert.equal(sized(n).length, n);
@@ -463,7 +447,7 @@ assert.equal(sent.length, before, "and never reaches Google");
     const base = bytes(JSON.stringify({ ...good, messages: [{ role: "user", content: "" }] }));
     return JSON.stringify({ ...good, messages: [{ role: "user", content: "é".repeat((n - base) >> 1) + "x".repeat((n - base) & 1) }] });
   };
-  const post = (body) => worker.fetch(new Request("https://relay.example/fix", { method: "POST", headers: { Authorization: "Bearer inv_ana" }, body }), e);
+  const post = (body) => fix(e, ana, body);
   googleStatus = 200;
   assert.equal(bytes(wide(8192)), 8192);
   assert.equal((await post(wide(8192))).status, 200, "exactly 8,192 bytes of two-byte letters are served");
@@ -484,8 +468,7 @@ assert.equal(sent.length, before, "and never reaches Google");
 {
   const perMinute = '{"error":{"message":"Quota exceeded for metric GenerateRequestsPerMinutePerProjectPerModel-FreeTier, project 1234"}}';
   const perDay = '{"error":{"message":"Quota exceeded for metric GenerateRequestsPerDayPerProjectPerModel-FreeTier, project 1234"}}';
-  const ask = (e, who = "inv_ana") => worker.fetch(new Request("https://relay.example/fix", { method: "POST",
-    headers: { Authorization: `Bearer ${who}` }, body: JSON.stringify(good) }), e);
+  const ask = (e, who = "inv_ana") => fix(e, { Authorization: `Bearer ${who}` });
   let e = { ...env, COUNTER: namespace(), DAILY_PER_INVITE: "3", DAILY_TOTAL: "5" };
   googleStatus = 429;
   googleBody = perMinute;
@@ -525,8 +508,7 @@ assert.equal(sent.length, before, "and never reaches Google");
   assert.equal((await ask(e)).status, 200, "and her 2nd: the backup's count was given back to the total");
   // the public tier: the network's count and the total come back
   e = { ...env, COUNTER: namespace(), PUBLIC_DAILY_PER_NETWORK: "2", PUBLIC_DAILY_TOTAL: "3" };
-  const free = (ip) => worker.fetch(new Request("https://relay.example/fix", { method: "POST", headers: { "CF-Connecting-IP": ip },
-    body: JSON.stringify(good) }), e);
+  const free = (ip) => fix(e, atIp(ip));
   googleStatus = 429;
   googleBody = perMinute;
   for (let i = 0; i < 4; i++) assert.match((await (await free("203.0.113.5")).json()).error, /busy/);
@@ -556,10 +538,8 @@ assert.equal(sent.length, before, "and never reaches Google");
   let allow = false;
   const burst = { limit: async ({ key }) => (keys.push(key), { success: allow }) };
   const e = { ...env, COUNTER: namespace(), BURST: burst, PUBLIC_DAILY_PER_NETWORK: "1", DAILY_PER_INVITE: "1" };
-  const free = (ip) => worker.fetch(new Request("https://relay.example/fix", { method: "POST", headers: { "CF-Connecting-IP": ip },
-    body: JSON.stringify(good) }), e);
-  const ask = () => worker.fetch(new Request("https://relay.example/fix", { method: "POST", headers: { Authorization: "Bearer inv_ana" },
-    body: JSON.stringify(good) }), e);
+  const free = (ip) => fix(e, atIp(ip));
+  const ask = () => fix(e, ana);
   googleStatus = 200;
   let from = sent.length;
   for (const r of [await free("203.0.113.8"), await free("203.0.113.8"), await ask()]) {
@@ -593,8 +573,7 @@ assert.equal(sent.length, before, "and never reaches Google");
   const seen = new Map();
   const counting = { limit: async ({ key }) => { seen.set(key, (seen.get(key) || 0) + 1); return { success: seen.get(key) <= limit }; } };
   const c = { ...env, COUNTER: namespace(), BURST: counting, PUBLIC_DAILY_PER_NETWORK: "100" };
-  const at = (ip) => worker.fetch(new Request("https://relay.example/fix", { method: "POST", headers: { "CF-Connecting-IP": ip },
-    body: JSON.stringify(good) }), c);
+  const at = (ip) => fix(c, atIp(ip));
   for (let i = 0; i < limit; i++) assert.equal((await at("198.51.100.20")).status, 200, `call ${i + 1} of ${limit} in a minute`);
   assert.equal((await at("198.51.100.20")).status, 429, "one more in the minute is refused");
   assert.equal((await at("198.51.100.21")).status, 200, "another network has its own minute");
@@ -605,8 +584,7 @@ assert.equal(sent.length, before, "and never reaches Google");
 // PUBLIC_DAILY_PER_48 (45 = 3 networks' 15), counted under its own keyed hash, beside its /64's 15. IPv4 is as before
 {
   const e = { ...env, COUNTER: namespace(), PUBLIC_DAILY_PER_NETWORK: "15", PUBLIC_DAILY_TOTAL: "400" }; // PER_48 unset: 45
-  const free = (ip) => worker.fetch(new Request("https://relay.example/fix", { method: "POST", headers: { "CF-Connecting-IP": ip },
-    body: JSON.stringify(good) }), e);
+  const free = (ip) => fix(e, atIp(ip));
   googleStatus = 200;
   for (const net of ["2001:db8:1:1", "2001:db8:1:2", "2001:db8:1:3"]) {
     for (let i = 0; i < 15; i++) assert.equal((await free(`${net}::${i + 1}`)).status, 200, `${net}::/64 call ${i + 1} of 15`);
@@ -620,8 +598,7 @@ assert.equal(sent.length, before, "and never reaches Google");
   for (let i = 0; i < 16; i++) await free("198.51.100.30");
   assert.equal((await free("198.51.100.31")).status, 200, "IPv4: each address its own share, as before");
   const set = { ...e, COUNTER: namespace(), PUBLIC_DAILY_PER_48: "2" };
-  const at = (ip) => worker.fetch(new Request("https://relay.example/fix", { method: "POST", headers: { "CF-Connecting-IP": ip },
-    body: JSON.stringify(good) }), set);
+  const at = (ip) => fix(set, atIp(ip));
   assert.equal((await at("2001:db8:3:1::1")).status, 200);
   assert.equal((await at("2001:db8:3:2::1")).status, 200, "the [vars] cap: the /48's 2nd");
   assert.equal((await at("2001:db8:3:3::1")).status, 429, "and its 3rd refused");
@@ -648,8 +625,7 @@ assert.equal(sent.length, before, "and never reaches Google");
 // gave plain text ({type: "text"}) to whoever asked. Only a JSON schema the answer must follow is taken
 {
   const e = { ...env, COUNTER: namespace(), DAILY_PER_INVITE: "20", DAILY_TOTAL: "20" };
-  const post = (format, auth = { Authorization: "Bearer inv_ana" }) => worker.fetch(new Request("https://relay.example/fix", {
-    method: "POST", headers: { ...auth, "CF-Connecting-IP": "203.0.113.160" }, body: JSON.stringify({ ...good, response_format: format }) }), e);
+  const post = (format, auth = ana) => fix(e, { ...auth, ...atIp("203.0.113.160") }, { ...good, response_format: format });
   googleStatus = 200;
   const from = sent.length;
   for (const auth of [{ Authorization: "Bearer inv_ana" }, {}]) {
@@ -710,7 +686,7 @@ assert.equal(sent.length, before, "and never reaches Google");
   // 5. an older deploy with no BURST binding: a refusal is still just a refusal, never a 429
   const old = { ...e };
   delete old.BURST;
-  const stillBad = await worker.fetch(new Request("https://relay.example/fix", { method: "POST", headers: bad, body: JSON.stringify(good) }), old);
+  const stillBad = await fix(old, bad);
   assert.equal(stillBad.status, 401, "no BURST binding (a deploy from before it): the refusal is unchanged");
 }
 

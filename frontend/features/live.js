@@ -3,7 +3,7 @@ import { state } from "../hooks/use-state.js";
 import { $, show } from "../utils/dom.js";
 import { notice } from "../components/progress.js";
 import { n } from "../utils/text.js";
-import { cellAt, colLetter, spots } from "../utils/sheet.js";
+import { cellAt, colIndex, colLetter, spots } from "../utils/sheet.js";
 import { readSheet, showCell } from "../services/excel.js";
 import { flaggedRows, plainReason, runScan, scanAll, scanRequest } from "./scan.js";
 import { act } from "../hooks/use-action.js";
@@ -36,7 +36,6 @@ export const ignored = (e, busy) => busy || e.source === "Remote" || e.triggerSo
 export const liveable = (rows) => rows <= LIVE_ROWS;
 
 // Pure: is an A1 cell inside an address Excel gave ("B12", "B2:B41", "Sheet!$B$2", "C:C", "5:7", "A1:B2, D4")?
-const colOf = (letters) => [...letters.toUpperCase()].reduce((k, ch) => k * 26 + ch.charCodeAt(0) - 64, 0) - 1;
 export function inRange(address, cell) {
   const at = cellAt(cell);
   if (!at || typeof address !== "string") return false;
@@ -45,7 +44,7 @@ export function inRange(address, cell) {
     const ends = area.trim().replace(/^.*!/, "").replace(/\$/g, "").split(":").map((x) => /^([A-Z]*)(\d*)$/i.exec(x));
     if (!area.trim() || ends.some((m) => !m)) return false;
     const [a, b = a] = ends;
-    return (!a[1] || within(at.col, colOf(a[1]), colOf(b[1] || a[1]))) && (!a[2] || within(at.row, +a[2], +(b[2] || a[2])));
+    return (!a[1] || within(at.col, colIndex(a[1]), colIndex(b[1] || a[1]))) && (!a[2] || within(at.row, +a[2], +(b[2] || a[2])));
   });
 }
 

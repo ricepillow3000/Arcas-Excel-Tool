@@ -88,7 +88,7 @@ def parameter_rows(df, column_types, grid, start_row):
 PASTED = 5  # copies of this many consecutive rows in a row: a range pasted again
 
 
-def duplicates(df, errors_log=(), column_types=None, skip=None):
+def duplicates(df, errors_log, column_types, skip):
     """Row equal to an earlier row in every column but source_file. Text typed into a number or date column is compared as
     that text: loading had blanked it, so "R+33.2" and "D+6.3" rows looked equal (513 false duplicates, 2026-10-16).
     -> (reasons per row, notes per row): max(MANY, SHARE of the rows) repeats found in every fifth of the sheet are one
@@ -99,7 +99,7 @@ def duplicates(df, errors_log=(), column_types=None, skip=None):
         cells[i, at[c]] = f"text:{raw}"
     # a name not kept ("?", "*", Unknown) in a column whose labels mostly differ row to row (as many as half its cells) is no
     # proof of one record: a contest's unknown entrants with tied scores were 41 "Duplicate of row N" (AH-173)
-    kind = {c: (column_types or {}).get(c, "text" if df[c].dtype == object else "") for c in cols}
+    kind = {c: column_types.get(c, "text" if df[c].dtype == object else "") for c in cols}
     known = {}
     for c in cols:
         v, filled = df[c].astype(str).str.strip(), ~_blank(df[c])
@@ -122,12 +122,11 @@ def duplicates(df, errors_log=(), column_types=None, skip=None):
     # AH-198 fix round 2: in a tree a row is also where it hangs: a shared sub-assembly listed again under another product
     # is the layout, never a copy (1,700 cells of one costed bill were "Duplicate of row N"); the same row twice under one
     # parent still is
-    for parent in itertools.islice(_tree(df, column_types or {}, np.zeros(len(df), bool) if skip is None else skip).values(), 1):
+    for parent in itertools.islice(_tree(df, column_types, skip).values(), 1):
         cells = np.column_stack([cells, parent.astype(str)])
     seen, out = {}, []
     # a totals row is no record: its numbers left out, 150 subtotal rows reading only "Total" were "many repeats", and the
     # one note on a skipped row hid a real copy (blind round 2, AH-178)
-    skip = np.zeros(len(df), bool) if skip is None else skip
     keys = [("total row", i) if skip[i] else tuple(row) for i, row in enumerate(cells)]
     # when most rows repeat, a repeat is the data: 4 agree/disagree answers from 1,529 voters gave 199 different rows,
     # and 1,330 were "Duplicate of row N" (real survey, 2026-10-16). A double entry repeats a row that is otherwise unique
@@ -451,7 +450,7 @@ FILLS = 0.95  # a group that fills a column on this share of its rows, beside gr
 LABEL_SLIP = 2  # columns a row fills where its label leaves them empty, from which the label is the row's one slip
 
 
-def group_gaps(df, column_types, skip, computed=None):
+def group_gaps(df, column_types, skip, computed):
     """AH-208 fix round 2: one cell filled where its group leaves the column empty (blank, or 0 for a number), the
     mirror of _all_blank: a close date on one of 61 open claims, a deductible on one of 120 health claims, state tax on
     one of 47 periods in a state with none (episodes 6-8, 7 of their misses; a cleared date on an outstanding cheque in
@@ -461,7 +460,7 @@ def group_gaps(df, column_types, skip, computed=None):
     protected label (a person's cell is never judged by their sex or race), nor a formula's cell (its inputs are).
     -> (reasons, explained: per row, the blank cells a label's slip explains)."""
     out, explained = [[] for _ in range(len(df))], [set() for _ in range(len(df))]
-    computed, prot = computed or {}, set(fairness.protected(column_types))
+    prot = set(fairness.protected(column_types))
     cols, labels, blank = list(column_types)[:200], {}, {}
     for c in cols:  # each text read once, as a label and as a cell (twice took 3 s on 100,000 rows x 16 labels)
         if column_types[c] != "number":
@@ -992,13 +991,12 @@ def date_forms(df, column_types, skip):
     return out, notes
 
 
-def far_dates(df, column_types, skip, computed=None):
+def far_dates(df, column_types, skip, computed):
     """Date more than the column's whole span away from it (a 2018 sheet with 2084 in it; detectors.far_off, whose span
     leaves at least one date past each end). Birthdates spread over decades widen the span themselves. ponytail: misses a near miss like 2019 in a 2018 sheet - no rule knows that.
     AH-222: a formula's cell is never named, as the limits never judge one: its date is its inputs' (a Period worked out
     from a Date typed 2035 coloured a second cell for one slip on 3 ledgers of the complex bench)."""
     out = [[] for _ in range(len(df))]
-    computed = computed or {}
     for col, t in column_types.items():
         d = df[col][~skip].dropna() if t == "date" else ()
         if t == "text":
@@ -1033,7 +1031,7 @@ def _across(grid, order, cols):
     return {i for i, row in enumerate(grid or ()) if row[js[0]] is not None and all(row[j] == row[js[0]] for j in js)}
 
 
-def sums(df, column_types, skip, held=None, grid=None):
+def sums(df, column_types, skip, held, grid=None):
     """A column that is the sum of others in >= 95% of rows (Total = Fare + Tip + Tax): the other rows don't add up.
     Least squares finds the parts; kept only when every weight is 0 or 1 (a plain sum, found once, from the total's
     side). ponytail: plain sums only - a weighted rule (tax 8.25%) or a difference written as a sum of +1s only.
@@ -1062,7 +1060,7 @@ def sums(df, column_types, skip, held=None, grid=None):
         # ...or within what rounding explains where 3+ rows miss so, as _totals: half of each part's last written digit
         # (none for whole numbers) and the total's own half. Coffee's ten scores to the hundredth summed to 86.85 for a
         # total_cup_points of 86.83: 47 rows called wrong (round 38, AH-64 try 1 review); one or two such misses are slips
-        slack = sum(0.5 * 10.0 ** -d for d in (_decimals(rest[:, j]) for j in np.flatnonzero(ones)) if d)
+        slack = sum(_half(rest[:, j]) for j in np.flatnonzero(ones))
         near = bad & (np.abs(y - got) <= slack + 0.5 * 10.0 ** -_decimals(y) + 1e-9 * np.abs(y))
         if near.sum() >= 3:
             bad &= ~near
@@ -1087,7 +1085,7 @@ def named_totals(cols):
     return [c for c in cols if len(h := " ".join(re.sub(r"[_.]+", " ", str(c)).split()).lower()) <= 200 and TOTAL_HEAD.search(h)]
 
 
-def _totals(df, cols, skip, out, held=None, grid=None):
+def _totals(df, cols, skip, out, held, grid=None):
     """A column headed Total, Sum or All that is, to the cent, the other number columns added up, or the 3+ number
     columns beside it, on 95% of rows: the other rows don't add up. Round 37 missed Male + Female + Intersex = Total on 48
     rows and 8 age groups = Total on 200: least squares needs 20 rows a column, and an extra Year or Area column bends
@@ -1108,7 +1106,7 @@ def _totals(df, cols, skip, out, held=None, grid=None):
     # 99.9% of rows was never judged, and its 51 for 15 was missed (blind round 1, AH-174)
     b = None if a is None else np.where(np.isnan(a) & (np.isnan(a).mean(axis=0) >= SPARSE), 0.0, a)
     halves = {}  # as pairs: a column of whole numbers is exact, one written to d decimals off by up to half its last digit
-    half = lambda c: halves.setdefault(c, 0.0 if (d := _decimals(a[:, nums[c]])) == 0 else 0.5 * 10.0 ** -d)
+    half = lambda c: halves.setdefault(c, _half(a[:, nums[c]]))
     for col in heads[:20] if a is not None else ():
         y, at, tries = a[:, nums[col]], order.index(col), [[c for c in cols if c != col]] if col in named else []
         own = 0.5 * 10.0 ** -_decimals(y)
@@ -1180,8 +1178,7 @@ def _totals(df, cols, skip, out, held=None, grid=None):
                 if i in across:
                     continue
                 out[i].append(Why(f"{col} {say(v)} does not add up: {' + '.join(best[1])} = {g:.10g}", col, *best[1]))
-            if held is not None:  # a sum: changing any one of its cells breaks it
-                confirm(held, len(df), best[2], f"{col} = {' + '.join(best[1])}", [col, *best[1]])
+            confirm(held, len(df), best[2], f"{col} = {' + '.join(best[1])}", [col, *best[1]])  # a sum: changing any one of its cells breaks it
     return done
 
 
@@ -1319,6 +1316,12 @@ def _decimals(x):
     return next((d for d in range(7) if (np.abs(x - np.round(x, d)) < 1e-9).mean() >= 0.95), 6)
 
 
+def _half(x):
+    """Half the last digit a column is written to; 0 for whole numbers, which are exact (units, laps)."""
+    d = _decimals(x)
+    return 0.0 if d == 0 else 0.5 * 10.0 ** -d
+
+
 def pairs(df, column_types, skip, limits=None, held=None, grid=None):
     """A column that is two others multiplied or added in >= 95% of rows (Line Total = Qty x Unit Price, Net New =
     New + Churned), or two multiplied after a 0-1 discount (Units x Unit Price x (1 - Discount)): the other rows don't
@@ -1346,7 +1349,7 @@ def pairs(df, column_types, skip, limits=None, held=None, grid=None):
     # ...or within what rounding can explain, where the exact rule does not hold: a race time = laps x an average lap time
     # written to the cent, so 16 laps carry 16 x 0.005 s (marbles, blind round 23: never learnt, a 26.1 typed 261 passed).
     # A column of whole numbers is exact (laps, units); one written to d decimals is off by up to half its last digit
-    half = np.array([0.0 if (d := _decimals(a[:, j])) == 0 else 0.5 * 10.0 ** -d for j in range(len(cols))])
+    half = np.array([_half(a[:, j]) for j in range(len(cols))])
     # ...and where rounding explains it, the total is rounded too: a gross written to the dollar from one with cents. Its
     # own half unit, whole numbers included: Broadway's gross missed avg ticket price (to the cent) x seats by 1.0004-1.009
     # times the half cent per seat, 62 Medium rows in blind round 37 (AH-54)
@@ -1480,7 +1483,7 @@ def _one_edit(a, b):
     if a == b or len(a) != len(b):
         return False
     d = [k for k in range(len(a)) if a[k] != b[k]]
-    return len(d) == 1 or (len(d) == 2 and d[1] == d[0] + 1 and a[d[0]] == b[d[1]] and a[d[1]] == b[d[0]])
+    return len(d) == 1 or _swapped(a, b)
 
 
 def _dropped(rare, usual, vowel=False):
@@ -1921,7 +1924,7 @@ KEY_CAP = 2  # ...and never more than 2: an id whose 1,526 items kept 5 second n
 KEYS = 8  # key columns read, in sheet order, each against the first 64 columns: a crafted wide sheet stays fast
 
 
-def same_by_key(df, column_types, skip, computed=None):
+def same_by_key(df, column_types, skip, computed):
     """AH-198 fix round 2: a column one value for each value of a key column (a part's unit cost, an account's name, a
     child's level under its parent) in all but max(1, KEY_OFF), at most KEY_CAP, of the key's KEY_GROUPS+ groups of 2+
     rows: in a group with one other value, written once against 2+ rows that agree, that cell is wrong (a part costed
@@ -1929,7 +1932,7 @@ def same_by_key(df, column_types, skip, computed=None):
     cell, a column of 2 values (a flag), a key whose values each sit in one run (a record's lines: same_in_record
     reads those, from 20 records) nor a protected key."""
     out = [[] for _ in range(len(df))]
-    computed, prot = computed or {}, set(fairness.protected(column_types))
+    prot = set(fairness.protected(column_types))
     cols = [c for c in column_types][:64]
     said = {c: df[c].astype(str).str.strip().where(~skip & ~_blank(df[c])) for c in cols}
     # a key is a code (P-10222, 2000, S01-101: 90% of its values with a digit and no space): a name is no key, two people
@@ -1982,14 +1985,13 @@ SCALES = (lambda v: v * 10, lambda v: v / 10, lambda v: v * 100, lambda v: v / 1
           lambda v: -v)
 
 
-def own_scale(df, column_types, skip, records, computed=None):
+def own_scale(df, column_types, skip, records, computed):
     """AH-198 fix round 2: a number column steady inside each record (its 3+ values within STEADY of each other in 90% of
     RECORDS+ records: a subject's weight, a part's price) holds one entity's own size. A value off its record's other
     values, which agree, and read back among them by a slip of the decimal point or a minus sign (SCALES), is that slip
     (an income of 576,510 on a line of its record whose others read 57,651). Never a formula's cell; never a fix: which
     of the entity's values it was is unknown. In sheet order: the first 50 number columns."""
     out = [[] for _ in range(len(df))]
-    computed = computed or {}
     for g, run in records.items():
         for c in [c for c, t in column_types.items() if t == "number" and 2 * computed.get(c, np.zeros(1)).sum() <= len(df)][:50]:
             x = pd.to_numeric(df[c], errors="coerce").where(~skip & (run >= 0) & ~computed.get(c, np.zeros(len(df), bool)))
@@ -2128,12 +2130,11 @@ def _swaps(v):
 BALANCE_OFF = 0.02  # records of a pair that may be off, at most max(1, this share): 3 slips in a 181-entry journal
 
 
-def _balanced(df, column_types, skip, records, computed=None):
+def _balanced(df, column_types, skip, records, computed):
     """Two number columns whose sums agree in every record of 2+ lines but max(1, BALANCE_OFF) (an entry's debits and
     credits): RECORDS+ records with amounts, the two seldom filled on one line (never a pair, `pairs`), neither column
     mostly formulas (a journal's VAT and payable lines are formulas, its total rows SUMs: their values still add).
     -> [(record column, run per row, a, b, x, the records' sums of a and b)]."""
-    computed = computed or {}
     cols = [c for c in numbers(column_types) if 2 * computed.get(c, np.zeros(1)).sum() <= len(df)][:BALANCE_COLS]
     x = {c: pd.to_numeric(df[c], errors="coerce").where(~skip) for c in cols}
     out = []
@@ -2754,11 +2755,12 @@ def score(df, column_types, errors_log, limits, order_by, strength=5, saved=(), 
     reads = _reads(grid, list(df.columns))
     in_step(df, column_types, skip, limits, reads, held)  # AH-208: a big row, not a slip
     # saved: the columns whose limits the user set - their limits win, so nothing is listed past the data's own band
+    protected = fairness.protected(column_types)
     lim = limits_detector(df, column_types, limits, typos_only=s < 1, listing=s >= ALONE,
-                          quiet=set(fairness.protected(column_types)) | set(saved), held=held, computed=computed)
+                          quiet=set(protected) | set(saved), held=held, computed=computed)
     # protected columns (Age, Gender, Location...) are checked for slips like any column (limits, blanks, spellings), but
     # never used to judge whether a person is unusual: a 74-year-old is not an anomaly for being 74 (fairness blueprint)
-    judged = {c: t for c, t in column_types.items() if c not in fairness.protected(column_types)
+    judged = {c: t for c, t in column_types.items() if c not in protected
               and not (c in computed and 2 * computed[c].sum() > n)}
     # the sentence and the card name one value. Where the row's arithmetic and a typo pattern disagree, the typo wins only
     # when the rule holds with it within its own rounding: "Spend -3314.28 (likely 3314.28)" had a card of 3314.7, worked

@@ -117,8 +117,7 @@ function notice(words) { // the card's notice box (a hairline box and a square),
 }
 
 function careSaid(f, words) {
-  $("fix-care").textContent = words;
-  show("fix-care");
+  notice(words);
   if (state.undos[f.i]) return; // an accepted fix keeps its Undo and what it changed
   // no earlier suggestion beside the helpline message: a formula card next to it read as if the pane had not listened
   // (AH-125 live check, 2026-11-05)
@@ -129,11 +128,12 @@ function careSaid(f, words) {
   show("fix-apply", false);
 }
 
+const item = (text) => Object.assign(document.createElement("li"), { textContent: text }); // AI text is never HTML
+
 // The AI word check: a value that is a different KIND of thing from the rest of its column ("London" among products).
 // The engine sends only each text column's distinct words. Worth a look, not proof: nothing is changed in the sheet.
 export async function checkWords() {
   const { columns, rows, startRow, startCol } = biggest(state.lastScan); // a sheet of several tables: its biggest (AH-212)
-  const item = (text) => Object.assign(document.createElement("li"), { textContent: text }); // AI text is never HTML
   busy("Asking the AI about your words…"); // AH-157: with its seconds; act() takes it off. The pane sat silent up to 300 s
   counting();
   try {
@@ -174,7 +174,6 @@ export function oddLines(odd, columns, startRow, startCol) {
 export async function checkRules() {
   const { columns, rows, startRow, startCol } = biggest(state.lastScan); // a sheet of several tables: its biggest (AH-212)
   const sheet = state.lastScan.sheet;
-  const item = (text) => Object.assign(document.createElement("li"), { textContent: text }); // AI text is never HTML
   busy("Asking the AI about your headers…");
   counting();
   try {

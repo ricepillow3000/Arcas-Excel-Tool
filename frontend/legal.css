@@ -7,13 +7,13 @@
 
 :root{
   color-scheme:light;
-  --paper:#F7F5F0; --paper-2:#EFECE4; --field:#FFFEFA; --rule:#CBC6B8;
+  --paper:#F7F5F0; --paper-2:#EFECE4; --rule:#CBC6B8;
   --navy:#0C1938; --ink:#1F2638; --muted:#555D6E;
   --on-navy:#EFE6D2; --on-navy-2:#B9B3A3; --rule-navy:#2E3D63;
   --wine:#6B1E2E; --on-wine:#FFFFFF; --gold:#997D3A; --gold-hi:#C9A85A;
   --sans:"Plus Jakarta Sans",ui-sans-serif,system-ui,"Segoe UI",sans-serif;
   /* a 1.25 type scale from a 15px body; nothing under 12px (AH-116: the table heads were 11) */
-  --fs--1:13px; --fs-0:15px; --fs-1:18.75px; --fs-2:23.4px; --fs-3:29.3px; --fs-4:36.6px; --fs-5:45.8px; --fs-6:57.2px;
+  --fs--1:13px; --fs-0:15px; --fs-1:18.75px; --fs-3:29.3px; --fs-4:36.6px; --fs-6:57.2px;
   --track:.12em;
   --s1:8px; --s2:16px; --s3:24px; --s4:32px; --s5:48px; --s6:64px;
   /* the grid: 12 columns, fixed gutters, a 1080 px measure */
@@ -83,7 +83,7 @@ body:has(:target) a.on{background:none;border-left-color:transparent;color:var(-
 .tldr::before,.callout::before{content:"";display:inline-block;width:10px;height:10px;margin-right:10px;background:var(--wine)}
 .tldr strong{color:var(--navy);font-weight:800}
 .doc section{padding:var(--s4) 0;border-top:1px solid var(--navy)}
-.doc h2{font:800 var(--fs-3)/1.05 var(--sans);color:var(--navy);margin-bottom:var(--s2)}
+.doc h2,.card h2{font:800 var(--fs-3)/1.05 var(--sans);color:var(--navy);margin-bottom:var(--s2)}
 .doc h3{font-size:var(--fs-0);font-weight:700;color:var(--navy);margin:var(--s3) 0 var(--s1);padding-top:var(--s1);border-top:1px solid var(--rule)}
 .doc p{font-size:var(--fs-0);margin:0 0 12px;max-width:68ch}
 .doc ul{margin:0 0 12px;padding-left:19px;max-width:68ch} .doc li{font-size:14.5px;margin-bottom:6px;overflow-wrap:anywhere}
@@ -94,7 +94,6 @@ body:has(:target) a.on{background:none;border-left-color:transparent;color:var(-
 /* ---------- support: blocks under navy hairlines ---------- */
 .stack{max-width:calc(var(--wrap) + 2 * var(--margin));margin:var(--s5) auto 0;padding:0 var(--margin);position:relative;z-index:2}
 .card{border-top:1px solid var(--navy);border-radius:0;padding:var(--s3) 0 var(--s4);margin-bottom:var(--s3)}
-.card h2{font:800 var(--fs-3)/1.05 var(--sans);color:var(--navy);margin-bottom:var(--s2)}
 .card p{font-size:var(--fs-0);margin:0 0 12px}
 
 details{border-top:1px solid var(--rule)}
