@@ -245,10 +245,29 @@ export const checkedIn = (secs) => `Checked in ${n(secs)} second${secs === 1 ? "
 export const otherTabSaid = (list, shown) => (list === shown ? "" : `This list is for ${list}. Find problems checks ${shown}.`);
 
 // Pure: the summary sentence
+// Pure (AH-242): a row the user dismissed said it looks right: the summary and the legend count it as clean (a Dismissed
+// row stayed in "8 of 120 rows look wrong" after a reload and a re-scan)
+export const undismissed = (rows, decided) => rows.map((r, i) => (decided[i] === "dismissed" ? { ...r, severity: null } : r));
+
+// Pure (AH-242): two or more cells of a row past the same limit the same way, each with the same "the row adds up" clause,
+// are one line naming every cell ("A -9 and B -9 are below their usual limit of 0, ..."), so the card says it once
+const ADDS_UP = /^(.+?) (\S+) is (above|below) its usual limit of (\S+), (but the row adds up \(.+\): worth a check)$/;
+export function joinTwins(lines) {
+  const out = [], at = new Map();
+  for (const line of lines) {
+    const m = ADDS_UP.exec(line);
+    if (!m) { out.push(line); continue; }
+    const key = m.slice(3).join("|");
+    if (at.has(key)) out[at.get(key)].cells.push(`${m[1]} ${m[2]}`);
+    else (at.set(key, out.length), out.push({ cells: [`${m[1]} ${m[2]}`], line, m }));
+  }
+  return out.map((o) => (typeof o === "string" || o.cells.length < 2 ? o.line ?? o : `${o.cells.slice(0, -1).join(", ")} and ${o.cells.at(-1)} are ${o.m[3]} their usual limit of ${o.m[4]}, ${o.m[5]}`));
+}
+
 // Pure (AH-166): the legend's [severity, count] pairs, worst first, only when 2+ severities are listed: one alone repeated
 // the summary ("5 of 300 rows look wrong." over "Probably wrong: 5")
-export function legendOf(rows) {
-  const counts = flaggedRows(rows).reduce((c, r) => ((c[r.severity] = (c[r.severity] || 0) + 1), c), {});
+export function legendOf(rows, decided = {}) {
+  const counts = flaggedRows(undismissed(rows, decided)).reduce((c, r) => ((c[r.severity] = (c[r.severity] || 0) + 1), c), {});
   const kinds = Object.keys(SEV).filter((k) => counts[k]);
   return kinds.length > 1 ? kinds.map((k) => [k, counts[k]]) : [];
 }
@@ -286,7 +305,8 @@ export function doneOf(order, decided) {
 // Pure (AH-184): the same finish line drawn, as the share of those rows done (0 to 1)
 export const shareOf = (order, decided) => (order.length ? order.filter((i) => decided[i]).length / order.length : 0);
 
-export function summaryOf(rows) {
+export function summaryOf(rows, decided = {}) {
+  rows = undismissed(rows, decided);
   const sure = rows.filter((r) => r.severity === "High" || r.severity === "Medium").length;
   const maybe = rows.filter((r) => r.severity === "Low").length;
   const more = maybe ? ` ${n(maybe)}${sure ? " more" : ""} ${maybe === 1 ? "is" : "are"} worth a quick check.` : "";
@@ -329,7 +349,7 @@ export function fairnessTests(fair) {
 // Pure: the engine's reason in plain words, for the list and the fix view (names: tableFromGrid's, a repeated header).
 // Each reason on its own line (AH-149: joined by " · " they read as one long sentence); sep "; " inside a sentence
 export function plainReason(reason, names = state.lastScan?.names, sep = "\n") {
-  return shownAs(String(reason || "")
+  return shownAs(joinTwins(String(reason || "")
     .replace(/^Flagged by \d+ of \d+: /, "")
     .replace(/(\S[^;]*?) weird limit is ([^;\s]+); this is ([^;\s]+)/g, (_, c, lim, v) => `${c} is ${v}, ${+v < +lim ? "below" : "above"} its usual limit of ${lim}`)
     .replace(/Unusual combination of values, mainly (.+?)(?=;|$)/g, "Unusual mix of values, mostly in $1")
@@ -338,5 +358,5 @@ export function plainReason(reason, names = state.lastScan?.names, sep = "\n") {
     .split("; ").filter((line, _, all) => { // AH-228 P-11: one jump said once, in its plainer words
       const m = / breaks its usual pattern near (.+)$/.exec(line);
       return !m || !all.includes(`${line.slice(0, m.index)} jumped sharply near ${m[1]}`);
-    }).join(sep), names);
+    })).join(sep), names);
 }
