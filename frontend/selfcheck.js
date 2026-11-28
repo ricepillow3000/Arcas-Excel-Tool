@@ -386,6 +386,22 @@ assert.deepEqual([100, 110, 109, 200, 300, 0, 999, 141].map((x) => levelAt(x, 10
   // no guess from the engine (a 12 among 0-5 children): nothing written
   assert.deepEqual(recommendFix(["Who", "Q3"], [["a", 4], ["b", 12]], 1, { Q3: [0, 5, 0, 9] }, "Q3 baseline limit is 9; this is 12", 0, 0, {}, null, {}).changes, []);
 }
+// AH-238: a row that adds up wrong where two cells could each be the slip: both answers are offered, in the sheet's column
+// order, each as the one cell it writes; never when a fix is already known, when either cell holds a formula, or for one cell
+{
+  const cols = ["Order", "Qty", "Unit Price", "Total"], rows = [["SO-1", 10, 7.99, 7.99]], why = "Total 7.99 does not add up: Qty × Unit Price = 79.9";
+  const two = recommendFix(cols, rows, 0, {}, why, 0, 0, {}, null, {}, undefined, 0, { Total: 79.9, Qty: 1 });
+  assert.deepEqual(two.changes, [], "nothing is written until one is picked");
+  assert.deepEqual(two.choices, [{ cell: "B2", new: "1", col: "Qty" }, { cell: "D2", new: "79.9", col: "Total" }]);
+  assert.equal(two.explanation, `${why}. Either Qty should be 1 or Total should be 79.9. Check your source to see which, then pick it.`);
+  assert.ok(!two.guess);
+  assert.equal(recommendFix(cols, rows, 0, {}, why, 0, 0, {}, null, {}).choices, undefined, "no choices from the engine: none on the card");
+  assert.equal(recommendFix(cols, rows, 0, {}, why, 0, 0, {}, ["", "", "", "=B2*C2"], {}, undefined, 0, { Total: 79.9, Qty: 1 }).choices, undefined, "a cell holding a formula is never typed over");
+  assert.equal(recommendFix(cols, rows, 0, {}, why, 0, 0, {}, null, {}, undefined, 0, { Qty: 1 }).choices, undefined, "one answer is a fix, not a choice");
+  assert.equal(recommendFix(cols, rows, 0, {}, "Qty weird limit is 5; this is 10", 0, 0, {}, null, {}, undefined, 0, { Total: 79.9, Qty: 1 }).choices, undefined, "choices only beside the sum that names both cells");
+  const fixed = recommendFix(cols, rows, 0, {}, why, 0, 0, { Total: 79.9 }, null, {}, undefined, 0, { Total: 79.9, Qty: 1 });
+  assert.equal(fixed.choices, undefined, "a card that already has a fix offers no choices");
+}
 // a misspelling's fix is offered, labelled a guess
 const mr = recommendFix(["Item"], [["Pencl"], ["Pencil"]], 0, {}, 'Item "Pencl" looks like a misspelling of "Pencil"', 0, 0, {}, null, { Item: "Pencil" });
 assert.deepEqual(mr.changes, [{ cell: "A2", new: "Pencil" }]);

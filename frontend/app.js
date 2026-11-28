@@ -15,6 +15,7 @@ import { backToList, dismissFix, fixedIt, muteFix, nextFix } from "./pages/fix.j
 import { initStrength } from "./pages/strength.js";
 import { autoOn, setAuto, autoUndo, undoAutoFix } from "./features/autofix.js";
 import { notice } from "./components/progress.js";
+import { pickChoice } from "./components/fix-preview.js";
 import { n, versionSaid } from "./utils/text.js";
 import { initSettings } from "./pages/settings.js";
 import { initMotion } from "./components/motion.js";
@@ -64,6 +65,8 @@ else {
     });
     // AH-228 P-08: a card with no fix to write offers "I fixed it" in Accept's place: the row is read and checked again
     $("fix-apply").onclick = thenFocus(act(() => state.fix && (state.fix.recheck ? fixedIt() : applyFix(state.fix, state.fix.changes, state.fix.sheet)), CARD), () => fixDone() && $("fix-undo"));
+    // AH-238: each answer of a two-choice card writes only its own cell, through Accept's own path
+    [0, 1].forEach((k) => ($(`fix-pick-${k}`).onclick = thenFocus(act(async () => { if (!state.fix?.choices) return; await pickChoice(state.fix, k); await applyFix(state.fix, state.fix.changes, state.fix.sheet); }, CARD), () => fixDone() && $("fix-undo"))));
     $("fix-undo").onclick = thenFocus(act(() => state.fix && undoFix(state.fix), CARD), () => state.fix && !fixDone() && $("fix-apply"));
     $("fix-dismiss").onclick = act(() => dismissFix(), CARD);
     $("fix-mute").onclick = act(muteFix, CARD); // AH-205

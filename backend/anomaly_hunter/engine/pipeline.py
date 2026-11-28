@@ -1325,18 +1325,18 @@ def pairs(df, column_types, skip, limits=None, held=None, grid=None):
     add up. Tried pair by pair, so a x10 typo elsewhere can't bend it the way it
     bends sums' least squares, and small sheets (48 months) are checked too. To the cent, like sums; both columns must
     vary (x 1, or x a 0/1 flag, is no rule). Pairs are tried on a 64-row sample first, so a 50-column sheet stays fast.
-    -> (reasons, fixes, fits). A broken row with exactly ONE cell outside its usual range gets that cell solved from the
+    -> (reasons, fixes, fits, picks). A broken row with exactly ONE cell outside its usual range gets that cell solved from the
     other two (Units -5 with Total 170.43 = Units x 2.99 -> 57) when the answer is a usual value written like its
     column: exact, where the pane would otherwise offer the median. Two odd cells: the arithmetic can't say which.
     fits[i][col](v): the rule holds on row i, to the cent or within its columns' rounding, with that cell set to v.
     held: filled with the rows each rule holds on (see confirm). grid: the pane's R1C1 formulas (see _restated)."""
-    out, fix, fits = [[] for _ in range(len(df))], [{} for _ in range(len(df))], [{} for _ in range(len(df))]
+    out, fix, fits, picks = [[] for _ in range(len(df))], [{} for _ in range(len(df))], [{} for _ in range(len(df))], [{} for _ in range(len(df))]
     cols = numbers(column_types)
     a = df[cols][~skip].to_numpy(dtype=float)
     index = df.index[~skip]
     restated = _restated(grid, list(df.columns), cols, ~skip)
     if len(cols) < 3 or len(a) < 20:
-        return out, fix, fits
+        return out, fix, fits, picks
     bounds = lambda j: (limits or {}).get(cols[j]) or (None, None, None, None)
     usual = lambda j, v: (bounds(j)[0] is None or v >= bounds(j)[0]) and (bounds(j)[1] is None or v <= bounds(j)[1])
     # the first 64 varying columns: pairs x fractions grows with the cube of the width (160 columns took 20 s, 2026-10-16)
@@ -1433,12 +1433,16 @@ def pairs(df, column_types, skip, limits=None, held=None, grid=None):
                 slack = half[cs[0]] * abs(q) + half[cs[1]] * abs(p) if op is np.multiply else half[cs[0]] + half[cs[1]]
                 return bool(abs(y1 - got1) <= slack + own[t] + 1e-9 * abs(y1))
 
+            def exactly(i, j):  # an answer that is a usual value written exactly like its column
+                v, d = answer(i, j), _decimals(a[:, j])
+                w = np.round(v, d)
+                return bool(np.isfinite(v) and usual(j, w) and abs(v - w) < 0.01 * 10.0 ** -d + 1e-9 * abs(v))
+
             def written(i, j):
                 """Cell j of row i has an answer that is a usual value written like its column and makes the row add up: exactly,
                 or, where the rule itself only holds within rounding, within it (so a rounded cell cannot hide a second answer)."""
-                v, d = answer(i, j), _decimals(a[:, j])
-                w = np.round(v, d)
-                return bool(np.isfinite(v) and usual(j, w) and (abs(v - w) < 0.01 * 10.0 ** -d + 1e-9 * abs(v) or loose and fits_with(i, j, w)))
+                v = answer(i, j)
+                return exactly(i, j) or bool(loose and np.isfinite(v) and usual(j, np.round(v, _decimals(a[:, j]))) and fits_with(i, j, np.round(v, _decimals(a[:, j]))))
 
             for i in np.flatnonzero(ok & ~good & ~_left_out(a, y - got, [t, *cs]) & ~restated((t, *cs))):
                 out[index[i]].append(Why(f"{cols[t]} {say(y[i])} does not add up: {said} = {got[i]:.10g}", cols[t], *(cols[c] for c in cs)))
@@ -1447,6 +1451,9 @@ def pairs(df, column_types, skip, limits=None, held=None, grid=None):
                 # solved when exactly one cell has an answer written like its column that makes the row add up (AH-237)
                 if len(odd) != 1:
                     odd = [j for j in (t, *cs) if written(i, j)]
+                    # two cells that could each be the slip: both answers go to the user, who picks (AH-238)
+                    if len(odd) == 2 and all(exactly(i, j) for j in odd):
+                        picks[index[i]] = {cols[j]: float(f"{np.round(answer(i, j), _decimals(a[:, j])):.10g}") for j in odd}
                 if len(odd) != 1:
                     continue
                 j = odd[0]
@@ -1460,7 +1467,7 @@ def pairs(df, column_types, skip, limits=None, held=None, grid=None):
                         abs(v - np.round(v, d)) < 0.01 * 10.0 ** -d + 1e-9 * abs(v) or j != t and fit(np.round(v, d))):
                     fix[index[i]][cols[j]] = float(f"{np.round(v, d):.10g}")
                     fits[index[i]][cols[j]] = fit
-    return out, fix, fits
+    return out, fix, fits, picks
 
 
 def _one_edit(a, b):
@@ -2732,7 +2739,7 @@ def score(df, column_types, errors_log, limits, order_by, strength=5, saved=(), 
     # the row's own arithmetic first: a value in a cell of a rule that holds on its row is confirmed by it, never a slip
     # the limits vote on or offer a typo for (AH-74, see confirm)
     held = {}
-    paired, solved, fits = pairs(df, column_types, skip, limits, held, grid)
+    paired, solved, fits, picked = pairs(df, column_types, skip, limits, held, grid)
     add = [list(dict.fromkeys(s + m)) for s, m in zip(sums(df, column_types, skip, held, grid), paired, strict=True)]
     # a formula's value is worked out from its inputs: its odd value is theirs, so the limits never judge or name it (Net
     # =Debit-Credit said every big debit twice), and a column of formulas adds nothing to a mix of values (AH-198)
@@ -2923,6 +2930,7 @@ def score(df, column_types, errors_log, limits, order_by, strength=5, saved=(), 
             "magnitude": float(max((d["magnitude"][i] for d in voted), default=0.0)),
             "likely": only({**lim["likely"][i], **solved[i], **spell_fix[i], **owed_fix[i]}),  # the row's own arithmetic beats a typo pattern
             "maybe": only({**lim["maybe"][i], **spell_maybe[i]}),  # misspelling, or a typo the numbers cannot prove: a guess the user confirms
+            "choices": only(picked[i]),  # AH-238: two cells that could each be the slip, both answers for the user to pick from
             "exact": only(spell_exact[i]),  # capitals/spaces where the usual spelling is 5x as common: safe to auto-fix
             "formula": only(calc_fix[i]),  # AH-152: the column's own R1C1 formula for a cell that broke it: the card writes it back
             "kinds": [list(p) for p in kinds],

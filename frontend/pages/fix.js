@@ -80,21 +80,22 @@ async function openRow(i, selectInSheet, from, focus) { // from: the list's butt
     f.calc = range.formulas[0]; // a cell holding a formula is never typed over
   });
   if (u) return showAccepted(f, u);
-  let rec = recommendFix(columns, rows, i, t.limits || state.lastLimits, r.reason, startRow, startCol, r.likely, f.calc, r.maybe, r.formula, t.o);
+  let rec = recommendFix(columns, rows, i, t.limits || state.lastLimits, r.reason, startRow, startCol, r.likely, f.calc, r.maybe, r.formula, t.o, r.choices);
   rec = withPast(rec, columns, rows[i], r.kinds, f.calc, startRow + 2 + i, startCol); // AH-219: the user's own fix of this slip
   if (state.fix === f) rec = await suggestTypo(f, r, rec).catch(() => rec); // no typo found or engine busy: the advice stays
-  const label = !rec.changes.length ? "What to check" : rec.past ? "Your earlier fix: check it before you accept"
+  const label = rec.choices ? "Two possible fixes" : !rec.changes.length ? "What to check" : rec.past ? "Your earlier fix: check it before you accept"
     : rec.typo ? "Possible typo: check it before you accept"
     : rec.guess ? "Best guess: check it before you accept" : "Suggested fix";
   if (state.fix !== f) return;
   // AH-228 P-02: the check named under Dismiss is the one about the column the fix changes, never only the row's first
   f.stop = stoppable(r.kinds, rec.changes.map((c) => columns[cellAt(c.cell)?.col - startCol]).filter(Boolean));
   $("fix-mute").textContent = f.stop ? `Never check ${stopSaid(f.stop)} on this sheet` : "";
-  $("fix-tries").children[1].hidden = !!rec.changes.length && !rec.guess; // AH-235: the engine already knows this value
-  $("ai-fold").open = !rec.changes.length; // no fix to offer: the way to ask for one shows
+  const fixed = !!rec.changes.length || !!rec.choices; // AH-238: two answers to pick from are a fix on offer too
+  $("fix-tries").children[1].hidden = fixed && !rec.guess; // AH-235: the engine already knows this value
+  $("ai-fold").open = !fixed; // no fix to offer: the way to ask for one shows
   // AH-228 P-33: with no fix on the card, Ask AI is the way to one, said as such
-  $("ai-fold").querySelector("summary").textContent = rec.changes.length ? "Want a different fix? Ask AI" : "Ask AI for a fix";
-  $("fix-intent-label").textContent = rec.changes.length ? "For a different fix, describe it and AI will draft one." : "Describe the fix you want and AI will draft one.";
+  $("ai-fold").querySelector("summary").textContent = fixed ? "Want a different fix? Ask AI" : "Ask AI for a fix";
+  $("fix-intent-label").textContent = fixed ? "For a different fix, describe it and AI will draft one." : "Describe the fix you want and AI will draft one.";
   await showFix(f, label, rec);
 }
 
