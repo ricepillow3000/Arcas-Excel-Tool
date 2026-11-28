@@ -24,6 +24,9 @@ permissions:
 
 jobs:
   probe:
+    # a push to a branch with an open pull request starts this twice against the same live relay, and each run spends
+    # one of the public tier's daily calls: the pull request run is left for forks only, whose pushes we never see
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

@@ -27,10 +27,9 @@ const GOOGLE_WAIT_MS = 90_000;
 const json = (status, body) => new Response(JSON.stringify(body),
   { status, headers: { "Content-Type": "application/json", "X-Content-Type-Options": "nosniff" } });
 
-async function sha256(text) {
-  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
-  return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join("");
-}
+const hex = (bytes) => [...new Uint8Array(bytes)].map((b) => b.toString(16).padStart(2, "0")).join("");
+
+const sha256 = async (text) => hex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)));
 
 // A [vars] cap that is missing or not a number falls back to the real quota; "0" means off, not "unset"
 // (2026-10-15 audit: `+"0" || 20` turned a switched-off relay back on at 20 a day)
@@ -69,7 +68,7 @@ async function upTo(req, max) {
 
 async function hmac(key, text) {
   const k = await crypto.subtle.importKey("raw", new TextEncoder().encode(key), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-  return [...new Uint8Array(await crypto.subtle.sign("HMAC", k, new TextEncoder().encode(text)))].map((b) => b.toString(16).padStart(2, "0")).join("");
+  return hex(await crypto.subtle.sign("HMAC", k, new TextEncoder().encode(text)));
 }
 
 export default {

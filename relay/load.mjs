@@ -6,6 +6,7 @@
 import assert from "node:assert";
 import { readFileSync } from "node:fs";
 import worker, { Counter } from "./worker.js";
+import { good, googleOk, hash as sha } from "./stub.mjs";
 
 const toml = readFileSync(new URL("./wrangler.toml", import.meta.url), "utf8");
 const vars = Object.fromEntries([...toml.matchAll(/^(\w+) = "(\d+)"/gm)].map(([, k, n]) => [k, +n]));
@@ -14,8 +15,6 @@ const MINUTE = +toml.match(/simple = \{ limit = (\d+), period = 60 \}/)[1];
 const PER_NET = v("PUBLIC_DAILY_PER_NETWORK"), PUB_TOTAL = v("PUBLIC_DAILY_TOTAL"), PER_48 = v("PUBLIC_DAILY_PER_48");
 const PER_INVITE = v("DAILY_PER_INVITE"), INV_TOTAL = v("DAILY_TOTAL");
 
-const sha = async (t) => [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t)))]
-  .map((b) => b.toString(16).padStart(2, "0")).join("");
 const later = () => new Promise((ok) => setImmediate(ok));
 
 // a Durable Object: one fetch at a time (its input gate), with storage that yields between get and put, so a counter
@@ -36,7 +35,7 @@ let google = 0;
 globalThis.fetch = async () => {
   google++;
   await new Promise((ok) => setTimeout(ok, 1 + Math.random() * 4)); // Google answers after 1-5 ms
-  return new Response(JSON.stringify({ choices: [{ message: { content: '{"explanation":"x","changes":[]}' } }] }), { status: 200 });
+  return googleOk();
 };
 
 // the day the caps count: "next day" moves the clock 24 h
@@ -51,7 +50,7 @@ const invites = ["Ana", "Ben", "Cy", "Di", "Ed"];
 const env = { GEMINI_KEY: "AQ.load-test-not-a-key", COUNTER: namespace(), BURST, MODELS: "gemini-3.8-flash", PUBLIC_MODELS: "gemini-3.5-flash-lite",
   TOKENS: JSON.stringify(Object.fromEntries(await Promise.all(invites.map(async (n) => [await sha(`inv_${n}`), n])))),
   ...Object.fromEntries(["PUBLIC_DAILY_PER_NETWORK", "PUBLIC_DAILY_TOTAL", "PUBLIC_DAILY_PER_48", "DAILY_PER_INVITE", "DAILY_TOTAL"].map((n) => [n, String(v(n))])) };
-const body = JSON.stringify({ messages: [{ role: "user", content: "Fix row 7" }], response_format: { type: "json_schema", json_schema: { name: "fix", schema: {} } } });
+const body = JSON.stringify(good);
 
 async function wave(name, sends) { // sends: [{ip} | {invite}] in arrival order, all fired at once
   minute.clear();

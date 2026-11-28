@@ -354,7 +354,8 @@ def _texts(node, names, funcs):
 def engine_sentences():
     """(file:line, sentence) for each error a user can read from the engine: the "error" and "message" values of its
     JSON answers, and the words of every ValueError ai/client.py raises (the /fix route answers with str(e)). Names are
-    followed to what is assigned to them, and calls to what the function returns (server's _bad, client's check_key)."""
+    followed to what is assigned to them, and calls to what the function returns (server's _bad, client's check_key). A
+    route answers a bad body through abort(400, description=...) (server's _sheet), so that description is read as well."""
     trees = {f: ast.parse((ROOT / f).read_text(encoding="utf-8")) for f in ENGINE}
     names, funcs, defs = {}, {}, {}
     for tree in trees.values():
@@ -383,6 +384,8 @@ def engine_sentences():
                 for k, v in zip(node.keys, node.values):
                     if isinstance(k, ast.Constant) and k.value in SAID:
                         out += [(f"{f}:{v.lineno}", t) for t in _texts(v, names, funcs)]
+            elif isinstance(node, ast.Call) and getattr(node.func, "id", None) == "abort":
+                out += [(f"{f}:{k.value.lineno}", t) for k in node.keywords if k.arg == "description" for t in _texts(k.value, names, funcs)]
             elif f.endswith("client.py") and isinstance(node, ast.Raise) and isinstance(node.exc, ast.Call) \
                     and getattr(node.exc.func, "id", None) in raised and node.exc.args:
                 out += [(f"{f}:{node.lineno}", t) for t in _texts(node.exc.args[0], names, funcs)]

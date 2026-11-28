@@ -20,7 +20,7 @@ from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
-from flask import Flask, request
+from flask import Flask, abort, request
 from flask.json.provider import DefaultJSONProvider
 from werkzeug.exceptions import HTTPException
 from werkzeug.serving import WSGIRequestHandler
@@ -32,7 +32,6 @@ from anomaly_hunter.engine import rules
 from anomaly_hunter.engine.load import load_from_records
 from anomaly_hunter.engine.pipeline import KINDS, knobs
 from anomaly_hunter.engine.profile import profile
-from anomaly_hunter.sealed import write_private as _write_private
 
 # the pane, served as-is: beside the code in a checkout, inside the bundle in the one-file app (unpacked to _MEIPASS)
 PANEL = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[2])) / "frontend"
@@ -141,6 +140,14 @@ def _bad(body):
     return None
 
 
+def _sheet():
+    """The request's body, once _bad passes it; else the 400 json_error answers with _bad's words."""
+    body = request.get_json(silent=True)
+    if err := _bad(body):
+        abort(400, description=err)
+    return body
+
+
 class _NoKeys(logging.Filter):
     """server.log never holds a key or an invite code: a provider's error can quote the key it was sent ("upstream said
     AIza..."), and the log went in whole, traceback and all, to a plain file a user may attach to a support message
@@ -224,9 +231,7 @@ def create_app(scan_csv=None):
 
     @app.post("/scan")
     def scan():
-        body = request.get_json(silent=True)
-        if err := _bad(body):
-            return {"error": err}, 400
+        body = _sheet()
         cols, rows, limits = [str(c) for c in body["columns"]], body["rows"], body.get("limits")  # a year header 2024 is "2024"
         order_by = None if body.get("order_by") is None else str(body["order_by"])
         # where the table sits, for the Power BI copy's "Excel Row" (the pane's "Row N") and "Sheet"
@@ -289,9 +294,7 @@ def create_app(scan_csv=None):
     def profile_route():
         """AH-169: what the sheet looks like and what a scan will check, said before it, on this PC only: no AI, no
         file, nothing kept. The pane sends the header and the first 500 rows; the body is checked as /scan's is."""
-        body = request.get_json(silent=True)
-        if err := _bad(body):
-            return {"error": err}, 400
+        body = _sheet()
         return profile(body["columns"], body["rows"])
 
     def ai(call):
@@ -351,9 +354,7 @@ def create_app(scan_csv=None):
 
     @app.post("/fix")
     def fix_route():
-        body = request.get_json(silent=True)
-        if err := _bad(body):
-            return {"error": err}, 400
+        body = _sheet()
         nat = lambda k, hi=None: type(body.get(k)) is int and 0 <= body[k] and (hi is None or body[k] < hi)
         # Excel's last column is XFD (16384): further right is no sheet address
         # start_row is bounded like /scan's (AH-185: it had no upper bound here, so any whole number went through)
@@ -400,9 +401,7 @@ def create_app(scan_csv=None):
     def odd_text_route():
         """Optional AI text check: values a different KIND of thing from their column ("London" among products).
         Only category-like text columns (2-50 distinct values) go, as their distinct values - never rows or numbers."""
-        body = request.get_json(silent=True)
-        if err := _bad(body):
-            return {"error": err}, 400
+        body = _sheet()
         df, types, _ = load_from_records(body["columns"], body["rows"])
         cells = {c: df[c].astype(str).str.strip() for c, t in types.items() if t == "text"}
         values = {c: sorted(set(s[(s != "") & ~s.str[:1].isin(list("=+-@"))])) for c, s in cells.items()}
@@ -420,9 +419,7 @@ def create_app(scan_csv=None):
     def rules_route():
         """AH-202: optional AI subject rules. Only the sheet's own headers and each column's kind (number, date, text,
         id) go to the AI, never a cell; every rule it names is checked here on every row (engine/rules.py)."""
-        body = request.get_json(silent=True)
-        if err := _bad(body):
-            return {"error": err}, 400
+        body = _sheet()
         df, types, _ = load_from_records(body["columns"], body["rows"])
         heads = rules.headers(body["columns"])
         if not heads:
@@ -437,9 +434,7 @@ def create_app(scan_csv=None):
     @app.post("/check")
     def check_route():
         """Agent 3: does this fix make the row look right? A full re-scan with the limits the first scan used."""
-        body = request.get_json(silent=True)
-        if err := _bad(body):
-            return {"error": err}, 400
+        body = _sheet()
         i, changes, width = body.get("row_index"), body.get("changes"), len(body["columns"])
         if not (type(i) is int and 0 <= i < len(body["rows"]) and isinstance(changes, list) and 0 < len(changes) <= width and all(
                 isinstance(c, dict) and type(c.get("col")) is int and 0 <= c["col"] < width and "value" in c and _cell(c["value"])
@@ -450,9 +445,7 @@ def create_app(scan_csv=None):
     @app.post("/suggest")
     def suggest_route():
         """Agent 3 for an only-unusual row: the one typing slip that would make it normal, or {}."""
-        body = request.get_json(silent=True)
-        if err := _bad(body):
-            return {"error": err}, 400
+        body = _sheet()
         i, cols = body.get("row_index"), [str(c) for c in body["columns"]]
         if not (type(i) is int and 0 <= i < len(body["rows"]) and isinstance(body.get("column"), str) and body["column"] in cols):
             return {"error": "'row_index' and 'column' must point inside the table"}, 400
@@ -524,7 +517,7 @@ def make_cert(folder=HOME, days=5 * 365):
     (folder / "cert.pem").unlink(missing_ok=True)  # cert.pem = "done" marker: crash mid-write -> regenerated next run
     # key.pem stays a plain PEM file (never sealed like the AI key): Python's ssl loads a key only from a file, and a
     # stolen copy can only pretend to be localhost, since the CA that signed it is name-constrained to it
-    _write_private(folder / "key.pem", key.private_bytes(pem, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()))
+    sealed.write_private(folder / "key.pem", key.private_bytes(pem, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()))
     (folder / "ca.pem").write_bytes(ca.public_bytes(pem))
     (folder / "cert.pem").write_bytes(leaf.public_bytes(pem))
     return True
